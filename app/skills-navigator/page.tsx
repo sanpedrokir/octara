@@ -810,7 +810,7 @@ export default function SkillsNavigatorPage() {
                   <button onClick={() => setStep(4)} className="btn-ghost">← Back</button>
                   <button onClick={() => {
                     sessionStorage.removeItem(SESSION_KEY);
-                    setAnalysis(null); setCoursesBySkill({}); setRoadmap(null); setVideos([]);
+                    setAnalysis(null); setCoursesBySkill({}); setRoadmap(null);
                     setStep(1);
                   }} className="btn-secondary">Start New Analysis</button>
                 </div>
