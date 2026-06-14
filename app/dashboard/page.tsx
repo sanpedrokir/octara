@@ -34,14 +34,76 @@ export default async function DashboardPage() {
   const profileRows = await sql`SELECT bio, location FROM profiles WHERE user_id = ${session.userId}`;
   const profileData = profileRows[0] as { bio: string | null; location: string | null } | undefined;
 
-  const recentCourses = await sql`
-    SELECT course_title, provider_name, status FROM tracked_courses
-    WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 3
-  ` as Array<{ course_title: string; provider_name: string; status: string }>;
+
+  // Progress computation — try skill_assessments first, fall back to learning_roadmaps
+  const assessmentRows = await sql`
+    SELECT skill_gaps, strengths, current_skills FROM skill_assessments
+    WHERE user_id = ${session.userId}
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  let rawSkillGaps = (assessmentRows[0]?.skill_gaps ?? null) as Array<{ skill: string; priority: string }> | null;
+
+  if (!rawSkillGaps || rawSkillGaps.length === 0) {
+    const roadmapRows = await sql`
+      SELECT skill_gaps FROM learning_roadmaps
+      WHERE user_id = ${session.userId}
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    rawSkillGaps = (roadmapRows[0]?.skill_gaps ?? null) as Array<{ skill: string; priority: string }> | null;
+  }
+
+  const skillGaps: Array<{ skill: string; priority: string }> = rawSkillGaps ?? [];
+  const totalGaps = skillGaps.length;
+  const hasAssessment = rawSkillGaps !== null && totalGaps > 0;
+
+  const trackedWithSkill = await sql`
+    SELECT skill_name, status FROM tracked_courses
+    WHERE user_id = ${session.userId} AND skill_name IS NOT NULL AND skill_name != ''
+  ` as Array<{ skill_name: string; status: string }>;
+
+  const gapNames = new Set(skillGaps.map(g => g.skill.toLowerCase()));
+  const coveredByCompleted = new Set(
+    trackedWithSkill.filter(c => c.status === 'completed' && gapNames.has(c.skill_name.toLowerCase())).map(c => c.skill_name.toLowerCase())
+  );
+  const coveredByInProgress = new Set(
+    trackedWithSkill.filter(c => c.status === 'in_progress' && gapNames.has(c.skill_name.toLowerCase())).map(c => c.skill_name.toLowerCase())
+  );
+
+  const totalTracked = Number(courseStats?.total ?? 0);
+  const totalCompleted = Number(courseStats?.completed ?? 0);
+
+  // Weighted progress score (out of 100)
+  // 15 pts: milestones (career goal + assessment done)
+  // 55 pts: skill gaps covered (completed=full, in-progress=half)
+  // 30 pts: overall course completion rate
+  let progressScore = 0;
+  if (career) progressScore += 8;
+  if (hasAssessment) progressScore += 7;
+  if (totalGaps > 0) {
+    progressScore += Math.round((coveredByCompleted.size / totalGaps) * 55);
+    progressScore += Math.round((coveredByInProgress.size / totalGaps) * 27);
+  }
+  if (totalTracked > 0) {
+    progressScore += Math.round((totalCompleted / totalTracked) * 30);
+  }
+  progressScore = Math.min(100, progressScore);
+
+  const progressLabel =
+    progressScore === 0 ? 'Not started'
+    : progressScore < 25 ? 'Just getting started'
+    : progressScore < 50 ? 'Building momentum'
+    : progressScore < 75 ? 'Making great progress'
+    : progressScore < 100 ? 'Almost there!'
+    : 'Goal achieved!';
+
+  const progressColor =
+    progressScore < 25 ? 'var(--muted)'
+    : progressScore < 50 ? 'var(--warning)'
+    : progressScore < 75 ? 'var(--primary)'
+    : 'var(--teal)';
 
   const profileComplete = !!(profileData?.bio && profileData?.location);
   const hasCareer = !!career;
-  const hasCourses = Number(courseStats?.total || 0) > 0;
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -79,7 +141,7 @@ export default async function DashboardPage() {
                 <span style={{ color: 'var(--muted)' }}>– choose your target industry and role</span>
               </div>
             )}
-            {hasCareer && !hasCourses && (
+            {hasCareer && !hasAssessment && (
               <div className="flex items-center gap-2 text-sm">
                 <span>⬜</span>
                 <Link href="/skills-navigator" className="font-medium no-underline" style={{ color: 'var(--primary)' }}>Run skills analysis</Link>
@@ -112,96 +174,95 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* Career goal + recent courses */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Career goal */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🎯 Career Goal</h2>
-            <Link href="/career" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
-              {hasCareer ? 'Edit' : 'Set goal →'}
-            </Link>
+      {/* Career Progress */}
+      <div className="card p-5">
+        <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+          <div>
+            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>📈 Career Readiness Progress</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+              {career ? `Towards ${career.job_role_name} · ${career.industry_name}` : 'Set a career goal to track your progress'}
+            </p>
           </div>
-          {hasCareer ? (
-            <div className="space-y-2">
-              <div>
-                <p className="text-xs uppercase tracking-wide font-medium mb-1" style={{ color: 'var(--muted)' }}>Industry</p>
-                <p className="font-medium" style={{ color: 'var(--foreground)' }}>{career.industry_name}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide font-medium mb-1" style={{ color: 'var(--muted)' }}>Target Role</p>
-                <p className="font-medium" style={{ color: 'var(--foreground)' }}>{career.job_role_name}</p>
-              </div>
-              <div className="pt-3">
-                <Link href="/skills-navigator" className="btn-primary text-sm no-underline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
-                  Analyse Skills Gap →
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center py-6 text-center">
-              <span className="text-4xl mb-3">🗺️</span>
-              <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>Set your career goal to get started</p>
-              <Link href="/career" className="btn-primary text-sm no-underline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Set Career Goal →</Link>
-            </div>
-          )}
+          <div className="text-right shrink-0">
+            <span className="text-3xl font-bold" style={{ color: progressColor }}>{progressScore}%</span>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: progressColor }}>{progressLabel}</p>
+          </div>
         </div>
 
-        {/* Recent courses */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>📚 Recent Courses</h2>
-            <Link href="/skills-navigator" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>View all →</Link>
-          </div>
-          {recentCourses.length > 0 ? (
-            <div className="space-y-3">
-              {recentCourses.map((course, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'var(--muted-bg)' }}>
-                  <span className="text-lg mt-0.5">{course.status === 'completed' ? '✅' : '📖'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{course.course_title}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{course.provider_name || 'SkillsFuture'}</p>
-                  </div>
-                  <span className={`badge ${course.status === 'completed' ? 'badge-teal' : 'badge-blue'}`} style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                    {course.status === 'completed' ? 'Done' : 'In Progress'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center py-6 text-center">
-              <span className="text-4xl mb-3">📖</span>
-              <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>No courses tracked yet</p>
-              <Link href="/skills-navigator" className="btn-secondary text-sm no-underline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Discover Courses</Link>
-            </div>
-          )}
+        {/* Progress bar */}
+        <div className="w-full rounded-full h-3 mb-4" style={{ background: 'var(--muted-bg)' }}>
+          <div
+            className="h-3 rounded-full transition-all duration-700"
+            style={{ width: `${progressScore}%`, background: progressColor }}
+          />
         </div>
+
+        {/* Breakdown */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Milestones */}
+          <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Setup</p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs">
+                <span>{career ? '✅' : '⬜'}</span>
+                <span style={{ color: career ? 'var(--foreground)' : 'var(--muted)' }}>Career goal set</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span>{hasAssessment ? '✅' : '⬜'}</span>
+                <span style={{ color: hasAssessment ? 'var(--foreground)' : 'var(--muted)' }}>Skill gap analysis done</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Skill gaps */}
+          <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Skill Gaps Covered</p>
+            {totalGaps > 0 ? (
+              <>
+                <p className="text-lg font-bold" style={{ color: 'var(--primary)' }}>
+                  {coveredByCompleted.size + coveredByInProgress.size}
+                  <span className="text-xs font-normal ml-1" style={{ color: 'var(--muted)' }}>/ {totalGaps}</span>
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                  {coveredByCompleted.size} completed · {coveredByInProgress.size} in progress
+                </p>
+              </>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>Run skill analysis first</p>
+            )}
+          </div>
+
+          {/* Course completion */}
+          <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Courses Completed</p>
+            {totalTracked > 0 ? (
+              <>
+                <p className="text-lg font-bold" style={{ color: 'var(--teal)' }}>
+                  {totalCompleted}
+                  <span className="text-xs font-normal ml-1" style={{ color: 'var(--muted)' }}>/ {totalTracked}</span>
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                  {totalTracked - totalCompleted} still in progress
+                </p>
+              </>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>No courses tracked yet</p>
+            )}
+          </div>
+        </div>
+
+        {progressScore < 100 && (
+          <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--card-border)' }}>
+            <Link href="/skills-navigator" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
+              {!hasAssessment ? '→ Run skill gap analysis to unlock full progress tracking' : '→ Go to Skills Navigator to continue your learning journey'}
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Recommended courses based on career goal */}
       {hasCareer && <RecommendedCourses />}
 
-      {/* Quick actions */}
-      <div className="card p-5">
-        <h2 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { href: '/skills-navigator', icon: '🧭', label: 'Analyse Skills' },
-            { href: '/my-courses', icon: '📚', label: 'My Courses' },
-            { href: '/skills-navigator#roadmap', icon: '🗺️', label: 'View Roadmap' },
-          ].map(action => (
-            <Link
-              key={action.href}
-              href={action.href}
-              className="flex flex-col items-center p-3 rounded-xl text-center no-underline transition-colors gap-2"
-              style={{ background: 'var(--muted-bg)', color: 'var(--foreground)' }}
-            >
-              <span className="text-2xl">{action.icon}</span>
-              <span className="text-xs font-medium">{action.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

@@ -20,9 +20,10 @@ export async function POST(request: Request) {
     );
 
     const sql = db();
+    await sql`ALTER TABLE learning_roadmaps ADD COLUMN IF NOT EXISTS courses_by_skill JSONB`;
     const [saved] = await sql`
-      INSERT INTO learning_roadmaps (user_id, roadmap_data, skill_gaps)
-      VALUES (${session.userId}, ${JSON.stringify(roadmap)}, ${JSON.stringify(skillGaps)})
+      INSERT INTO learning_roadmaps (user_id, roadmap_data, skill_gaps, courses_by_skill)
+      VALUES (${session.userId}, ${JSON.stringify(roadmap)}, ${JSON.stringify(skillGaps)}, ${JSON.stringify(coursesBySkill || {})})
       RETURNING id, created_at
     `;
 

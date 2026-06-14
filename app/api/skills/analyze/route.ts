@@ -11,8 +11,11 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'Target role and industry are required' }, { status: 400 });
     }
 
-    // Fetch user's study program / education for richer AI context
     const sql = db();
+
+    // Ensure new columns exist (safe to run repeatedly)
+    await sql`ALTER TABLE skill_assessments ADD COLUMN IF NOT EXISTS current_skills JSONB`;
+
     const eduRows = await sql`
       SELECT degree, institution FROM education
       WHERE user_id = ${session.userId}
@@ -31,6 +34,16 @@ export async function POST(request: Request) {
       resumeText,
       studyProgram
     );
+
+    // Save to DB so Skills Navigator can restore it on next visit
+    await sql`
+      INSERT INTO skill_assessments
+        (user_id, assessment_type, current_job_title, current_skills, target_role, target_industry, skill_gaps, strengths, summary, ai_model_used)
+      VALUES
+        (${session.userId}, 'ai', ${currentRole || ''}, ${JSON.stringify(currentSkills || [])},
+         ${targetRole}, ${targetIndustry}, ${JSON.stringify(result.skill_gaps)},
+         ${JSON.stringify(result.current_strengths)}, ${result.summary}, 'gpt-4o-mini')
+    `;
 
     return Response.json({ data: result, error: null });
   } catch (err) {

@@ -8,6 +8,10 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 export const metadata: Metadata = {
   title: 'Octara – Career Pathfinder & Upskilling Platform',
   description: 'AI-powered career guidance, skills gap analysis, and personalised SkillsFuture learning pathways for Singapore professionals.',
+  icons: {
+    icon: '/octara-logo.png',
+    apple: '/octara-logo.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

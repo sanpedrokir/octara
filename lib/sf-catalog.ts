@@ -21,9 +21,6 @@ function getCatalog(): CatalogEntry[] {
   return _catalog;
 }
 
-const DETAIL_URL =
-  'https://www.myskillsfuture.gov.sg/individual/course-directory/course-detail.html';
-
 export function searchLocalCatalog(keyword: string, limit = 10): SsgCourse[] {
   const catalog = getCatalog();
   if (!catalog.length) return [];
@@ -39,7 +36,7 @@ export function searchLocalCatalog(keyword: string, limit = 10): SsgCourse[] {
         providerName: c.p,
         totalCostOfTrainingPerTrainee: c.f,
         subsidisedFee: c.s,
-        url: `${DETAIL_URL}?courseReferenceNumber=${encodeURIComponent(c.r)}`,
+        url: `https://courses.myskillsfuture.gov.sg/courses/${encodeURIComponent(c.r)}`,
         category: '',
         modeOfTraining: '',
         duration: c.h > 0 ? `${c.h} hrs` : '',

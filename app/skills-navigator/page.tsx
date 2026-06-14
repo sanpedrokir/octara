@@ -88,8 +88,24 @@ function SkillWithLevelInput({ skills, onChange }: { skills: SkillWithLevel[]; o
   );
 }
 
+const SESSION_KEY = 'skills-navigator-state';
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveSession(patch: Record<string, unknown>) {
+  try {
+    const current = loadSession() ?? {};
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, ...patch }));
+  } catch { /* ignore */ }
+}
+
 export default function SkillsNavigatorPage() {
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStepRaw] = useState<Step>(1);
   const [career, setCareer] = useState<CareerAspiration | null>(null);
   const [trackedCourses, setTrackedCourses] = useState<TrackedCourse[]>([]);
   const [trackingIds, setTrackingIds] = useState<Set<string>>(new Set());
@@ -117,7 +133,6 @@ export default function SkillsNavigatorPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [coursesBySkill, setCoursesBySkill] = useState<Record<string, SsgCourse[]>>({});
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
-
   // Loading states
   const [analyzing, setAnalyzing] = useState(false);
   const [fetchingCourses, setFetchingCourses] = useState(false);
@@ -125,24 +140,89 @@ export default function SkillsNavigatorPage() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [analysisError, setAnalysisError] = useState('');
 
+  function setStep(s: Step) {
+    setStepRaw(s);
+    saveSession({ step: s });
+  }
+
   const loadInitialData = useCallback(async () => {
-    const [careerRes, coursesRes, indRes] = await Promise.all([
+    const [careerRes, coursesRes, indRes, latestRes] = await Promise.all([
       fetch('/api/career'),
       fetch('/api/courses/tracked'),
       fetch('/api/industries'),
+      fetch('/api/skills/latest'),
     ]);
-    const [careerJson, coursesJson, indJson] = await Promise.all([careerRes.json(), coursesRes.json(), indRes.json()]);
+    const [careerJson, coursesJson, indJson, latestJson] = await Promise.all([
+      careerRes.json(), coursesRes.json(), indRes.json(), latestRes.json(),
+    ]);
+
     if (indJson.data) setIndustries(indJson.data);
+
+    // Restore saved analysis + roadmap from DB
+    const latest = latestJson.data;
+    if (latest?.assessment) {
+      const a = latest.assessment;
+      setAnalysis({
+        skill_gaps: a.skillGaps,
+        current_strengths: a.strengths,
+        summary: a.summary,
+      });
+      setTargetRole(a.targetRole);
+      setTargetIndustry(a.targetIndustry);
+      setForm(p => ({
+        ...p,
+        currentRole: a.currentRole || p.currentRole,
+        currentSkills: Array.isArray(a.currentSkills) ? a.currentSkills : p.currentSkills,
+      }));
+
+      if (latest.roadmap) {
+        const { coursesBySkill: cbs, createdAt: _ca, ...roadmapData } = latest.roadmap;
+        setRoadmap(roadmapData);
+        if (cbs && Object.keys(cbs).length > 0) setCoursesBySkill(cbs);
+        setStepRaw(5);
+      } else {
+        setStepRaw(3);
+      }
+
+      // Also restore session cache
+      saveSession({
+        step: latest.roadmap ? 5 : 3,
+        analysis: { skill_gaps: a.skillGaps, current_strengths: a.strengths, summary: a.summary },
+        targetRole: a.targetRole,
+        targetIndustry: a.targetIndustry,
+        currentRole: a.currentRole,
+        currentSkills: a.currentSkills,
+        coursesBySkill: latest.roadmap?.coursesBySkill ?? {},
+        roadmap: latest.roadmap ? (() => { const { coursesBySkill: _c, createdAt: _ca, ...r } = latest.roadmap; return r; })() : null,
+      });
+    } else {
+      // No saved analysis — check sessionStorage as fallback
+      const saved = loadSession();
+      if (saved) {
+        if (saved.step) setStepRaw(saved.step as Step);
+        if (saved.analysis) setAnalysis(saved.analysis);
+        if (saved.coursesBySkill) setCoursesBySkill(saved.coursesBySkill);
+        if (saved.roadmap) setRoadmap(saved.roadmap);
+          if (saved.targetRole) setTargetRole(saved.targetRole);
+        if (saved.targetIndustry) setTargetIndustry(saved.targetIndustry);
+      }
+    }
+
     if (careerJson.data) {
       setCareer(careerJson.data);
-      setTargetRole(careerJson.data.job_role_name || '');
-      setTargetIndustry(careerJson.data.industry_name || '');
+      // Only set target from career if no saved analysis
+      if (!latest?.assessment) {
+        setTargetRole(r => r || careerJson.data.job_role_name || '');
+        setTargetIndustry(i => i || careerJson.data.industry_name || '');
+      }
       if (careerJson.data.industry_id) setSelectedIndustryId(String(careerJson.data.industry_id));
     }
+
     if (coursesJson.data) {
       setTrackedCourses(coursesJson.data);
       setTrackingIds(new Set(coursesJson.data.map((c: TrackedCourse) => c.course_reference_number || c.course_title)));
     }
+
     setLoadingInitial(false);
   }, []);
 
@@ -180,8 +260,13 @@ export default function SkillsNavigatorPage() {
       const { data, error } = await res.json();
       if (data && !error) {
         setAnalysis(data);
+        saveSession({
+          analysis: data, targetRole, targetIndustry,
+          currentRole: form.currentRole, currentSkills: form.currentSkills, yearsExperience: form.yearsExperience,
+        });
         setStep(3);
-        fetchCourses(data.skill_gaps.map((g: SkillGap) => g.skill));
+        const skillNames = data.skill_gaps.map((g: SkillGap) => g.skill);
+        fetchCourses(skillNames);
       } else {
         setAnalysisError(error || 'Analysis failed. Please try again.');
       }
@@ -200,9 +285,13 @@ export default function SkillsNavigatorPage() {
       body: JSON.stringify({ skills }),
     });
     const { data } = await res.json();
-    if (data) setCoursesBySkill(data);
+    if (data) {
+      setCoursesBySkill(data);
+      saveSession({ coursesBySkill: data });
+    }
     setFetchingCourses(false);
   }
+
 
   async function generateRoadmap() {
     setGeneratingRoadmap(true);
@@ -219,6 +308,7 @@ export default function SkillsNavigatorPage() {
     const { data } = await res.json();
     if (data) {
       setRoadmap(data);
+      saveSession({ roadmap: data });
       setStep(5);
     }
     setGeneratingRoadmap(false);
@@ -718,7 +808,11 @@ export default function SkillsNavigatorPage() {
 
                 <div className="flex gap-3">
                   <button onClick={() => setStep(4)} className="btn-ghost">← Back</button>
-                  <button onClick={() => setStep(1)} className="btn-secondary">Start New Analysis</button>
+                  <button onClick={() => {
+                    sessionStorage.removeItem(SESSION_KEY);
+                    setAnalysis(null); setCoursesBySkill({}); setRoadmap(null); setVideos([]);
+                    setStep(1);
+                  }} className="btn-secondary">Start New Analysis</button>
                 </div>
               </div>
               );

@@ -1,35 +1,33 @@
 import type { SsgCourse } from './types';
 import { getAccessToken } from './ssg-api-auth';
 import { httpsGetJson } from './https-request';
-import { apexHeaders } from './apex-sign';
 import { searchLocalCatalog } from './sf-catalog';
 
 // Course Directory and Skills Framework both live on public-api.ssg-wsg.sg
 const SSG_BASE = 'https://public-api.ssg-wsg.sg';
-const SF_COURSE_DETAIL_URL = 'https://www.myskillsfuture.gov.sg/individual/course-directory/course-detail.html';
 
 function buildSearchUrl(keyword: string): string {
   return `https://courses.myskillsfuture.gov.sg/search?keyword=${encodeURIComponent(keyword)}`;
 }
 
 function courseDetailUrl(refNum: string): string {
-  return `${SF_COURSE_DETAIL_URL}?courseReferenceNumber=${encodeURIComponent(refNum)}`;
+  return `https://courses.myskillsfuture.gov.sg/courses/${encodeURIComponent(refNum)}`;
 }
 
 function parseCourse(c: Record<string, unknown>, fallbackKeyword = ''): SsgCourse {
   const provider = c.trainingProvider as Record<string, unknown> | undefined;
-  const mode = c.modeOfTraining as Record<string, unknown> | undefined;
-  const refNum = String(c.referenceNumber || c.courseReferenceNumber || '');
+  const modeObj = c.modeOfTrainings as Record<string, unknown> | undefined;
+  const refNum = String(c.referenceNumber || c.externalReferenceNumber || '');
 
   return {
     referenceNumber: refNum,
     title: String(c.title || c.courseName || ''),
-    providerName: String(provider?.name || c.providerName || ''),
+    providerName: String(c.trainingProviderAlias || provider?.name || ''),
     totalCostOfTrainingPerTrainee: Number(c.totalCostOfTrainingPerTrainee ?? c.fee ?? 0),
-    subsidisedFee: Number(c.subsidisedFee ?? 0),
+    subsidisedFee: Number(c.feeSubsidy ?? c.subsidisedFee ?? 0),
     url: refNum ? courseDetailUrl(refNum) : buildSearchUrl(fallbackKeyword),
     category: String(c.category ?? ''),
-    modeOfTraining: String(mode?.description || c.modeOfTraining || ''),
+    modeOfTraining: String(modeObj?.description || c.modeOfTraining || ''),
     duration: String(c.totalTrainingDurationHour ? `${c.totalTrainingDurationHour} hrs` : c.duration || ''),
   };
 }
@@ -42,11 +40,8 @@ export async function searchCoursesWithSource(
 ): Promise<{ courses: SsgCourse[]; source: CourseSource }> {
   try {
     const token = await getAccessToken();
-    const clientId = process.env.SSG_CLIENT_ID ?? '';
-    const clientSecret = process.env.SSG_CLIENT_SECRET ?? '';
-    const queryParams = { keyword, page: String(page), pageSize: '10' };
-    const url = `${SSG_BASE}/skillsFramework/courses?keyword=${encodeURIComponent(keyword)}&pageNo=${page}&pageSize=10`;
-    const headers = apexHeaders('GET', url, token, clientId, clientSecret, queryParams);
+    const url = `${SSG_BASE}/courses/directory?keyword=${encodeURIComponent(keyword)}&pageNo=${page}&pageSize=10`;
+    const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
     const result = await httpsGetJson(url, headers, 10000);
 
     if (!result.ok || !result.data) {
@@ -56,10 +51,8 @@ export async function searchCoursesWithSource(
 
     const json = result.data as Record<string, unknown>;
     const raw: unknown[] =
-      (json?.data as Record<string, unknown>)?.courses as unknown[] ??
-      (json?.data as Record<string, unknown>)?.data as unknown[] ??
-      json?.courses as unknown[] ??
-      json?.data as unknown[] ??
+      ((json?.data as Record<string, unknown>)?.courses as unknown[]) ??
+      (json?.courses as unknown[]) ??
       [];
 
     if (!Array.isArray(raw) || raw.length === 0) {

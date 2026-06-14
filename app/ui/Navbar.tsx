@@ -38,7 +38,7 @@ export default function Navbar({ user }: NavbarProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           <Link href={user || isAppRoute ? '/dashboard' : '/'} className="flex items-center no-underline">
-            <img src="/octara-logo.png" alt="Octara" style={{ height: '56px', width: 'auto' }} />
+            <img src="/octara-logo.png" alt="Octara" style={{ height: '72px', width: 'auto' }} />
           </Link>
 
           {/* Desktop nav — only shown when no sidebar (logged-out) */}

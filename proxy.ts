@@ -7,7 +7,7 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-const protectedRoutes = ['/dashboard', '/profile', '/career', '/skills-navigator'];
+const protectedRoutes = ['/dashboard', '/profile', '/career', '/skills-navigator', '/my-courses'];
 const adminRoutes = ['/admin'];
 const authRoutes = ['/login', '/register'];
 

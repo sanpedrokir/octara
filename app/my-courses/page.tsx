@@ -108,7 +108,10 @@ export default function MyCoursesPage() {
 
       {/* Tracked courses */}
       <div className="card p-5">
-        <h2 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>📖 My Tracked Courses</h2>
+        <h2 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>📖 My Tracked Courses</h2>
+        <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
+          Click the large circle beside the Course Title once you have completed the course — this updates your career readiness progress.
+        </p>
 
         {loadingTracked ? (
           <div className="space-y-3">

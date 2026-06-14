@@ -413,6 +413,8 @@ DELETE FROM career_aspirations
   );
 ALTER TABLE career_aspirations DROP COLUMN IF EXISTS target_timeline;
 ALTER TABLE tracked_courses ADD COLUMN IF NOT EXISTS skill_name VARCHAR(255);
+ALTER TABLE skill_assessments ADD COLUMN IF NOT EXISTS current_skills JSONB;
+ALTER TABLE learning_roadmaps ADD COLUMN IF NOT EXISTS courses_by_skill JSONB;
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
