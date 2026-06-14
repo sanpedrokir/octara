@@ -1,7 +1,5 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM = 'Octara <onboarding@resend.dev>';
 
 export async function sendPasswordResetEmail(
@@ -9,6 +7,9 @@ export async function sendPasswordResetEmail(
   resetUrl: string,
   userName: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return { ok: false, error: 'Email service not configured' };
+  const resend = new Resend(key);
   try {
     const { error } = await resend.emails.send({
       from: FROM,
