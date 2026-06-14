@@ -10,15 +10,18 @@ const items = [
   { href: '/profile', label: 'Profile', icon: '👤' },
 ];
 
-export default function MobileNav() {
+export default function MobileNav({ role }: { role?: string }) {
   const pathname = usePathname();
+  const allItems = role === 'admin'
+    ? [...items, { href: '/admin', label: 'Admin', icon: '⚙️' }]
+    : items;
 
   return (
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 flex border-t z-40"
       style={{ background: 'white', borderColor: 'var(--card-border)' }}
     >
-      {items.map(item => {
+      {allItems.map(item => {
         const active = pathname === item.href;
         return (
           <Link

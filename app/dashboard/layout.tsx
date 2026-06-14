@@ -17,12 +17,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--background)' }}>
       <Navbar user={user ?? null} />
       <div className="flex flex-1 max-w-7xl mx-auto w-full">
-        <DashboardSidebar />
+        <DashboardSidebar role={user?.role} />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
           {children}
         </main>
       </div>
-      <MobileNav />
+      <MobileNav role={user?.role} />
     </div>
   );
 }

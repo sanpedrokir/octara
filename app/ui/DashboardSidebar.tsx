@@ -11,7 +11,7 @@ const navItems = [
   { href: '/profile', label: 'My Profile', icon: '👤' },
 ];
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({ role }: { role?: string }) {
   const pathname = usePathname();
 
   return (
@@ -37,6 +37,24 @@ export default function DashboardSidebar() {
           </Link>
         );
       })}
+
+      {role === 'admin' && (
+        <>
+          <div className="my-3 border-t" style={{ borderColor: 'var(--card-border)' }} />
+          <Link
+            href="/admin"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors no-underline"
+            style={{
+              background: pathname === '/admin' ? 'var(--primary-light)' : 'transparent',
+              color: pathname === '/admin' ? 'var(--primary)' : '#1e293b',
+              fontWeight: pathname === '/admin' ? '600' : '500',
+            }}
+          >
+            <span className="text-base">⚙️</span>
+            Admin Panel
+          </Link>
+        </>
+      )}
     </aside>
   );
 }
