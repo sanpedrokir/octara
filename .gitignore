@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# SkillsFuture course catalog (generated — run scripts/refresh-sf-catalog.ps1 to rebuild)
+/data/sf-courses.json
+
+# SSG keys
+*.key
+*.pfx
+ssg-cert*.pem
+ssg-public*.pem
