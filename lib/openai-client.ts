@@ -177,6 +177,9 @@ function getMockSkillAnalysis(currentRole: string, targetRole: string, targetInd
     marketing: ['Digital Marketing Strategy', 'SEO / SEM', 'Marketing Analytics', 'Content Strategy', 'Social Media Marketing', 'CRM Platforms'],
     logistics: ['Supply Chain Management', 'Warehouse Management Systems', 'Trade Compliance', 'Last-Mile Logistics', 'ERP Systems', 'Inventory Optimisation'],
     hospitality: ['Guest Experience Management', 'Revenue Management', 'Food & Beverage Operations', 'Property Management Systems', 'Service Excellence', 'Event Management'],
+    'air transport': ['Aviation Revenue Management', 'Airline Pricing Strategy', 'Demand Forecasting & Optimisation', 'GDS / Amadeus / Sabre', 'IATA Regulations', 'Data Analytics for Aviation', 'Yield Management', 'Commercial Aviation Finance'],
+    aviation: ['Aviation Revenue Management', 'Airline Pricing Strategy', 'Demand Forecasting & Optimisation', 'GDS / Amadeus / Sabre', 'IATA Regulations', 'Data Analytics for Aviation', 'Yield Management', 'Commercial Aviation Finance'],
+    transport: ['Transport Operations Management', 'Logistics Planning', 'Fleet Management', 'Transport Regulations', 'Safety Management', 'Data Analytics', 'Contract Management', 'Stakeholder Management'],
     education: ['Curriculum Design', 'Instructional Technology', 'Student Assessment', 'Differentiated Learning', 'Classroom Management', 'EdTech Platforms'],
     healthcare_life_sciences: ['GMP Compliance', 'Bioprocess Technology', 'Regulatory Affairs (HSA)', 'Quality Management Systems', 'Clinical Research', 'Lab Techniques'],
     media: ['Content Production', 'Video Editing', 'Copywriting', 'Audience Analytics', 'Social Media Strategy', 'Adobe Creative Suite'],
@@ -188,7 +191,7 @@ function getMockSkillAnalysis(currentRole: string, targetRole: string, targetInd
 
   // Match industry key
   const matchedKey = Object.keys(industrySkillMap).find(k =>
-    industry.includes(k) || k.includes(industry.split(' ')[0])
+    industry.includes(k) || k.includes(industry) || k.includes(industry.split(' ')[0])
   );
 
   // Role-specific overrides for common roles
@@ -203,6 +206,10 @@ function getMockSkillAnalysis(currentRole: string, targetRole: string, targetInd
     'accountant': ['IFRS / FRS Standards', 'Tax Compliance (IRAS)', 'Financial Reporting', 'Audit Procedures', 'ERP Systems', 'Excel / Power BI'],
     'marketing manager': ['Digital Marketing Strategy', 'Marketing Analytics', 'Brand Management', 'SEO / SEM', 'CRM Platforms', 'Campaign Management'],
     'nurse': ['Clinical Assessment', 'Patient Safety Protocols', 'EMR / EHR Systems', 'Medication Administration', 'Healthcare Communication', 'Infection Control'],
+    'airline revenue manager': ['Revenue Management Systems (RMS)', 'Airline Pricing Strategy', 'Demand Forecasting & Optimisation', 'Inventory Control (O&D)', 'GDS / Amadeus / Sabre', 'IATA Regulations & Standards', 'Data Analytics for Aviation', 'Yield Management'],
+    'airport revenue manager': ['Revenue Management Systems (RMS)', 'Airport Commercial Strategy', 'Retail & Concession Management', 'Demand Forecasting', 'Contract Negotiation', 'IATA Regulations & Standards', 'Data Analytics', 'Stakeholder Management'],
+    'aviation manager': ['Aviation Operations Management', 'IATA Regulations', 'Safety Management Systems (SMS)', 'Airport Operations', 'Team Leadership', 'Budget Management', 'Stakeholder Management', 'Risk Management'],
+    'flight operations manager': ['Flight Operations Management', 'IATA / ICAO Regulations', 'Safety Management Systems (SMS)', 'Crew Resource Management', 'Aviation Safety', 'Operational Risk Management', 'Budget Planning', 'Leadership'],
   };
 
   const targetSkills =
