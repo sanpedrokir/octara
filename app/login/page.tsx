@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Navbar from '../ui/Navbar';
-
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +38,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--background)' }}>
-      <Navbar user={null} />
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="card w-full max-w-md p-8">
           <div className="text-center mb-8">
