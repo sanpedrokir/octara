@@ -484,7 +484,7 @@ export default function SkillsNavigatorPage() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Target Industry *</label>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Target Sector *</label>
                   <select
                     className="input"
                     value={selectedIndustryId}
@@ -496,7 +496,7 @@ export default function SkillsNavigatorPage() {
                       setTargetRole('');
                     }}
                   >
-                    <option value="">— Select an industry —</option>
+                    <option value="">— Select a sector —</option>
                     {industries.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                   </select>
                 </div>
@@ -509,7 +509,7 @@ export default function SkillsNavigatorPage() {
                     onChange={e => setTargetRole(e.target.value)}
                     disabled={!selectedIndustryId}
                   >
-                    <option value="">— {selectedIndustryId ? 'Select a job role' : 'Select an industry first'} —</option>
+                    <option value="">— {selectedIndustryId ? 'Select a job role' : 'Select a sector first'} —</option>
                     {step2JobRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                   </select>
                   {selectedIndustryId && step2JobRoles.length === 0 && (

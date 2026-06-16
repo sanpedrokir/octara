@@ -48,3 +48,5 @@ next-env.d.ts
 *.pfx
 ssg-cert*.pem
 ssg-public*.pem
+
+.vercel

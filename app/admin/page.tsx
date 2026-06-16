@@ -3,7 +3,36 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Industry, JobRole } from '@/lib/types';
 
-type Tab = 'overview' | 'industries' | 'job-roles';
+type Tab = 'overview' | 'industries' | 'job-roles' | 'catalog' | 'skills-mapping';
+
+type CatalogRow = {
+  id: number;
+  sector: string;
+  track: string | null;
+  job_role: string;
+  job_role_description: string | null;
+  performance_expectation: string | null;
+};
+
+type CatalogUpload = { filename: string | null; row_count: number; skipped_count: number; created_at: string };
+
+type MappingRow = {
+  id: number;
+  skill_code: string | null;
+  skill_title: string;
+  skill_desc: string | null;
+  skill_proficiency_level: string | null;
+  proficiency_level_desc: string | null;
+  previous_skill_title: string | null;
+  previous_sfs_status: string | null;
+  previous_casl_status: string | null;
+  previous_skill_type: string | null;
+  updated_skill_title: string | null;
+  updated_skill_sfs_status: string | null;
+  updated_casl_status: string | null;
+  updated_skill_type: string | null;
+  updated_sector_tagging: string | null;
+};
 
 type SyncMeta = {
   totalIndustries: number;
@@ -33,6 +62,28 @@ export default function AdminPage() {
 
   const [newIndustry, setNewIndustry] = useState({ name: '', description: '' });
   const [newRole, setNewRole] = useState({ name: '', description: '', skill_keywords: '' });
+
+  const [catalogFile, setCatalogFile] = useState<File | null>(null);
+  const [catalogUploading, setCatalogUploading] = useState(false);
+  const [catalogRows, setCatalogRows] = useState<CatalogRow[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [catalogSectors, setCatalogSectors] = useState<string[]>([]);
+  const [catalogLastUpload, setCatalogLastUpload] = useState<CatalogUpload | null>(null);
+  const [catalogSectorFilter, setCatalogSectorFilter] = useState('');
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogPage, setCatalogPage] = useState(0);
+  const CATALOG_PAGE_SIZE = 50;
+
+  const [mappingFile, setMappingFile] = useState<File | null>(null);
+  const [mappingUploading, setMappingUploading] = useState(false);
+  const [mappingRows, setMappingRows] = useState<MappingRow[]>([]);
+  const [mappingTotal, setMappingTotal] = useState(0);
+  const [mappingSectors, setMappingSectors] = useState<string[]>([]);
+  const [mappingLastUpload, setMappingLastUpload] = useState<CatalogUpload | null>(null);
+  const [mappingSectorFilter, setMappingSectorFilter] = useState('');
+  const [mappingSearch, setMappingSearch] = useState('');
+  const [mappingPage, setMappingPage] = useState(0);
+  const MAPPING_PAGE_SIZE = 50;
 
   const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
     setMessage(text);
@@ -95,15 +146,15 @@ export default function AdminPage() {
     else {
       setIndustries(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
       setNewIndustry({ name: '', description: '' });
-      showMsg('Industry added!');
+      showMsg('Sector added!');
     }
   }
 
   async function deleteIndustry(id: number) {
-    if (!confirm('Delete this industry and all its job roles?')) return;
+    if (!confirm('Delete this sector and all its job roles?')) return;
     await fetch(`/api/industries?id=${id}`, { method: 'DELETE' });
     setIndustries(prev => prev.filter(i => i.id !== id));
-    showMsg('Industry deleted');
+    showMsg('Sector deleted');
   }
 
   async function addJobRole(e: React.FormEvent) {
@@ -128,6 +179,94 @@ export default function AdminPage() {
     await fetch(`/api/job-roles?id=${id}`, { method: 'DELETE' });
     setJobRoles(prev => prev.filter(r => r.id !== id));
     showMsg('Job role deleted');
+  }
+
+  const loadCatalog = useCallback(async () => {
+    const params = new URLSearchParams({
+      limit: String(CATALOG_PAGE_SIZE),
+      offset: String(catalogPage * CATALOG_PAGE_SIZE),
+    });
+    if (catalogSectorFilter) params.set('sector', catalogSectorFilter);
+    if (catalogSearch) params.set('q', catalogSearch);
+    const res = await fetch(`/api/admin/job-catalog?${params}`);
+    const { data } = await res.json();
+    if (data) {
+      setCatalogRows(data.rows);
+      setCatalogTotal(data.total);
+      setCatalogSectors(data.sectors);
+      setCatalogLastUpload(data.lastUpload);
+    }
+  }, [catalogPage, catalogSectorFilter, catalogSearch]);
+
+  useEffect(() => { if (tab === 'catalog') loadCatalog(); }, [tab, loadCatalog]);
+
+  async function uploadCatalog(e: React.FormEvent) {
+    e.preventDefault();
+    if (!catalogFile) return;
+    if (!confirm('This will REPLACE the entire job role catalog with the contents of this file. Continue?')) return;
+    setCatalogUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', catalogFile);
+      const res = await fetch('/api/admin/job-catalog/upload', { method: 'POST', body: formData });
+      const { data, error } = await res.json();
+      if (error) {
+        showMsg(error, 'error');
+      } else {
+        showMsg(data.message, 'success');
+        setCatalogFile(null);
+        setCatalogPage(0);
+        loadCatalog();
+      }
+    } catch (err) {
+      showMsg('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
+    } finally {
+      setCatalogUploading(false);
+    }
+  }
+
+  const loadMapping = useCallback(async () => {
+    const params = new URLSearchParams({
+      limit: String(MAPPING_PAGE_SIZE),
+      offset: String(mappingPage * MAPPING_PAGE_SIZE),
+    });
+    if (mappingSectorFilter) params.set('sector', mappingSectorFilter);
+    if (mappingSearch) params.set('q', mappingSearch);
+    const res = await fetch(`/api/admin/jobs-skills-mapping?${params}`);
+    const { data } = await res.json();
+    if (data) {
+      setMappingRows(data.rows);
+      setMappingTotal(data.total);
+      setMappingSectors(data.sectors);
+      setMappingLastUpload(data.lastUpload);
+    }
+  }, [mappingPage, mappingSectorFilter, mappingSearch]);
+
+  useEffect(() => { if (tab === 'skills-mapping') loadMapping(); }, [tab, loadMapping]);
+
+  async function uploadMapping(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mappingFile) return;
+    if (!confirm('This will REPLACE the entire jobs & skills mapping with the contents of this file. Continue?')) return;
+    setMappingUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', mappingFile);
+      const res = await fetch('/api/admin/jobs-skills-mapping/upload', { method: 'POST', body: formData });
+      const { data, error } = await res.json();
+      if (error) {
+        showMsg(error, 'error');
+      } else {
+        showMsg(data.message, 'success');
+        setMappingFile(null);
+        setMappingPage(0);
+        loadMapping();
+      }
+    } catch (err) {
+      showMsg('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
+    } finally {
+      setMappingUploading(false);
+    }
   }
 
   const [syncSuccess, setSyncSuccess] = useState(false);
@@ -172,15 +311,17 @@ export default function AdminPage() {
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '⚙️' },
-    { id: 'industries', label: 'Industries', icon: '🏭' },
-    { id: 'job-roles', label: 'Job Roles', icon: '👔' },
+    { id: 'catalog', label: 'Job Role Catalog (SSG XLS Upload)', icon: '📁' },
+    { id: 'skills-mapping', label: 'Jobs & Skills Mapping (SSG XLS Upload)', icon: '🧩' },
+    { id: 'industries', label: 'Sectors (Non SSG)', icon: '🏭' },
+    { id: 'job-roles', label: 'Job Roles (Non SSG)', icon: '👔' },
   ];
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>⚙️ Admin Panel</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Manage platform data, industries, and job roles</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Manage platform data, sectors, and job roles</p>
       </div>
 
       {message && (
@@ -210,36 +351,16 @@ export default function AdminPage() {
       {/* Overview Tab */}
       {tab === 'overview' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="card p-5">
-              <h3 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>📊 Current Stats</h3>
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>Industries: <strong>{industries.length}</strong></p>
-            </div>
-          </div>
-
-          <div className="card p-5 space-y-4">
-            <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>🗄️ Database Management</h3>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>Run these once during initial setup of the platform.</p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button onClick={initDb} disabled={loading} className="btn-secondary">
-                {loading ? 'Running…' : '📋 Initialise Database Schema'}
-              </button>
-              <button onClick={seedData} disabled={loading} className="btn-primary">
-                {loading ? 'Seeding…' : '🌱 Seed Industries & Job Roles'}
-              </button>
-            </div>
-          </div>
-
           <div className="card p-5 space-y-4" style={{ border: '2px solid var(--primary)', background: 'var(--primary-light)' }}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="font-semibold" style={{ color: 'var(--primary)' }}>🔄 Sync from SSG Skills Framework API</h3>
                 <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-                  Replace seeded industries and job roles with live data directly from the SkillsFuture Skills Framework API.
+                  Replace seeded sectors and job roles with live data directly from the SkillsFuture Skills Framework API.
                   Existing entries are updated; new ones are added. Your career aspirations are preserved.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  {['SubSectors → Industries', 'Occupations → Job Roles', 'Live from SSG API'].map(tag => (
+                  {['SubSectors → Sectors', 'Occupations → Job Roles', 'Live from SSG API'].map(tag => (
                     <span key={tag} className="px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,120,212,0.1)', color: 'var(--primary)' }}>{tag}</span>
                   ))}
                 </div>
@@ -250,7 +371,7 @@ export default function AdminPage() {
               <div className="p-4 rounded-lg" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)' }}>
                 <p className="font-semibold text-sm" style={{ color: 'var(--success)' }}>✅ Live sync successful — data is from SSG Skills Framework API</p>
                 <div className="flex flex-wrap gap-4 mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-                  <span>📊 <strong>{lastSync.meta.totalIndustries}</strong> industries in database</span>
+                  <span>📊 <strong>{lastSync.meta.totalIndustries}</strong> sectors in database</span>
                   <span>👔 <strong>{lastSync.meta.totalRoles}</strong> job roles in database</span>
                   <span>🕒 Just now</span>
                 </div>
@@ -261,7 +382,7 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg text-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
                 <span className="font-medium">✅ Last synced from SSG — {timeAgo(lastSync.at)}</span>
                 <span style={{ color: 'var(--muted)' }}>·</span>
-                <span style={{ color: 'var(--muted)' }}>{lastSync.meta.totalIndustries} industries</span>
+                <span style={{ color: 'var(--muted)' }}>{lastSync.meta.totalIndustries} sectors</span>
                 <span style={{ color: 'var(--muted)' }}>·</span>
                 <span style={{ color: 'var(--muted)' }}>{lastSync.meta.totalRoles} job roles</span>
                 {lastSync.meta.errors && (
@@ -279,7 +400,7 @@ export default function AdminPage() {
 
             <div className="flex flex-wrap gap-3">
               <button onClick={syncSsg} disabled={loading} className="btn-primary">
-                {loading ? '⏳ Syncing from SSG…' : '🔄 Sync Industries & Job Roles from SSG'}
+                {loading ? '⏳ Syncing from SSG…' : '🔄 Sync Sectors & Job Roles from SSG'}
               </button>
               <button onClick={testSsgConnection} disabled={loading} className="btn-secondary text-sm">
                 🔍 Test SSG Connection
@@ -317,18 +438,34 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+
+          <div className="card p-5 space-y-4">
+            <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>🗄️ Database Management</h3>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>Run this once during initial setup of the platform, or after a schema change.</p>
+            <button onClick={initDb} disabled={loading} className="btn-secondary">
+              {loading ? 'Running…' : '📋 Initialise Database Schema'}
+            </button>
+          </div>
+
+          <div className="card p-5 space-y-4">
+            <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>🌱 Seed Sectors & Job Roles (Non SSG)</h3>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>Populates sectors and job roles from the local seed data — use this only if you don&apos;t want to sync from the live SSG API above.</p>
+            <button onClick={seedData} disabled={loading} className="btn-primary">
+              {loading ? 'Seeding…' : '🌱 Seed Sectors & Job Roles'}
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Industries Tab */}
+      {/* Sectors Tab */}
       {tab === 'industries' && (
         <div className="space-y-5">
           <div className="card p-5">
-            <h3 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Add Industry</h3>
+            <h3 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Add Sector</h3>
             <form onSubmit={addIndustry} className="space-y-3">
-              <input className="input" placeholder="Industry name *" value={newIndustry.name} onChange={e => setNewIndustry(p => ({ ...p, name: e.target.value }))} required />
+              <input className="input" placeholder="Sector name *" value={newIndustry.name} onChange={e => setNewIndustry(p => ({ ...p, name: e.target.value }))} required />
               <textarea className="input" rows={2} placeholder="Description" value={newIndustry.description} onChange={e => setNewIndustry(p => ({ ...p, description: e.target.value }))} style={{ resize: 'vertical' }} />
-              <button type="submit" className="btn-primary text-sm">Add Industry</button>
+              <button type="submit" className="btn-primary text-sm">Add Sector</button>
             </form>
           </div>
 
@@ -344,7 +481,7 @@ export default function AdminPage() {
             ))}
             {industries.length === 0 && (
               <div className="text-center py-8" style={{ color: 'var(--muted)' }}>
-                <p>No industries yet. Use the Seed Data button on the Overview tab to populate.</p>
+                <p>No sectors yet. Use the Seed Data button on the Overview tab to populate.</p>
               </div>
             )}
           </div>
@@ -358,7 +495,7 @@ export default function AdminPage() {
             <h3 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Add Job Role</h3>
             <form onSubmit={addJobRole} className="space-y-3">
               <select className="input" value={selectedIndustry} onChange={e => setSelectedIndustry(e.target.value)} required>
-                <option value="">— Select industry —</option>
+                <option value="">— Select sector —</option>
                 {industries.map(ind => <option key={ind.id} value={ind.id}>{ind.name}</option>)}
               </select>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -372,7 +509,7 @@ export default function AdminPage() {
 
           <div>
             <select className="input mb-4" value={selectedIndustry} onChange={e => setSelectedIndustry(e.target.value)}>
-              <option value="">— Filter by industry —</option>
+              <option value="">— Filter by sector —</option>
               {industries.map(ind => <option key={ind.id} value={ind.id}>{ind.name}</option>)}
             </select>
 
@@ -392,12 +529,209 @@ export default function AdminPage() {
                 </div>
               ))}
               {selectedIndustry && jobRoles.length === 0 && (
-                <p className="text-center py-6 text-sm" style={{ color: 'var(--muted)' }}>No job roles for this industry yet.</p>
+                <p className="text-center py-6 text-sm" style={{ color: 'var(--muted)' }}>No job roles for this sector yet.</p>
               )}
               {!selectedIndustry && (
-                <p className="text-center py-6 text-sm" style={{ color: 'var(--muted)' }}>Select an industry to view its job roles.</p>
+                <p className="text-center py-6 text-sm" style={{ color: 'var(--muted)' }}>Select a sector to view its job roles.</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Job Role Catalog Tab */}
+      {tab === 'catalog' && (
+        <div className="space-y-5">
+          <div className="card p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>📁 Upload Job Role Catalog</h3>
+              <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                Upload the master Excel/CSV file (Sector, Track, Job Role, Job Role Description, Performance Expectation).
+                Each upload <strong>replaces the entire catalog</strong> — use this for your periodic (monthly / 6-monthly) refresh.
+              </p>
+            </div>
+            <form onSubmit={uploadCatalog} className="flex flex-col sm:flex-row gap-3 items-start">
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={e => setCatalogFile(e.target.files?.[0] ?? null)}
+                className="input"
+              />
+              <button type="submit" disabled={!catalogFile || catalogUploading} className="btn-primary text-sm shrink-0" style={{ opacity: !catalogFile || catalogUploading ? 0.5 : 1 }}>
+                {catalogUploading ? 'Uploading…' : '⬆️ Upload & Replace Catalog'}
+              </button>
+            </form>
+            {catalogLastUpload && (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                Last upload: <strong>{catalogLastUpload.filename || 'file'}</strong> — {catalogLastUpload.row_count} rows
+                {catalogLastUpload.skipped_count > 0 && `, ${catalogLastUpload.skipped_count} skipped`} — {timeAgo(catalogLastUpload.created_at)}
+              </p>
+            )}
+          </div>
+
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-wrap gap-3 items-center justify-between">
+              <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>Browse Catalog ({catalogTotal})</h3>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  className="input text-sm"
+                  value={catalogSectorFilter}
+                  onChange={e => { setCatalogSectorFilter(e.target.value); setCatalogPage(0); }}
+                >
+                  <option value="">— All sectors —</option>
+                  {catalogSectors.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <input
+                  className="input text-sm"
+                  placeholder="Search job role…"
+                  value={catalogSearch}
+                  onChange={e => { setCatalogSearch(e.target.value); setCatalogPage(0); }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {catalogRows.map(row => (
+                <div key={row.id} className="card p-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="badge badge-blue">{row.sector}</span>
+                    {row.track && <span className="badge" style={{ background: 'var(--muted-bg)', color: 'var(--muted)' }}>{row.track}</span>}
+                  </div>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{row.job_role}</p>
+                  {row.job_role_description && <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{row.job_role_description}</p>}
+                  {row.performance_expectation && (
+                    <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}><strong>Performance Expectation:</strong> {row.performance_expectation}</p>
+                  )}
+                </div>
+              ))}
+              {catalogRows.length === 0 && (
+                <p className="text-center py-8 text-sm" style={{ color: 'var(--muted)' }}>No catalog data yet. Upload a file above to populate it.</p>
+              )}
+            </div>
+
+            {catalogTotal > CATALOG_PAGE_SIZE && (
+              <div className="flex items-center justify-between text-sm">
+                <button
+                  onClick={() => setCatalogPage(p => Math.max(0, p - 1))}
+                  disabled={catalogPage === 0}
+                  className="btn-secondary text-sm"
+                  style={{ opacity: catalogPage === 0 ? 0.5 : 1 }}
+                >
+                  ← Previous
+                </button>
+                <span style={{ color: 'var(--muted)' }}>
+                  Page {catalogPage + 1} of {Math.ceil(catalogTotal / CATALOG_PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setCatalogPage(p => p + 1)}
+                  disabled={(catalogPage + 1) * CATALOG_PAGE_SIZE >= catalogTotal}
+                  className="btn-secondary text-sm"
+                  style={{ opacity: (catalogPage + 1) * CATALOG_PAGE_SIZE >= catalogTotal ? 0.5 : 1 }}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Jobs & Skills Mapping Tab */}
+      {tab === 'skills-mapping' && (
+        <div className="space-y-5">
+          <div className="card p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>🧩 Upload Jobs & Skills Mapping</h3>
+              <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                Upload the SkillsFuture TSC-to-Unique-Skills mapping file (Skill Code, Skill Title, Proficiency Level, Previous/Updated Skill mapping, Sector Tagging, etc.).
+                Each upload <strong>replaces the entire mapping table</strong>.
+              </p>
+            </div>
+            <form onSubmit={uploadMapping} className="flex flex-col sm:flex-row gap-3 items-start">
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                onChange={e => setMappingFile(e.target.files?.[0] ?? null)}
+                className="input"
+              />
+              <button type="submit" disabled={!mappingFile || mappingUploading} className="btn-primary text-sm shrink-0" style={{ opacity: !mappingFile || mappingUploading ? 0.5 : 1 }}>
+                {mappingUploading ? 'Uploading…' : '⬆️ Upload & Replace Mapping'}
+              </button>
+            </form>
+            {mappingLastUpload && (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                Last upload: <strong>{mappingLastUpload.filename || 'file'}</strong> — {mappingLastUpload.row_count} rows
+                {mappingLastUpload.skipped_count > 0 && `, ${mappingLastUpload.skipped_count} skipped`} — {timeAgo(mappingLastUpload.created_at)}
+              </p>
+            )}
+          </div>
+
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-wrap gap-3 items-center justify-between">
+              <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>Browse Mapping ({mappingTotal})</h3>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  className="input text-sm"
+                  value={mappingSectorFilter}
+                  onChange={e => { setMappingSectorFilter(e.target.value); setMappingPage(0); }}
+                >
+                  <option value="">— All sectors —</option>
+                  {mappingSectors.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <input
+                  className="input text-sm"
+                  placeholder="Search skill title or code…"
+                  value={mappingSearch}
+                  onChange={e => { setMappingSearch(e.target.value); setMappingPage(0); }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {mappingRows.map(row => (
+                <div key={row.id} className="card p-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    {row.skill_code && <span className="badge" style={{ background: 'var(--muted-bg)', color: 'var(--muted)' }}>{row.skill_code}</span>}
+                    {row.updated_sector_tagging && <span className="badge badge-blue">{row.updated_sector_tagging}</span>}
+                    {row.updated_skill_type && <span className="badge" style={{ background: 'var(--muted-bg)', color: 'var(--muted)' }}>{row.updated_skill_type.toUpperCase()}</span>}
+                  </div>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{row.updated_skill_title || row.skill_title}</p>
+                  {row.skill_desc && <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{row.skill_desc}</p>}
+                  <div className="flex flex-wrap gap-3 mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                    {row.skill_proficiency_level && <span>PL: <strong>{row.skill_proficiency_level}</strong></span>}
+                    {row.updated_skill_sfs_status && <span>SFS: <strong>{row.updated_skill_sfs_status}</strong></span>}
+                    {row.updated_casl_status && <span>CASL: <strong>{row.updated_casl_status}</strong></span>}
+                  </div>
+                </div>
+              ))}
+              {mappingRows.length === 0 && (
+                <p className="text-center py-8 text-sm" style={{ color: 'var(--muted)' }}>No mapping data yet. Upload a file above to populate it.</p>
+              )}
+            </div>
+
+            {mappingTotal > MAPPING_PAGE_SIZE && (
+              <div className="flex items-center justify-between text-sm">
+                <button
+                  onClick={() => setMappingPage(p => Math.max(0, p - 1))}
+                  disabled={mappingPage === 0}
+                  className="btn-secondary text-sm"
+                  style={{ opacity: mappingPage === 0 ? 0.5 : 1 }}
+                >
+                  ← Previous
+                </button>
+                <span style={{ color: 'var(--muted)' }}>
+                  Page {mappingPage + 1} of {Math.ceil(mappingTotal / MAPPING_PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setMappingPage(p => p + 1)}
+                  disabled={(mappingPage + 1) * MAPPING_PAGE_SIZE >= mappingTotal}
+                  className="btn-secondary text-sm"
+                  style={{ opacity: (mappingPage + 1) * MAPPING_PAGE_SIZE >= mappingTotal ? 0.5 : 1 }}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

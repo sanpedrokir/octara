@@ -431,4 +431,85 @@ DO $$ BEGIN
     ALTER TABLE career_aspirations ADD CONSTRAINT career_aspirations_user_id_key UNIQUE (user_id);
   END IF;
 END $$;
+
+CREATE TABLE IF NOT EXISTS job_role_catalog (
+  id                      SERIAL PRIMARY KEY,
+  sector                  TEXT NOT NULL,
+  track                   TEXT,
+  job_role                TEXT NOT NULL,
+  job_role_description    TEXT,
+  performance_expectation TEXT,
+  created_at              TIMESTAMP NOT NULL DEFAULT NOW()
+);
+ALTER TABLE job_role_catalog ALTER COLUMN sector TYPE TEXT;
+ALTER TABLE job_role_catalog ALTER COLUMN track TYPE TEXT;
+ALTER TABLE job_role_catalog ALTER COLUMN job_role TYPE TEXT;
+CREATE INDEX IF NOT EXISTS idx_job_role_catalog_sector ON job_role_catalog(sector);
+
+CREATE TABLE IF NOT EXISTS job_role_catalog_uploads (
+  id            SERIAL PRIMARY KEY,
+  filename      VARCHAR(255),
+  row_count     INTEGER NOT NULL,
+  skipped_count INTEGER NOT NULL DEFAULT 0,
+  uploaded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS jobs_skills_mapping (
+  id                       SERIAL PRIMARY KEY,
+  skill_code               TEXT,
+  skill_title               TEXT NOT NULL,
+  skill_desc                TEXT,
+  skill_proficiency_level   TEXT,
+  proficiency_level_desc    TEXT,
+  previous_skill_title      TEXT,
+  previous_skill_desc       TEXT,
+  previous_sfs_status       TEXT,
+  previous_casl_status      TEXT,
+  previous_skill_type       TEXT,
+  updated_skill_title       TEXT,
+  updated_skill_desc        TEXT,
+  updated_skill_sfs_status  TEXT,
+  updated_casl_status       TEXT,
+  updated_skill_type        TEXT,
+  updated_sector_tagging    TEXT,
+  created_at                TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_skills_mapping_sector ON jobs_skills_mapping(updated_sector_tagging);
+CREATE INDEX IF NOT EXISTS idx_jobs_skills_mapping_code ON jobs_skills_mapping(skill_code);
+
+CREATE TABLE IF NOT EXISTS jobs_skills_mapping_uploads (
+  id            SERIAL PRIMARY KEY,
+  filename      VARCHAR(255),
+  row_count     INTEGER NOT NULL,
+  skipped_count INTEGER NOT NULL DEFAULT 0,
+  uploaded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE career_aspirations ADD COLUMN IF NOT EXISTS catalog_job_role_id INTEGER REFERENCES job_role_catalog(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS job_role_cwf_kt (
+  id                      SERIAL PRIMARY KEY,
+  sector                  TEXT NOT NULL,
+  track                   TEXT,
+  job_role                TEXT NOT NULL,
+  critical_work_function  TEXT NOT NULL,
+  key_task                TEXT,
+  created_at              TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_job_role_cwf_kt_lookup ON job_role_cwf_kt(sector, track, job_role);
+
+CREATE TABLE IF NOT EXISTS job_role_tsc_ccs (
+  id                 SERIAL PRIMARY KEY,
+  sector             TEXT NOT NULL,
+  track              TEXT,
+  job_role           TEXT NOT NULL,
+  skill_title        TEXT NOT NULL,
+  skill_type         TEXT,
+  proficiency_level  TEXT,
+  skill_code         TEXT,
+  created_at         TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_job_role_tsc_ccs_lookup ON job_role_tsc_ccs(sector, track, job_role);
 `;

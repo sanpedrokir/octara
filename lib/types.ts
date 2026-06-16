@@ -167,6 +167,7 @@ export interface CareerAspiration {
   user_id: number;
   industry_id: number | null;
   job_role_id: number | null;
+  catalog_job_role_id: number | null;
   notes: string | null;
   is_active: boolean;
   priority: number;
@@ -174,6 +175,7 @@ export interface CareerAspiration {
   updated_at: string;
   industry_name?: string;
   job_role_name?: string;
+  catalog_track?: string | null;
 }
 
 // ─── Courses & Learning ──────────────────────────────────
