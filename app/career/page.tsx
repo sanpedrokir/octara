@@ -308,6 +308,8 @@ export default function CareerPage() {
               </div>
             )}
 
+            <p className="text-sm mb-3" style={{ color: 'var(--muted)' }}>You can change your career goal here.</p>
+
             <div className="card p-6 space-y-5">
               <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>🎛️ Find Job Roles by Sector</h3>
 
