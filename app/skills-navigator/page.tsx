@@ -191,7 +191,14 @@ export default function SkillsNavigatorPage() {
         currentSkills: Array.isArray(a.currentSkills) ? a.currentSkills : p.currentSkills,
       }));
 
-      if (latest.roadmap) {
+      // Only restore the roadmap if it was generated after (or at the same time as) this
+      // assessment — the latest route fetches them independently, so they can be from
+      // different analysis sessions and have mismatched skill gaps / content.
+      const roadmapTs = latest.roadmap?.createdAt ? new Date(latest.roadmap.createdAt).getTime() : 0;
+      const assessmentTs = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const roadmapMatchesSession = latest.roadmap && roadmapTs >= assessmentTs;
+
+      if (roadmapMatchesSession) {
         const { coursesBySkill: cbs, createdAt: _ca, ...roadmapData } = latest.roadmap;
         setRoadmap(roadmapData);
         if (cbs && Object.keys(cbs).length > 0) setCoursesBySkill(cbs);
@@ -201,14 +208,16 @@ export default function SkillsNavigatorPage() {
       }
 
       saveSession({
-        step: latest.roadmap ? 5 : 3,
+        step: roadmapMatchesSession ? 5 : 3,
         analysis: { skill_gaps: a.skillGaps, current_strengths: a.strengths, summary: a.summary },
         targetRole: a.targetRole,
         targetIndustry: a.targetIndustry,
         currentRole: a.currentRole,
         currentSkills: a.currentSkills,
-        coursesBySkill: latest.roadmap?.coursesBySkill ?? {},
-        roadmap: latest.roadmap ? (() => { const { coursesBySkill: _c, createdAt: _ca, ...r } = latest.roadmap; return r; })() : null,
+        coursesBySkill: roadmapMatchesSession ? (latest.roadmap?.coursesBySkill ?? {}) : {},
+        roadmap: roadmapMatchesSession
+          ? (() => { const { coursesBySkill: _c, createdAt: _ca, ...r } = latest.roadmap; return r; })()
+          : null,
       });
     } else if (analysisIsStale) {
       // Career goal changed — discard stale analysis and start fresh from step 1
