@@ -490,7 +490,7 @@ export default function SkillsNavigatorPage() {
                   style={{ opacity: (userType !== 'student' && !form.currentRole) ? 0.5 : 1 }}
                 >
                   {analyzing
-                    ? <><LoadingSpinner size="sm" /> Analysing with AI…</>
+                    ? <><LoadingSpinner size="sm" /> Analysing…</>
                     : career
                       ? 'Analyse Skill Gaps →'
                       : 'Next: Set Target →'}
@@ -563,7 +563,7 @@ export default function SkillsNavigatorPage() {
                     className="btn-primary flex-1 justify-center"
                     style={{ opacity: (!targetRole || !targetIndustry) ? 0.5 : 1 }}
                   >
-                    {analyzing ? <><LoadingSpinner size="sm" /> Analysing with AI…</> : 'Analyse Skill Gaps →'}
+                    {analyzing ? <><LoadingSpinner size="sm" /> Analysing…</> : 'Analyse Skill Gaps →'}
                   </button>
                 </div>
               </div>
