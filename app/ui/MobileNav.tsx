@@ -7,6 +7,7 @@ const items = [
   { href: '/dashboard', label: 'Home', icon: '📊' },
   { href: '/career', label: 'Career', icon: '🎯' },
   { href: '/skills-navigator', label: 'Skills', icon: '🧭' },
+  { href: '/skill-quiz', label: 'Quiz', icon: '🧠' },
   { href: '/profile', label: 'Profile', icon: '👤' },
 ];
 

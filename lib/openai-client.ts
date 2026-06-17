@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import type { SkillGap, RoadmapData, SsgCourse } from './types';
+import type { SkillGap, RoadmapData, SsgCourse, QuizQuestion } from './types';
 
 function getClient() {
   const key = process.env.OPENAI_API_KEY;
@@ -480,4 +480,71 @@ function getMockRoadmap(
     target_role: targetRole,
     target_industry: targetIndustry,
   };
+}
+
+export async function generateQuizQuestions(skill: string): Promise<QuizQuestion[]> {
+  const client = getClient();
+
+  if (!client) return getMockQuizQuestions(skill);
+
+  const prompt = `You are a Singapore professional skills assessor. Generate exactly 20 multiple-choice questions to test intermediate-to-advanced proficiency in: "${skill}", relevant to Singapore's professional context.
+
+Rules:
+- Each question has exactly 4 options labelled A, B, C, D
+- Mix conceptual knowledge, practical application, and Singapore-specific context
+- No trick questions; all options must be plausible
+- Vary difficulty across the 20 questions
+
+Return ONLY valid JSON:
+{
+  "questions": [
+    {
+      "q": "Question text?",
+      "opts": ["A. First option", "B. Second option", "C. Third option", "D. Fourth option"],
+      "ans": "A"
+    }
+  ]
+}`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+      max_tokens: 4000,
+    });
+    const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+    const qs: QuizQuestion[] = parsed.questions ?? [];
+    if (qs.length >= 10) return qs.slice(0, 20);
+    return getMockQuizQuestions(skill);
+  } catch {
+    return getMockQuizQuestions(skill);
+  }
+}
+
+function getMockQuizQuestions(skill: string): QuizQuestion[] {
+  const base = [
+    { q: `Which of the following best describes a core principle of ${skill}?`, opts: ['A. Continuous improvement and iteration', 'B. Rigid rule-following without deviation', 'C. Avoiding all forms of documentation', 'D. Delegating all decisions upward'], ans: 'A' },
+    { q: `In a Singapore professional context, ${skill} is most commonly applied to:`, opts: ['A. Reducing regulatory compliance costs', 'B. Improving workforce productivity and outcomes', 'C. Replacing all manual processes immediately', 'D. Eliminating stakeholder communication'], ans: 'B' },
+    { q: `What is the first step when implementing ${skill} in a new organisation?`, opts: ['A. Deploy tools without assessing needs', 'B. Conduct a needs analysis and gap assessment', 'C. Train all staff simultaneously on day one', 'D. Report immediately to senior management'], ans: 'B' },
+    { q: `Which metric best measures success when applying ${skill}?`, opts: ['A. Number of meetings held', 'B. Volume of emails sent', 'C. Measurable improvement in defined KPIs', 'D. Speed of initial deployment'], ans: 'C' },
+    { q: `A key challenge when scaling ${skill} across a large organisation is:`, opts: ['A. Too few tools available', 'B. Excessive government regulation in Singapore', 'C. Change management and stakeholder alignment', 'D. Lack of international best practices'], ans: 'C' },
+    { q: `Under Singapore's Skills Framework, ${skill} is categorised as a:`, opts: ['A. Non-essential lifestyle skill', 'B. Core competency for professional advancement', 'C. Entry-level requirement only', 'D. Purely technical skill with no soft-skill component'], ans: 'B' },
+    { q: `Which approach is most effective for developing ${skill} in a team setting?`, opts: ['A. Self-study only with no collaboration', 'B. Annual one-day workshops', 'C. Blended learning with on-the-job application', 'D. Reading theory without practice'], ans: 'C' },
+    { q: `How does ${skill} contribute to Singapore's Smart Nation initiative?`, opts: ['A. It has no relevance to Smart Nation', 'B. It supports digital transformation and workforce upskilling', 'C. It replaces Smart Nation goals entirely', 'D. It only applies to government agencies'], ans: 'B' },
+    { q: `The SkillsFuture framework recommends professionals assess their ${skill} proficiency at which level first?`, opts: ['A. Expert immediately upon joining', 'B. Foundational, then build progressively', 'C. Advanced, skipping basics', 'D. No proficiency level is relevant'], ans: 'B' },
+    { q: `What distinguishes an intermediate practitioner of ${skill} from a beginner?`, opts: ['A. Ability to theorise without applying', 'B. Independent application with contextual judgement', 'C. Relying entirely on supervisor guidance', 'D. Completing one online course'], ans: 'B' },
+    { q: `Which stakeholder group must be engaged earliest when introducing ${skill}?`, opts: ['A. External vendors only', 'B. Senior leadership and sponsors', 'C. End users only, leadership later', 'D. Regulators before internal teams'], ans: 'B' },
+    { q: `Data-driven decision making in ${skill} requires which foundational capability?`, opts: ['A. Intuition over evidence', 'B. Collecting and interpreting relevant metrics', 'C. Avoiding quantitative analysis', 'D. Outsourcing all data work'], ans: 'B' },
+    { q: `In Singapore's VUCA (volatile, uncertain, complex, ambiguous) business environment, ${skill} helps professionals:`, opts: ['A. Avoid change entirely', 'B. Adapt and respond to rapid shifts effectively', 'C. Maintain rigid processes without review', 'D. Focus solely on local market conditions'], ans: 'B' },
+    { q: `Ethical considerations in ${skill} primarily address:`, opts: ['A. Maximising short-term revenue at all costs', 'B. Responsible use of information and fair treatment of stakeholders', 'C. Avoiding all forms of competition', 'D. Disregarding data privacy'], ans: 'B' },
+    { q: `Which professional certification most directly validates ${skill} competency in Singapore?`, opts: ['A. Any certificate regardless of relevance', 'B. SkillsFuture-accredited or industry-recognised certification', 'C. No certification is ever useful', 'D. Only overseas qualifications count'], ans: 'B' },
+    { q: `When documenting outcomes of ${skill} initiatives, best practice involves:`, opts: ['A. Verbal reporting only', 'B. Structured reports with evidence, metrics, and lessons learned', 'C. Deleting records after project close', 'D. Reporting only successes, omitting failures'], ans: 'B' },
+    { q: `Cross-functional collaboration in ${skill} projects is essential because:`, opts: ['A. It slows down decision-making', 'B. It brings diverse perspectives and reduces blind spots', 'C. It replaces the need for a project lead', 'D. It is only needed in large MNCs'], ans: 'B' },
+    { q: `How often should professionals review and update their ${skill} knowledge?`, opts: ['A. Once at the start of their career', 'B. Continuously, as industries and best practices evolve', 'C. Only when mandated by their employer', 'D. Every decade'], ans: 'B' },
+    { q: `A professional demonstrating mastery of ${skill} would typically:`, opts: ['A. Work in isolation without peer review', 'B. Mentor others, lead projects, and contribute to best practice', 'C. Avoid all new developments in the field', 'D. Focus only on their own tasks'], ans: 'B' },
+    { q: `The most important outcome of building ${skill} competency is:`, opts: ['A. A longer resume', 'B. Tangible value delivered to employers and clients in Singapore', 'C. Access to more social events', 'D. The ability to avoid difficult projects'], ans: 'B' },
+  ];
+  // Shuffle slightly for variety
+  return base.sort(() => Math.random() - 0.5).slice(0, 20);
 }

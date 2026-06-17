@@ -161,6 +161,13 @@ export interface UserCertification {
   created_at: string;
 }
 
+// ─── Skill Quiz ──────────────────────────────────────────
+export interface QuizQuestion {
+  q: string;
+  opts: string[];
+  ans: string;
+}
+
 // ─── Career ──────────────────────────────────────────────
 export interface CareerAspiration {
   id: number;
