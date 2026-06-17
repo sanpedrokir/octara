@@ -202,8 +202,8 @@ export default function MyCoursesPage() {
         )}
       </div>
 
-      {/* Recommended courses */}
-      <div className="card p-5">
+      {/* Recommended courses — only shown when a career goal exists */}
+      {(loadingRec || recommended) && <div className="card p-5">
         <div className="flex items-start justify-between mb-4 gap-2 flex-wrap">
           <div>
             <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>
@@ -234,15 +234,7 @@ export default function MyCoursesPage() {
           <div className="space-y-3">
             {[1, 2, 3].map(i => <div key={i} className="h-16 rounded-lg skeleton" />)}
           </div>
-        ) : !recommended ? (
-          <div className="text-center py-8">
-            <span className="text-4xl block mb-3">🎯</span>
-            <p className="text-sm mb-3 font-medium" style={{ color: 'var(--foreground)' }}>No career goal set yet</p>
-            <Link href="/career" className="btn-primary text-sm no-underline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
-              Set Career Goal →
-            </Link>
-          </div>
-        ) : (() => {
+        ) : recommended ? (() => {
           const liveCourses = recommended.courses.filter(c => c.referenceNumber);
           const searchLinks = recommended.courses.filter(c => !c.referenceNumber);
           const extractKeyword = (title: string) => {
@@ -317,8 +309,8 @@ export default function MyCoursesPage() {
               </a>
             </div>
           );
-        })()}
-      </div>
+        })() : null}
+      </div>}
 
       <div className="text-center">
         <Link href="/skills-navigator" className="text-sm no-underline" style={{ color: 'var(--primary)' }}>
