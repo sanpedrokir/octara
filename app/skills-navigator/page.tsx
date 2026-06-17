@@ -569,11 +569,28 @@ export default function SkillsNavigatorPage() {
               </div>
             )}
 
-            {/* STEP 3 – AI Analysis Results */}
+            {/* STEP 3 – Analysis Results */}
             {step === 3 && analysis && (
               <div className="space-y-5 animate-fade-in">
                 <div className="card p-5">
-                  <h2 className="font-semibold text-lg mb-3" style={{ color: 'var(--foreground)' }}>Step 3: Skills Gap Analysis</h2>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <h2 className="font-semibold text-lg" style={{ color: 'var(--foreground)' }}>Step 3: Skills Gap Analysis</h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAnalysis(null);
+                        setCoursesBySkill({});
+                        setRoadmap(null);
+                        try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+                        runAnalysis();
+                      }}
+                      disabled={analyzing}
+                      className="btn-ghost text-xs shrink-0"
+                      style={{ color: 'var(--primary)' }}
+                    >
+                      {analyzing ? 'Re-running…' : '↺ Re-run for ' + (targetRole || 'current role')}
+                    </button>
+                  </div>
                   <p className="text-sm p-3 rounded-lg mb-4" style={{ background: 'var(--primary-light)', color: 'var(--foreground)', borderLeft: `4px solid var(--primary)` }}>
                     {analysis.summary}
                   </p>
