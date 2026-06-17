@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '../../ui/Navbar';
 
@@ -9,17 +9,72 @@ type UserType = 'student' | 'working_adult' | 'other' | '';
 export default function ProfileSetupPage() {
   const [bio, setBio] = useState('');
   const [userType, setUserType] = useState<UserType>('');
+
+  // Student fields
   const [institution, setInstitution] = useState('');
   const [program, setProgram] = useState('');
+
+  // Working adult / Other fields
+  const [company, setCompany] = useState('');
+  const [sector, setSector] = useState('');
+  const [jobRole, setJobRole] = useState('');
+  const [yearsExperience, setYearsExperience] = useState('');
+
+  // Dropdown data
+  const [sectors, setSectors] = useState<string[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    if (userType === 'working_adult' || userType === 'other') {
+      fetch('/api/job-role-catalog/sectors')
+        .then(r => r.json())
+        .then(({ data }) => { if (data) setSectors(data); });
+    }
+  }, [userType]);
+
+  useEffect(() => {
+    if (!sector) { setRoles([]); setJobRole(''); return; }
+    setLoadingRoles(true);
+    setJobRole('');
+    fetch(`/api/job-role-catalog/roles?sector=${encodeURIComponent(sector)}&limit=500`)
+      .then(r => r.json())
+      .then(({ data }) => {
+        if (data?.rows) {
+          const unique = [...new Set<string>(data.rows.map((r: { job_role: string }) => r.job_role))].sort();
+          setRoles(unique);
+        }
+        setLoadingRoles(false);
+      });
+  }, [sector]);
+
+  function handleUserTypeChange(type: UserType) {
+    setUserType(type);
+    setSector('');
+    setJobRole('');
+    setCompany('');
+    setYearsExperience('');
+    setInstitution('');
+    setProgram('');
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!userType) { setError('Please select what best describes you'); return; }
-    if (!institution.trim()) { setError('Institution name is required'); return; }
-    if (!program.trim()) { setError('Program / course is required'); return; }
+
+    if (userType === 'student') {
+      if (!institution.trim()) { setError('Institution name is required'); return; }
+      if (!program.trim()) { setError('Program / course is required'); return; }
+    } else {
+      if (!company.trim()) { setError('Company name is required'); return; }
+      if (!sector) { setError('Please select a sector'); return; }
+      if (!jobRole) { setError('Please select a job role'); return; }
+      if (!yearsExperience) { setError('Years of experience is required'); return; }
+    }
 
     setLoading(true);
     setError('');
@@ -28,7 +83,11 @@ export default function ProfileSetupPage() {
       const res = await fetch('/api/profile/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bio, userType, institution, program }),
+        body: JSON.stringify({
+          bio, userType, institution, program,
+          company, sector, jobRole,
+          yearsExperience: yearsExperience ? Number(yearsExperience) : null,
+        }),
       });
       const { error: err } = await res.json();
       if (err) { setError(err); return; }
@@ -48,13 +107,14 @@ export default function ProfileSetupPage() {
   ];
 
   const isStudent = userType === 'student';
+  const isWorkingAdult = userType === 'working_adult';
+  const showProfessionalFields = userType === 'working_adult' || userType === 'other';
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--background)' }}>
       <Navbar user={null} />
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="card w-full max-w-lg p-8">
-          {/* Header */}
           <div className="text-center mb-8">
             <div className="text-4xl mb-3">👤</div>
             <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--foreground)' }}>Complete your profile</h1>
@@ -93,7 +153,7 @@ export default function ProfileSetupPage() {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setUserType(opt.value)}
+                    onClick={() => handleUserTypeChange(opt.value)}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl text-center transition-all"
                     style={{
                       border: userType === opt.value ? '2px solid var(--primary)' : '2px solid var(--border)',
@@ -111,38 +171,28 @@ export default function ProfileSetupPage() {
               </div>
             </div>
 
-            {/* Education fields — shown once a type is selected */}
-            {userType && (
+            {/* Student fields */}
+            {isStudent && (
               <div className="space-y-4 pt-2">
-                <div
-                  className="flex items-center gap-2 pb-3"
-                  style={{ borderBottom: '1px solid var(--border)' }}
-                >
-                  <span className="text-base">{isStudent ? '🏫' : '🎓'}</span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                    {isStudent ? 'Current education' : 'Highest education'}
-                  </span>
+                <div className="flex items-center gap-2 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <span className="text-base">🏫</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>Current education</span>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
-                    {isStudent ? 'Current institution' : 'Institution name'}{' '}
-                    <span style={{ color: 'var(--danger)' }}>*</span>
+                    Current institution <span style={{ color: 'var(--danger)' }}>*</span>
                   </label>
                   <input
                     type="text"
                     className="input"
                     value={institution}
                     onChange={e => setInstitution(e.target.value)}
-                    placeholder={isStudent ? 'e.g. National University of Singapore' : 'e.g. Nanyang Technological University'}
-                    required
+                    placeholder="e.g. National University of Singapore"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
-                    {isStudent ? 'Program / course' : 'Program / qualification'}{' '}
-                    <span style={{ color: 'var(--danger)' }}>*</span>
+                    Program / course <span style={{ color: 'var(--danger)' }}>*</span>
                   </label>
                   <input
                     type="text"
@@ -150,7 +200,80 @@ export default function ProfileSetupPage() {
                     value={program}
                     onChange={e => setProgram(e.target.value)}
                     placeholder="e.g. Bachelor in Computer Science"
-                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Working Adult / Other fields */}
+            {showProfessionalFields && (
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center gap-2 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <span className="text-base">💼</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                    {isWorkingAdult ? 'Current role' : 'Most recent role'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                    {isWorkingAdult ? 'Current Company' : 'Last Company Worked at'}{' '}
+                    <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={company}
+                    onChange={e => setCompany(e.target.value)}
+                    placeholder={isWorkingAdult ? 'e.g. DBS Bank' : 'e.g. Singtel'}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                    Sector <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <select
+                    className="input"
+                    value={sector}
+                    onChange={e => setSector(e.target.value)}
+                    style={{ appearance: 'auto' }}
+                  >
+                    <option value="">Select a sector…</option>
+                    {sectors.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                    Job Role <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <select
+                    className="input"
+                    value={jobRole}
+                    onChange={e => setJobRole(e.target.value)}
+                    disabled={!sector || loadingRoles}
+                    style={{ appearance: 'auto' }}
+                  >
+                    <option value="">
+                      {!sector ? 'Select a sector first…' : loadingRoles ? 'Loading roles…' : 'Select a job role…'}
+                    </option>
+                    {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                    Years of Experience <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input"
+                    min={0}
+                    max={50}
+                    value={yearsExperience}
+                    onChange={e => setYearsExperience(e.target.value)}
+                    placeholder="e.g. 5"
                   />
                 </div>
               </div>
