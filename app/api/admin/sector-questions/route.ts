@@ -5,7 +5,6 @@ import OpenAI from 'openai';
 const BATCH_SIZE = 25;
 const TARGET = 1000;
 
-// 40 focus areas → 40 batches × 25 questions = 1000 per sector
 const FOCUS_AREAS = [
   'customer complaints, service recovery and de-escalation',
   'vendor negotiation and procurement decisions',
@@ -53,17 +52,17 @@ async function ensureTable() {
   const sql = db();
   await sql`
     CREATE TABLE IF NOT EXISTS sector_scenario_questions (
-      id            SERIAL PRIMARY KEY,
-      sector        TEXT NOT NULL,
-      question      TEXT NOT NULL,
-      option_a      TEXT NOT NULL,
-      option_b      TEXT NOT NULL,
-      option_c      TEXT NOT NULL,
-      option_d      TEXT NOT NULL,
-      correct_answer CHAR(1) NOT NULL CHECK (correct_answer IN ('A','B','C','D')),
-      explanation   TEXT,
-      difficulty    TEXT CHECK (difficulty IN ('easy','medium','hard')),
-      created_at    TIMESTAMPTZ DEFAULT NOW()
+      id             SERIAL PRIMARY KEY,
+      sector         TEXT NOT NULL,
+      question       TEXT NOT NULL,
+      option_a       TEXT NOT NULL,
+      option_b       TEXT NOT NULL,
+      option_c       TEXT NOT NULL,
+      option_d       TEXT NOT NULL,
+      correct_answer TEXT NOT NULL,
+      explanation    TEXT,
+      difficulty     TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW()
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_ssq_sector ON sector_scenario_questions(sector)`;
@@ -113,22 +112,33 @@ export async function POST(request: Request) {
     const session = await requireAuth();
     if (session.role !== 'admin') return Response.json({ data: null, error: 'Forbidden' }, { status: 403 });
 
-    const { sector, batchIndex } = await request.json() as { sector: string; batchIndex: number };
-    if (!sector) return Response.json({ data: null, error: 'sector required' }, { status: 400 });
+    const body = await request.json() as { sector?: string; batchIndex?: number };
+    const sector = body.sector?.trim();
+    const batchIndex = body.batchIndex ?? 0;
+
+    if (!sector) return Response.json({ data: null, error: 'sector is required' }, { status: 400 });
+
+    // Check OpenAI key first so we get a clear error instead of a cryptic 500
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return Response.json({ data: null, error: 'OPENAI_API_KEY is not set in environment variables' }, { status: 500 });
+    }
 
     await ensureTable();
     const sql = db();
 
-    // Check current count — skip if already has enough for this batch
-    const [{ count }] = await sql`
+    // Check current count — skip if sector is already complete
+    const countRows = await sql`
       SELECT COUNT(*)::int AS count FROM sector_scenario_questions WHERE sector = ${sector}
-    ` as Array<{ count: number }>;
+    `;
+    const currentCount = (countRows[0] as { count: number }).count;
 
-    if (count >= TARGET) {
-      return Response.json({ data: { inserted: 0, total: count, skipped: true }, error: null });
+    if (currentCount >= TARGET) {
+      return Response.json({ data: { inserted: 0, total: currentCount, skipped: true }, error: null });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Generate via OpenAI
+    const openai = new OpenAI({ apiKey });
     const focus = FOCUS_AREAS[batchIndex % FOCUS_AREAS.length];
 
     const prompt = `You are an expert corporate trainer for the ${sector} sector in Singapore.
@@ -137,20 +147,20 @@ Generate exactly ${BATCH_SIZE} unique multiple-choice scenario questions about: 
 
 Rules:
 - Each question must describe a realistic workplace scenario a ${sector} professional would face
-- Questions must be specific to ${sector} — not generic
+- Questions must be specific to ${sector} — not generic management theory
 - No two questions should cover the same scenario
-- Each question must have exactly 4 options (A–D) where only ONE is clearly best
-- Mix difficulties: ~8 easy, ~9 medium, ~8 hard
+- Each question must have exactly 4 options (A–D) where only ONE is clearly the best answer
+- Mix difficulties: approximately 8 easy, 9 medium, 8 hard
 
-Return ONLY valid JSON with this exact structure:
+Return ONLY valid JSON with this exact structure (no extra text, no markdown):
 {
   "questions": [
     {
       "q": "full scenario question text",
-      "a": "option A text",
-      "b": "option B text",
-      "c": "option C text",
-      "d": "option D text",
+      "a": "option A text (no A. prefix)",
+      "b": "option B text (no B. prefix)",
+      "c": "option C text (no C. prefix)",
+      "d": "option D text (no D. prefix)",
       "ans": "A",
       "explanation": "why this answer is correct in 1-2 sentences",
       "difficulty": "easy"
@@ -158,41 +168,67 @@ Return ONLY valid JSON with this exact structure:
   ]
 }`;
 
-    const res = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      max_tokens: 6000,
-      temperature: 0.85,
-    });
-
-    const parsed = JSON.parse(res.choices[0].message.content || '{"questions":[]}') as {
-      questions: Array<{ q: string; a: string; b: string; c: string; d: string; ans: string; explanation: string; difficulty: string }>;
-    };
-
-    const questions = (parsed.questions || []).slice(0, BATCH_SIZE);
-    if (questions.length === 0) {
-      return Response.json({ data: null, error: 'OpenAI returned no questions' }, { status: 500 });
+    let aiContent: string;
+    try {
+      const res = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        max_tokens: 6000,
+        temperature: 0.85,
+      });
+      aiContent = res.choices[0]?.message?.content ?? '';
+    } catch (aiErr) {
+      const msg = aiErr instanceof Error ? aiErr.message : 'OpenAI request failed';
+      return Response.json({ data: null, error: `OpenAI error: ${msg}` }, { status: 500 });
     }
 
+    if (!aiContent) {
+      return Response.json({ data: null, error: 'OpenAI returned an empty response' }, { status: 500 });
+    }
+
+    let parsed: { questions?: Array<{ q: string; a: string; b: string; c: string; d: string; ans: string; explanation?: string; difficulty?: string }> };
+    try {
+      parsed = JSON.parse(aiContent);
+    } catch {
+      return Response.json({ data: null, error: 'OpenAI returned malformed JSON' }, { status: 500 });
+    }
+
+    const questions = (parsed.questions ?? []).slice(0, BATCH_SIZE);
+    if (questions.length === 0) {
+      return Response.json({ data: null, error: 'OpenAI returned no questions in the expected format' }, { status: 500 });
+    }
+
+    // Insert questions, skipping any with invalid answer keys
     let inserted = 0;
     for (const q of questions) {
-      const ans = q.ans?.toUpperCase()?.trim();
-      if (!['A', 'B', 'C', 'D'].includes(ans)) continue;
-      const diff = ['easy', 'medium', 'hard'].includes(q.difficulty) ? q.difficulty : 'medium';
+      try {
+        const ans = (q.ans ?? '').toUpperCase().trim().charAt(0);
+        if (!['A', 'B', 'C', 'D'].includes(ans)) continue;
+        const diff = ['easy', 'medium', 'hard'].includes(q.difficulty ?? '') ? q.difficulty! : 'medium';
+        const questionText = (q.q ?? '').trim();
+        const optA = (q.a ?? '').trim();
+        const optB = (q.b ?? '').trim();
+        const optC = (q.c ?? '').trim();
+        const optD = (q.d ?? '').trim();
+        if (!questionText || !optA || !optB || !optC || !optD) continue;
 
-      await sql`
-        INSERT INTO sector_scenario_questions
-          (sector, question, option_a, option_b, option_c, option_d, correct_answer, explanation, difficulty)
-        VALUES
-          (${sector}, ${q.q}, ${q.a}, ${q.b}, ${q.c}, ${q.d}, ${ans}, ${q.explanation ?? null}, ${diff})
-      `;
-      inserted++;
+        await sql`
+          INSERT INTO sector_scenario_questions
+            (sector, question, option_a, option_b, option_c, option_d, correct_answer, explanation, difficulty)
+          VALUES
+            (${sector}, ${questionText}, ${optA}, ${optB}, ${optC}, ${optD}, ${ans}, ${q.explanation ?? null}, ${diff})
+        `;
+        inserted++;
+      } catch {
+        // Skip individual bad rows rather than failing the whole batch
+      }
     }
 
-    const [{ total }] = await sql`
+    const totalRows = await sql`
       SELECT COUNT(*)::int AS total FROM sector_scenario_questions WHERE sector = ${sector}
-    ` as Array<{ total: number }>;
+    `;
+    const total = (totalRows[0] as { total: number }).total;
 
     return Response.json({ data: { inserted, total, skipped: false }, error: null });
   } catch (err) {
