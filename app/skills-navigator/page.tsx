@@ -158,9 +158,19 @@ export default function SkillsNavigatorPage() {
 
     if (indJson.data) setIndustries(indJson.data);
 
-    // Restore saved analysis + roadmap from DB
     const latest = latestJson.data;
-    if (latest?.assessment) {
+    const careerData = careerJson.data;
+
+    // Detect if the saved analysis was for a different career goal
+    const careerGoalName = careerData?.job_role_name || '';
+    const analysisTargetRole = latest?.assessment?.targetRole || '';
+    const analysisIsStale = !!(
+      careerGoalName && analysisTargetRole &&
+      analysisTargetRole.toLowerCase() !== careerGoalName.toLowerCase()
+    );
+
+    if (latest?.assessment && !analysisIsStale) {
+      // Restore saved analysis + roadmap from DB
       const a = latest.assessment;
       setAnalysis({
         skill_gaps: a.skillGaps,
@@ -184,7 +194,6 @@ export default function SkillsNavigatorPage() {
         setStepRaw(3);
       }
 
-      // Also restore session cache
       saveSession({
         step: latest.roadmap ? 5 : 3,
         analysis: { skill_gaps: a.skillGaps, current_strengths: a.strengths, summary: a.summary },
@@ -195,6 +204,9 @@ export default function SkillsNavigatorPage() {
         coursesBySkill: latest.roadmap?.coursesBySkill ?? {},
         roadmap: latest.roadmap ? (() => { const { coursesBySkill: _c, createdAt: _ca, ...r } = latest.roadmap; return r; })() : null,
       });
+    } else if (analysisIsStale) {
+      // Career goal changed — discard stale analysis and start fresh from step 1
+      try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
     } else {
       // No saved analysis — check sessionStorage as fallback
       const saved = loadSession();
@@ -203,19 +215,19 @@ export default function SkillsNavigatorPage() {
         if (saved.analysis) setAnalysis(saved.analysis);
         if (saved.coursesBySkill) setCoursesBySkill(saved.coursesBySkill);
         if (saved.roadmap) setRoadmap(saved.roadmap);
-          if (saved.targetRole) setTargetRole(saved.targetRole);
+        if (saved.targetRole) setTargetRole(saved.targetRole);
         if (saved.targetIndustry) setTargetIndustry(saved.targetIndustry);
       }
     }
 
-    if (careerJson.data) {
-      setCareer(careerJson.data);
-      // Only set target from career if no saved analysis
-      if (!latest?.assessment) {
-        setTargetRole(r => r || careerJson.data.job_role_name || '');
-        setTargetIndustry(i => i || careerJson.data.industry_name || '');
+    if (careerData) {
+      setCareer(careerData);
+      // Set target from career goal if there is no valid (non-stale) saved analysis
+      if (!latest?.assessment || analysisIsStale) {
+        setTargetRole(r => r || careerData.job_role_name || '');
+        setTargetIndustry(i => i || careerData.industry_name || '');
       }
-      if (careerJson.data.industry_id) setSelectedIndustryId(String(careerJson.data.industry_id));
+      if (careerData.industry_id) setSelectedIndustryId(String(careerData.industry_id));
     }
 
     if (coursesJson.data) {

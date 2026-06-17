@@ -187,7 +187,7 @@ export default function CareerPage() {
     if (sectorsJson.data) setSectors(sectorsJson.data);
     if (careerJson.data) {
       setCurrent(careerJson.data);
-      setNotes(careerJson.data.notes || '');
+      setNotes('');
     }
     setLoading(false);
   }, []);
