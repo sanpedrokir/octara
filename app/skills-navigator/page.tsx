@@ -388,7 +388,7 @@ export default function SkillsNavigatorPage() {
           <div className="max-w-3xl">
             <div className="mb-6">
               <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>🧭 Skills Navigator</h1>
-              <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>Analyse your skill gaps and get a personalised SkillsFuture learning roadmap.</p>
+              <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>Analyse your skill gaps and get a personalised learning roadmap.</p>
             </div>
 
             <StepIndicator current={step} total={5} />
