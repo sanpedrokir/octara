@@ -454,6 +454,23 @@ export default function AdminPage() {
               {loading ? 'Seeding…' : '🌱 Seed Sectors & Job Roles'}
             </button>
           </div>
+
+          <div className="card p-5 space-y-4" style={{ border: '2px solid #7c3aed', background: '#f5f3ff' }}>
+            <div>
+              <h3 className="font-semibold" style={{ color: '#7c3aed' }}>🧠 Sector Scenario Questions</h3>
+              <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                Generate 1,000 AI-powered corporate scenario questions per sector — multiple choice with explanations.
+                Done once per sector and stored permanently. Use for assessments, quizzes and readiness tests.
+              </p>
+            </div>
+            <a
+              href="/admin/sector-questions"
+              className="inline-block btn-primary no-underline text-sm"
+              style={{ background: '#7c3aed', borderColor: '#7c3aed' }}
+            >
+              Go to Sector Questions Generator →
+            </a>
+          </div>
         </div>
       )}
 
