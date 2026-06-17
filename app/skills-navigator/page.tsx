@@ -34,7 +34,7 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
         </div>
       ))}
       <span className="ml-2 text-sm font-medium" style={{ color: 'var(--muted)' }}>
-        {['About You', 'Target Role', 'AI Analysis', 'Courses', 'Roadmap'][current - 1]}
+        {['About You', 'Target Role', 'Analysis', 'Courses', 'Roadmap'][current - 1]}
       </span>
     </div>
   );
@@ -163,15 +163,20 @@ export default function SkillsNavigatorPage() {
     const latest = latestJson.data;
     const careerData = careerJson.data;
 
-    // Detect if the saved analysis was for a different career goal.
-    // Also treat empty analysisTargetRole as stale — can't verify it matches.
+    // Detect if the saved analysis is stale relative to the current career goal.
     const forceFresh = searchParams.get('fresh') === '1';
     const careerGoalName = careerData?.job_role_name || '';
     const analysisTargetRole = latest?.assessment?.targetRole || '';
+    // If the career goal was saved after the analysis was run, the analysis is stale
+    // regardless of whether the role names happen to match.
+    const careerUpdatedAt = careerData?.updated_at ? new Date(careerData.updated_at).getTime() : 0;
+    const assessmentCreatedAt = latest?.assessment?.createdAt ? new Date(latest.assessment.createdAt).getTime() : 0;
+    const careerChangedAfterAnalysis = careerUpdatedAt > 0 && assessmentCreatedAt > 0 && careerUpdatedAt > assessmentCreatedAt;
     const analysisIsStale = forceFresh || !!(
       careerGoalName && (
         !analysisTargetRole ||
-        analysisTargetRole.toLowerCase() !== careerGoalName.toLowerCase()
+        analysisTargetRole.toLowerCase() !== careerGoalName.toLowerCase() ||
+        careerChangedAfterAnalysis
       )
     );
 
@@ -568,7 +573,7 @@ export default function SkillsNavigatorPage() {
             {step === 3 && analysis && (
               <div className="space-y-5 animate-fade-in">
                 <div className="card p-5">
-                  <h2 className="font-semibold text-lg mb-3" style={{ color: 'var(--foreground)' }}>Step 3: AI Skills Gap Analysis</h2>
+                  <h2 className="font-semibold text-lg mb-3" style={{ color: 'var(--foreground)' }}>Step 3: Skills Gap Analysis</h2>
                   <p className="text-sm p-3 rounded-lg mb-4" style={{ background: 'var(--primary-light)', color: 'var(--foreground)', borderLeft: `4px solid var(--primary)` }}>
                     {analysis.summary}
                   </p>
