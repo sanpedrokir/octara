@@ -508,44 +508,97 @@ function shuffleOptions(q: QuizQuestion): QuizQuestion {
   };
 }
 
+// Programming/technical skill detection
+const PROGRAMMING_KEYWORDS = [
+  'python', 'java', 'javascript', 'typescript', 'c++', 'c#', 'c sharp', 'golang', 'go lang',
+  'rust', 'ruby', 'php', 'swift', 'kotlin', 'scala', 'r programming', 'matlab', 'perl',
+  'sql', 'nosql', 'mongodb', 'postgresql', 'mysql', 'sqlite', 'oracle database', 'redis',
+  'react', 'vue', 'angular', 'node.js', 'nodejs', 'express', 'django', 'flask', 'spring boot',
+  'machine learning', 'deep learning', 'tensorflow', 'pytorch', 'keras', 'scikit',
+  'html', 'css', 'html/css', 'web development', 'frontend', 'backend', 'full stack',
+  'algorithm', 'data structure', 'algorithms', 'object-oriented', 'oop', 'functional programming',
+  'git', 'docker', 'kubernetes', 'ci/cd', 'devops', 'devsecops',
+  'rest api', 'graphql', 'api design', 'microservices',
+  'bash', 'shell scripting', 'linux', 'unix',
+  'blockchain', 'solidity', 'smart contract',
+  'android', 'ios', 'flutter', 'react native',
+  'spark', 'kafka', 'hadoop', 'etl pipeline',
+  'aws', 'azure', 'gcp', 'cloud architecture', 'terraform', 'infrastructure as code',
+  'penetration testing', 'ethical hacking', 'reverse engineering',
+  'embedded system', 'microcontroller', 'firmware',
+  'compiler', 'operating system', 'network programming',
+  'data engineering', 'mlops', 'feature engineering',
+];
+
+function isProgrammingSkill(skill: string): boolean {
+  const lower = skill.toLowerCase();
+  return PROGRAMMING_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 export async function generateQuizQuestions(skill: string): Promise<QuizQuestion[]> {
   const client = getClient();
 
   if (!client) return getMockQuizQuestions(skill);
 
-  const prompt = `You are a specialist examiner for Singapore's professional certification system.
+  const isCoding = isProgrammingSkill(skill);
 
-Generate exactly 25 multiple-choice questions to rigorously assess professional knowledge of: "${skill}"
+  const codingSection = `
+═══ PROGRAMMING/TECHNICAL SKILL — MANDATORY QUESTION STYLE ═══
+"${skill}" is a programming or technical skill. Questions MUST be hands-on and technical:
 
-═══ STRICT TOPIC BOUNDARY — NON-NEGOTIABLE ═══
-• EVERY question must be exclusively and specifically about "${skill}" itself
-• PROHIBITED: questions from any other domain, skill, or subject area
-• If "${skill}" is a technical IT skill (e.g. Python, SQL, Machine Learning, Cloud Computing, Cybersecurity):
-  → Ask ONLY about that technology: syntax, libraries, algorithms, architecture, debugging, tooling
-  → Do NOT ask about finance, HR, management, regulations, or other fields
-• If "${skill}" is a finance skill (e.g. Financial Modelling, Risk Management):
-  → Ask ONLY about finance concepts, instruments, valuation, regulations
-  → Do NOT ask about programming, HR processes, or unrelated topics
-• Include Singapore-specific context (MAS, PDPA, SSG, SkillsFuture, sector regulators) ONLY when it directly relates to "${skill}"
+REQUIRED BREAKDOWN (all 25 questions):
+• At least 15 questions must contain actual ${skill} code snippets or syntax in the question body
+• Question types you MUST use:
+  1. "What is the output of this code?" — include a short runnable code block
+  2. "Which line contains the bug?" — include a code snippet with a subtle error
+  3. "What does this syntax / keyword / operator do?" — use real ${skill} syntax
+  4. "What is the time/space complexity of this algorithm?" — with code or pseudocode
+  5. OOP concepts with ${skill} examples: inheritance, encapsulation, polymorphism, abstraction, interfaces, generics
+  6. "Which of the following is the correct ${skill} syntax for X?"
+  7. Data structure choice questions: which structure best solves this specific problem?
+  8. Library/framework API questions specific to ${skill} (e.g. built-in functions, standard library)
 
-═══ DIFFICULTY DISTRIBUTION (mandatory) ═══
-Label each question with its difficulty. Required count per level:
-• 8 EASY: definitions, basic concepts, fundamental rules, recall
-• 9 MEDIUM: application, choosing between approaches, common scenarios
-• 8 HARD: edge cases, advanced patterns, optimisation, architecture trade-offs, debugging complex situations
+FORBIDDEN for this skill:
+• Pure theory / management / process questions with no technical content
+• Questions that would equally apply to a non-programmer (e.g. "how do you communicate with stakeholders?")
+
+Format code snippets inside the question "q" field using plain text with line breaks (\\n). Keep snippets short (3–8 lines max).`;
+
+  const nonCodingSection = `
+═══ DOMAIN SKILL — QUESTION STYLE ═══
+"${skill}" is NOT a programming skill.
+FORBIDDEN: Do NOT include any programming syntax, code snippets, or software engineering questions.
+REQUIRED: Focus exclusively on:
+• Domain-specific concepts, frameworks, methodologies, and standards
+• Regulatory requirements and compliance (especially Singapore: MAS, MOH, CAAS, NEA, IRAS, SSG, etc. as applicable)
+• Real-world scenario-based professional decision making
+• Tools and processes specific to this domain (NOT programming tools)
+• Professional judgement, risk assessment, stakeholder considerations`;
+
+  const prompt = `You are a specialist examiner producing a professional assessment for Singapore's workforce certification system.
+
+Generate exactly 25 multiple-choice questions to rigorously assess knowledge of: "${skill}"
+
+═══ ABSOLUTE TOPIC RULE ═══
+Every single question must be exclusively about "${skill}". Zero tolerance for questions that belong to a different domain or skill. A question that could appear in a quiz for a DIFFERENT skill is wrong — rewrite it.
+${isCoding ? codingSection : nonCodingSection}
+
+═══ DIFFICULTY DISTRIBUTION (mandatory — label every question) ═══
+• 8 EASY   — recall, basic syntax/definitions, foundational concepts
+• 9 MEDIUM — application, choosing between approaches, reading/tracing code (for programming) or scenario judgement (for domain skills)
+• 8 HARD   — edge cases, debugging complex code / advanced architecture (programming) or nuanced regulatory / professional judgement (domain)
 
 ═══ QUALITY RULES ═══
-• All 4 options must be plausible — no obviously absurd distractors
-• Exactly one correct answer per question
-• No ambiguous questions with multiple defensible answers
-• Draw from authoritative sources: official docs, recognised standards, industry best practice
+• All 4 options must be plausible distractors — no obviously absurd choices
+• Exactly one unambiguously correct answer per question
+• Draw from official documentation, language specs, recognised standards, or Singapore-specific regulatory sources as appropriate
 
-Return ONLY valid JSON — no markdown fences, no extra text:
+Return ONLY valid JSON — no markdown, no commentary:
 {
   "questions": [
     {
-      "q": "Question text?",
-      "opts": ["A. First option", "B. Second option", "C. Third option", "D. Fourth option"],
+      "q": "Question text (include code here if applicable)\\ncode line 1\\ncode line 2",
+      "opts": ["A. ...", "B. ...", "C. ...", "D. ..."],
       "ans": "A",
       "difficulty": "easy"
     }
@@ -562,7 +615,6 @@ Return ONLY valid JSON — no markdown fences, no extra text:
     const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
     const qs: QuizQuestion[] = parsed.questions ?? [];
     if (qs.length >= 15) {
-      // Shuffle question order and each question's options independently
       return fisherYates(qs.slice(0, 25)).map(shuffleOptions);
     }
     return getMockQuizQuestions(skill);
@@ -572,6 +624,42 @@ Return ONLY valid JSON — no markdown fences, no extra text:
 }
 
 function getMockQuizQuestions(skill: string): QuizQuestion[] {
+  if (isProgrammingSkill(skill)) return getMockCodingQuestions(skill);
+  return getMockDomainQuestions(skill);
+}
+
+function getMockCodingQuestions(skill: string): QuizQuestion[] {
+  const base: QuizQuestion[] = [
+    { q: `Which of the following correctly declares a variable in ${skill}?`, opts: ['A. The syntax varies by language version', 'B. Using the language-standard declaration keyword followed by an identifier', 'C. Variables cannot be declared; only constants exist', 'D. All identifiers must begin with an underscore'], ans: 'B', difficulty: 'easy' },
+    { q: `In object-oriented ${skill} programming, encapsulation means:`, opts: ['A. Inheriting behaviour from a parent class', 'B. Bundling data and the methods that operate on it within a single unit and restricting direct access', 'C. Defining multiple methods with the same name but different signatures', 'D. Writing functions without side effects'], ans: 'B', difficulty: 'easy' },
+    { q: `Which data structure provides O(1) average-case lookup by key in ${skill}?`, opts: ['A. Linked list', 'B. Binary search tree', 'C. Hash map / dictionary', 'D. Stack'], ans: 'C', difficulty: 'easy' },
+    { q: `In ${skill}, polymorphism allows you to:`, opts: ['A. Store multiple data types in a single variable at compile time', 'B. Call the same method name on different object types and get type-specific behaviour', 'C. Prevent a class from being subclassed', 'D. Declare a function inside another function'], ans: 'B', difficulty: 'easy' },
+    { q: `What is the time complexity of iterating through every element of an array of n items once?`, opts: ['A. O(log n)', 'B. O(n²)', 'C. O(1)', 'D. O(n)'], ans: 'D', difficulty: 'easy' },
+    { q: `In ${skill}, an interface (or equivalent construct) is primarily used to:`, opts: ['A. Store shared state between objects', 'B. Define a contract of method signatures that implementing classes must fulfil', 'C. Automatically generate getters and setters', 'D. Replace the need for inheritance entirely'], ans: 'B', difficulty: 'easy' },
+    { q: `Which sorting algorithm has average and worst-case time complexity of O(n log n)?`, opts: ['A. Bubble sort', 'B. Insertion sort', 'C. Merge sort', 'D. Selection sort'], ans: 'C', difficulty: 'easy' },
+    { q: `In ${skill}, what does a try/catch (or equivalent) block do?`, opts: ['A. Optimises loop performance', 'B. Declares immutable variables', 'C. Handles runtime exceptions so the program can recover gracefully', 'D. Imports external libraries'], ans: 'C', difficulty: 'easy' },
+    { q: `Given a stack data structure, which operation removes and returns the most recently added element?`, opts: ['A. enqueue', 'B. dequeue', 'C. pop', 'D. shift'], ans: 'C', difficulty: 'medium' },
+    { q: `In ${skill}, inheritance allows a subclass to:`, opts: ['A. Hide its own methods from the parent class', 'B. Reuse and extend the fields and methods of its parent class', 'C. Prevent instantiation of the parent class', 'D. Convert one data type to another at runtime'], ans: 'B', difficulty: 'medium' },
+    { q: `Which ${skill} concept would you use to ensure a variable cannot be reassigned after initialisation?`, opts: ['A. Abstract class', 'B. Static method', 'C. Constant / final / immutable declaration', 'D. Constructor overloading'], ans: 'C', difficulty: 'medium' },
+    { q: `A recursive function in ${skill} must always include:`, opts: ['A. At least two parameters', 'B. A base case that stops the recursion', 'C. A return type of void', 'D. An interface implementation'], ans: 'B', difficulty: 'medium' },
+    { q: `What distinguishes a shallow copy from a deep copy of an object in ${skill}?`, opts: ['A. Shallow copy duplicates only primitive fields; deep copy creates independent copies of all nested objects', 'B. There is no difference — both produce independent copies', 'C. Deep copy is faster than shallow copy', 'D. Shallow copy includes methods; deep copy includes only data'], ans: 'A', difficulty: 'medium' },
+    { q: `In ${skill}, a static method belongs to:`, opts: ['A. The instance of the class', 'B. An abstract superclass only', 'C. The class itself, not to any specific instance', 'D. An external library'], ans: 'C', difficulty: 'medium' },
+    { q: `Which design pattern provides a single global point of access to an object and ensures only one instance is created?`, opts: ['A. Factory', 'B. Observer', 'C. Strategy', 'D. Singleton'], ans: 'D', difficulty: 'medium' },
+    { q: `What is the space complexity of an algorithm that allocates a new array of size n at each of n recursive calls?`, opts: ['A. O(1)', 'B. O(n)', 'C. O(n²)', 'D. O(log n)'], ans: 'C', difficulty: 'medium' },
+    { q: `In ${skill}, method overloading allows:`, opts: ['A. Multiple methods with the same name but different parameter lists in the same class', 'B. A subclass to replace a parent class method', 'C. A method to call itself', 'D. Changing the return type of an inherited method'], ans: 'A', difficulty: 'medium' },
+    { q: `Consider a linked list. What is the worst-case time complexity of searching for a specific value?`, opts: ['A. O(1)', 'B. O(log n)', 'C. O(n)', 'D. O(n log n)'], ans: 'C', difficulty: 'medium' },
+    { q: `In ${skill}, what problem does the Observer design pattern solve?`, opts: ['A. Creating objects without specifying their concrete class', 'B. Notifying multiple dependent objects automatically when one object changes state', 'C. Ensuring only one instance of a class exists', 'D. Converting an interface into another interface'], ans: 'B', difficulty: 'hard' },
+    { q: `Which scenario best illustrates a memory leak risk in ${skill}?`, opts: ['A. Using constants instead of variables', 'B. Catching and logging all exceptions', 'C. Holding references to objects that are no longer needed, preventing garbage collection', 'D. Declaring all methods as private'], ans: 'C', difficulty: 'hard' },
+    { q: `In ${skill}, a generic (or template) type parameter allows you to:`, opts: ['A. Define type-safe classes and methods that work across multiple types without duplication', 'B. Skip type checking at compile time', 'C. Automatically serialise objects to JSON', 'D. Replace abstract classes entirely'], ans: 'A', difficulty: 'hard' },
+    { q: `Which concurrency issue occurs when two threads each hold a lock that the other thread needs, causing both to wait indefinitely?`, opts: ['A. Race condition', 'B. Deadlock', 'C. Livelock', 'D. Thread starvation'], ans: 'B', difficulty: 'hard' },
+    { q: `In the context of ${skill} performance optimisation, memoisation is used to:`, opts: ['A. Reduce memory allocation by reusing object instances', 'B. Cache results of expensive function calls and return the cached result for repeated inputs', 'C. Compile code ahead of execution time', 'D. Parallelise independent loop iterations'], ans: 'B', difficulty: 'hard' },
+    { q: `What is the key difference between composition and inheritance as design choices in ${skill}?`, opts: ['A. Composition is slower than inheritance at runtime', 'B. Inheritance cannot be used with interfaces', 'C. Composition ("has-a") creates flexible, loosely coupled designs; inheritance ("is-a") can create tight coupling if overused', 'D. There is no practical difference — both achieve the same result'], ans: 'C', difficulty: 'hard' },
+    { q: `In ${skill}, a tail-recursive function can be optimised by the compiler/runtime because:`, opts: ['A. It uses less readable code', 'B. The recursive call is the very last operation, allowing the current stack frame to be reused', 'C. It avoids the use of base cases', 'D. It automatically converts to iteration at the source level'], ans: 'B', difficulty: 'hard' },
+  ];
+  return fisherYates(base).slice(0, 25).map(shuffleOptions);
+}
+
+function getMockDomainQuestions(skill: string): QuizQuestion[] {
   const base: QuizQuestion[] = [
     { q: `Which best describes the primary purpose of ${skill}?`, opts: ['A. To automate all organisational decisions', 'B. To solve a specific class of professional problems efficiently', 'C. To replace human judgement entirely', 'D. To increase administrative overhead'], ans: 'B', difficulty: 'easy' },
     { q: `A foundational concept in ${skill} is best described as:`, opts: ['A. Guesswork refined over time', 'B. A structured approach grounded in established principles', 'C. Improvisation based on context', 'D. Trial and error without documentation'], ans: 'B', difficulty: 'easy' },

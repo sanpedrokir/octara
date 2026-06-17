@@ -277,9 +277,32 @@ export default function SkillQuizPage() {
               </span>
             );
           })()}
-          <p className="font-semibold leading-relaxed" style={{ color: 'var(--foreground)', fontSize: '1rem' }}>
-            {q.q}
-          </p>
+          {(() => {
+            const parts = q.q.split('\n');
+            const questionText = parts[0];
+            const codeLines = parts.slice(1);
+            return (
+              <>
+                <p className="font-semibold leading-relaxed" style={{ color: 'var(--foreground)', fontSize: '1rem' }}>
+                  {questionText}
+                </p>
+                {codeLines.length > 0 && (
+                  <pre
+                    className="text-sm rounded-lg p-4 overflow-x-auto"
+                    style={{
+                      background: '#0f172a',
+                      color: '#e2e8f0',
+                      fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
+                      lineHeight: '1.6',
+                      whiteSpace: 'pre',
+                    }}
+                  >
+                    {codeLines.join('\n')}
+                  </pre>
+                )}
+              </>
+            );
+          })()}
 
           <div className="space-y-2.5">
             {q.opts.map(opt => {
