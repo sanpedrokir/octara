@@ -162,6 +162,8 @@ export default function CareerPage() {
   const [results, setResults] = useState<CatalogRole[]>([]);
   const [keyword, setKeyword] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 10;
 
   const [selectedRole, setSelectedRole] = useState<CatalogRole | null>(null);
   const [notes, setNotes] = useState('');
@@ -261,6 +263,7 @@ export default function CareerPage() {
     setSearching(true);
     setHasSearched(true);
     setSelectedRole(null);
+    setPage(0);
     const params = new URLSearchParams({ sector: selectedSector, limit: '500' });
     if (selectedTracks.length > 0) params.set('tracks', selectedTracks.join(','));
     const res = await fetch(`/api/job-role-catalog/roles?${params}`);
@@ -275,6 +278,9 @@ export default function CareerPage() {
     rows = [...rows].sort((a, b) => sortDir === 'asc' ? a.job_role.localeCompare(b.job_role) : b.job_role.localeCompare(a.job_role));
     return rows;
   }, [results, keyword, sortDir]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleResults.length / PAGE_SIZE));
+  const pagedResults = visibleResults.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   async function handleSetGoal() {
     if (!selectedRole) return;
@@ -389,13 +395,13 @@ export default function CareerPage() {
               <div className="card p-6 mt-5 space-y-4">
                 <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>Job Roles</h3>
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Showing {visibleResults.length} result(s). Select a role to view more details.
+                  {visibleResults.length} result{visibleResults.length !== 1 ? 's' : ''} found. Select a role to view more details.
                 </p>
                 <input
                   className="input text-sm"
                   placeholder="Enter keyword to search"
                   value={keyword}
-                  onChange={e => setKeyword(e.target.value)}
+                  onChange={e => { setKeyword(e.target.value); setPage(0); }}
                 />
 
                 <div className="overflow-x-auto">
@@ -405,7 +411,7 @@ export default function CareerPage() {
                         <th
                           className="text-left py-2 pr-4 cursor-pointer select-none"
                           style={{ color: 'var(--foreground)' }}
-                          onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                          onClick={() => { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); setPage(0); }}
                         >
                           Job Role {sortDir === 'asc' ? '↑' : '↓'}
                         </th>
@@ -414,7 +420,7 @@ export default function CareerPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleResults.map(role => (
+                      {pagedResults.map(role => (
                         <tr
                           key={role.id}
                           onClick={() => setSelectedRole(role)}
@@ -437,6 +443,62 @@ export default function CareerPage() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination */}
+                {visibleResults.length > PAGE_SIZE && (
+                  <div className="flex items-center justify-between pt-2 flex-wrap gap-3">
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                      Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, visibleResults.length)} of {visibleResults.length} roles
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPage(p => p - 1)}
+                        disabled={page === 0}
+                        className="text-sm px-3 py-1.5 rounded-lg font-medium transition-colors"
+                        style={{
+                          background: page === 0 ? 'var(--muted-bg)' : 'var(--primary-light)',
+                          color: page === 0 ? 'var(--muted)' : 'var(--primary)',
+                          cursor: page === 0 ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        ← Prev
+                      </button>
+                      {pageCount <= 10 ? (
+                        <div className="flex gap-1">
+                          {Array.from({ length: pageCount }, (_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setPage(i)}
+                              className="w-8 h-8 rounded-lg text-xs font-semibold transition-colors"
+                              style={{
+                                background: i === page ? 'var(--primary)' : 'var(--muted-bg)',
+                                color: i === page ? 'white' : 'var(--muted)',
+                              }}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs px-2" style={{ color: 'var(--muted)' }}>
+                          Page {page + 1} of {pageCount}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setPage(p => p + 1)}
+                        disabled={page >= pageCount - 1}
+                        className="text-sm px-3 py-1.5 rounded-lg font-medium transition-colors"
+                        style={{
+                          background: page >= pageCount - 1 ? 'var(--muted-bg)' : 'var(--primary-light)',
+                          color: page >= pageCount - 1 ? 'var(--muted)' : 'var(--primary)',
+                          cursor: page >= pageCount - 1 ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
