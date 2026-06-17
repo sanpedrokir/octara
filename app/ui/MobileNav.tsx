@@ -8,6 +8,7 @@ const items = [
   { href: '/career', label: 'Career', icon: '🎯' },
   { href: '/skills-navigator', label: 'Skills', icon: '🧭' },
   { href: '/skill-quiz', label: 'Quiz', icon: '🧠' },
+  { href: '/certifications', label: 'Credentials', icon: '🏆' },
   { href: '/profile', label: 'Profile', icon: '👤' },
 ];
 

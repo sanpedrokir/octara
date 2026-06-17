@@ -34,6 +34,29 @@ export default async function DashboardPage() {
   const profileRows = await sql`SELECT bio, location FROM profiles WHERE user_id = ${session.userId}`;
   const profileData = profileRows[0] as { bio: string | null; location: string | null } | undefined;
 
+  // Certifications & Training counts
+  let certCount = 0;
+  let trainingCount = 0;
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_certifications (
+        id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL,
+        category TEXT NOT NULL, title TEXT NOT NULL,
+        organisation TEXT, date_obtained DATE, expiry_date DATE,
+        notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    const credRows = await sql`
+      SELECT category, COUNT(*)::int AS cnt
+      FROM user_certifications WHERE user_id = ${session.userId}
+      GROUP BY category
+    `;
+    for (const row of credRows as Array<{ category: string; cnt: number }>) {
+      if (row.category === 'certification') certCount = row.cnt;
+      if (row.category === 'training') trainingCount = row.cnt;
+    }
+  } catch { /* table may not exist yet on first deploy */ }
+
 
   // Progress computation — try skill_assessments first, fall back to learning_roadmaps
   const assessmentRows = await sql`
@@ -172,6 +195,37 @@ export default async function DashboardPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Certifications & Training */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🏆 Certifications & Training</h2>
+          <Link href="/certifications" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
+            {certCount + trainingCount > 0 ? 'View all →' : 'Add entries →'}
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#fefce8', border: '1px solid #fde68a' }}>
+            <span className="text-2xl">🏆</span>
+            <div>
+              <p className="text-2xl font-bold" style={{ color: '#92400e' }}>{certCount}</p>
+              <p className="text-xs font-medium" style={{ color: '#92400e' }}>Certification{certCount !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#ede9fe', border: '1px solid #c4b5fd' }}>
+            <span className="text-2xl">📖</span>
+            <div>
+              <p className="text-2xl font-bold" style={{ color: '#5b21b6' }}>{trainingCount}</p>
+              <p className="text-xs font-medium" style={{ color: '#5b21b6' }}>Training{trainingCount !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </div>
+        {certCount + trainingCount === 0 && (
+          <p className="text-xs mt-3" style={{ color: 'var(--muted)' }}>
+            Add your certifications and training records to track your credentials.
+          </p>
+        )}
       </div>
 
       {/* Career Progress */}
