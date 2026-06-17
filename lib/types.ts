@@ -166,6 +166,7 @@ export interface QuizQuestion {
   q: string;
   opts: string[];
   ans: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
 }
 
 // ─── Career ──────────────────────────────────────────────

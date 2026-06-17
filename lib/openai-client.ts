@@ -482,26 +482,72 @@ function getMockRoadmap(
   };
 }
 
+// ── Shuffle helpers ───────────────────────────────────────
+
+function fisherYates<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function shuffleOptions(q: QuizQuestion): QuizQuestion {
+  const letters = ['A', 'B', 'C', 'D'];
+  const ansIdx = letters.indexOf(q.ans);
+  // Strip existing labels to get raw option text
+  const rawOpts = q.opts.map(o => o.replace(/^[A-D]\.\s*/, ''));
+  const correctRaw = rawOpts[ansIdx];
+  const shuffled = fisherYates(rawOpts);
+  const newAnsIdx = shuffled.indexOf(correctRaw);
+  return {
+    ...q,
+    opts: shuffled.map((text, i) => `${letters[i]}. ${text}`),
+    ans: letters[newAnsIdx],
+  };
+}
+
 export async function generateQuizQuestions(skill: string): Promise<QuizQuestion[]> {
   const client = getClient();
 
   if (!client) return getMockQuizQuestions(skill);
 
-  const prompt = `You are a Singapore professional skills assessor. Generate exactly 20 multiple-choice questions to test intermediate-to-advanced proficiency in: "${skill}", relevant to Singapore's professional context.
+  const prompt = `You are a specialist examiner for Singapore's professional certification system.
 
-Rules:
-- Each question has exactly 4 options labelled A, B, C, D
-- Mix conceptual knowledge, practical application, and Singapore-specific context
-- No trick questions; all options must be plausible
-- Vary difficulty across the 20 questions
+Generate exactly 25 multiple-choice questions to rigorously assess professional knowledge of: "${skill}"
 
-Return ONLY valid JSON:
+═══ STRICT TOPIC BOUNDARY — NON-NEGOTIABLE ═══
+• EVERY question must be exclusively and specifically about "${skill}" itself
+• PROHIBITED: questions from any other domain, skill, or subject area
+• If "${skill}" is a technical IT skill (e.g. Python, SQL, Machine Learning, Cloud Computing, Cybersecurity):
+  → Ask ONLY about that technology: syntax, libraries, algorithms, architecture, debugging, tooling
+  → Do NOT ask about finance, HR, management, regulations, or other fields
+• If "${skill}" is a finance skill (e.g. Financial Modelling, Risk Management):
+  → Ask ONLY about finance concepts, instruments, valuation, regulations
+  → Do NOT ask about programming, HR processes, or unrelated topics
+• Include Singapore-specific context (MAS, PDPA, SSG, SkillsFuture, sector regulators) ONLY when it directly relates to "${skill}"
+
+═══ DIFFICULTY DISTRIBUTION (mandatory) ═══
+Label each question with its difficulty. Required count per level:
+• 8 EASY: definitions, basic concepts, fundamental rules, recall
+• 9 MEDIUM: application, choosing between approaches, common scenarios
+• 8 HARD: edge cases, advanced patterns, optimisation, architecture trade-offs, debugging complex situations
+
+═══ QUALITY RULES ═══
+• All 4 options must be plausible — no obviously absurd distractors
+• Exactly one correct answer per question
+• No ambiguous questions with multiple defensible answers
+• Draw from authoritative sources: official docs, recognised standards, industry best practice
+
+Return ONLY valid JSON — no markdown fences, no extra text:
 {
   "questions": [
     {
       "q": "Question text?",
       "opts": ["A. First option", "B. Second option", "C. Third option", "D. Fourth option"],
-      "ans": "A"
+      "ans": "A",
+      "difficulty": "easy"
     }
   ]
 }`;
@@ -511,11 +557,14 @@ Return ONLY valid JSON:
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
-      max_tokens: 4000,
+      max_tokens: 6000,
     });
     const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
     const qs: QuizQuestion[] = parsed.questions ?? [];
-    if (qs.length >= 10) return qs.slice(0, 20);
+    if (qs.length >= 15) {
+      // Shuffle question order and each question's options independently
+      return fisherYates(qs.slice(0, 25)).map(shuffleOptions);
+    }
     return getMockQuizQuestions(skill);
   } catch {
     return getMockQuizQuestions(skill);
@@ -523,28 +572,32 @@ Return ONLY valid JSON:
 }
 
 function getMockQuizQuestions(skill: string): QuizQuestion[] {
-  const base = [
-    { q: `Which of the following best describes a core principle of ${skill}?`, opts: ['A. Continuous improvement and iteration', 'B. Rigid rule-following without deviation', 'C. Avoiding all forms of documentation', 'D. Delegating all decisions upward'], ans: 'A' },
-    { q: `In a Singapore professional context, ${skill} is most commonly applied to:`, opts: ['A. Reducing regulatory compliance costs', 'B. Improving workforce productivity and outcomes', 'C. Replacing all manual processes immediately', 'D. Eliminating stakeholder communication'], ans: 'B' },
-    { q: `What is the first step when implementing ${skill} in a new organisation?`, opts: ['A. Deploy tools without assessing needs', 'B. Conduct a needs analysis and gap assessment', 'C. Train all staff simultaneously on day one', 'D. Report immediately to senior management'], ans: 'B' },
-    { q: `Which metric best measures success when applying ${skill}?`, opts: ['A. Number of meetings held', 'B. Volume of emails sent', 'C. Measurable improvement in defined KPIs', 'D. Speed of initial deployment'], ans: 'C' },
-    { q: `A key challenge when scaling ${skill} across a large organisation is:`, opts: ['A. Too few tools available', 'B. Excessive government regulation in Singapore', 'C. Change management and stakeholder alignment', 'D. Lack of international best practices'], ans: 'C' },
-    { q: `Under Singapore's Skills Framework, ${skill} is categorised as a:`, opts: ['A. Non-essential lifestyle skill', 'B. Core competency for professional advancement', 'C. Entry-level requirement only', 'D. Purely technical skill with no soft-skill component'], ans: 'B' },
-    { q: `Which approach is most effective for developing ${skill} in a team setting?`, opts: ['A. Self-study only with no collaboration', 'B. Annual one-day workshops', 'C. Blended learning with on-the-job application', 'D. Reading theory without practice'], ans: 'C' },
-    { q: `How does ${skill} contribute to Singapore's Smart Nation initiative?`, opts: ['A. It has no relevance to Smart Nation', 'B. It supports digital transformation and workforce upskilling', 'C. It replaces Smart Nation goals entirely', 'D. It only applies to government agencies'], ans: 'B' },
-    { q: `The SkillsFuture framework recommends professionals assess their ${skill} proficiency at which level first?`, opts: ['A. Expert immediately upon joining', 'B. Foundational, then build progressively', 'C. Advanced, skipping basics', 'D. No proficiency level is relevant'], ans: 'B' },
-    { q: `What distinguishes an intermediate practitioner of ${skill} from a beginner?`, opts: ['A. Ability to theorise without applying', 'B. Independent application with contextual judgement', 'C. Relying entirely on supervisor guidance', 'D. Completing one online course'], ans: 'B' },
-    { q: `Which stakeholder group must be engaged earliest when introducing ${skill}?`, opts: ['A. External vendors only', 'B. Senior leadership and sponsors', 'C. End users only, leadership later', 'D. Regulators before internal teams'], ans: 'B' },
-    { q: `Data-driven decision making in ${skill} requires which foundational capability?`, opts: ['A. Intuition over evidence', 'B. Collecting and interpreting relevant metrics', 'C. Avoiding quantitative analysis', 'D. Outsourcing all data work'], ans: 'B' },
-    { q: `In Singapore's VUCA (volatile, uncertain, complex, ambiguous) business environment, ${skill} helps professionals:`, opts: ['A. Avoid change entirely', 'B. Adapt and respond to rapid shifts effectively', 'C. Maintain rigid processes without review', 'D. Focus solely on local market conditions'], ans: 'B' },
-    { q: `Ethical considerations in ${skill} primarily address:`, opts: ['A. Maximising short-term revenue at all costs', 'B. Responsible use of information and fair treatment of stakeholders', 'C. Avoiding all forms of competition', 'D. Disregarding data privacy'], ans: 'B' },
-    { q: `Which professional certification most directly validates ${skill} competency in Singapore?`, opts: ['A. Any certificate regardless of relevance', 'B. SkillsFuture-accredited or industry-recognised certification', 'C. No certification is ever useful', 'D. Only overseas qualifications count'], ans: 'B' },
-    { q: `When documenting outcomes of ${skill} initiatives, best practice involves:`, opts: ['A. Verbal reporting only', 'B. Structured reports with evidence, metrics, and lessons learned', 'C. Deleting records after project close', 'D. Reporting only successes, omitting failures'], ans: 'B' },
-    { q: `Cross-functional collaboration in ${skill} projects is essential because:`, opts: ['A. It slows down decision-making', 'B. It brings diverse perspectives and reduces blind spots', 'C. It replaces the need for a project lead', 'D. It is only needed in large MNCs'], ans: 'B' },
-    { q: `How often should professionals review and update their ${skill} knowledge?`, opts: ['A. Once at the start of their career', 'B. Continuously, as industries and best practices evolve', 'C. Only when mandated by their employer', 'D. Every decade'], ans: 'B' },
-    { q: `A professional demonstrating mastery of ${skill} would typically:`, opts: ['A. Work in isolation without peer review', 'B. Mentor others, lead projects, and contribute to best practice', 'C. Avoid all new developments in the field', 'D. Focus only on their own tasks'], ans: 'B' },
-    { q: `The most important outcome of building ${skill} competency is:`, opts: ['A. A longer resume', 'B. Tangible value delivered to employers and clients in Singapore', 'C. Access to more social events', 'D. The ability to avoid difficult projects'], ans: 'B' },
+  const base: QuizQuestion[] = [
+    { q: `Which best describes the primary purpose of ${skill}?`, opts: ['A. To automate all organisational decisions', 'B. To solve a specific class of professional problems efficiently', 'C. To replace human judgement entirely', 'D. To increase administrative overhead'], ans: 'B', difficulty: 'easy' },
+    { q: `A foundational concept in ${skill} is best described as:`, opts: ['A. Guesswork refined over time', 'B. A structured approach grounded in established principles', 'C. Improvisation based on context', 'D. Trial and error without documentation'], ans: 'B', difficulty: 'easy' },
+    { q: `Which of the following is a prerequisite for effective ${skill} practice?`, opts: ['A. Years of experience in an unrelated field', 'B. Understanding of core principles and domain context', 'C. Access to proprietary tools only available to large organisations', 'D. Formal qualifications in a different discipline'], ans: 'B', difficulty: 'easy' },
+    { q: `In the context of ${skill}, "best practice" typically means:`, opts: ['A. The most expensive approach available', 'B. The fastest approach regardless of quality', 'C. An approach validated by industry experience and evidence', 'D. Whatever is mandated by government regulation'], ans: 'C', difficulty: 'easy' },
+    { q: `Which output would you expect after correctly applying ${skill}?`, opts: ['A. Increased ambiguity in the problem space', 'B. A measurable, reproducible outcome aligned to stated objectives', 'C. Reduced stakeholder engagement', 'D. A one-size-fits-all solution applicable everywhere'], ans: 'B', difficulty: 'easy' },
+    { q: `A beginner in ${skill} typically needs to first master:`, opts: ['A. Advanced optimisation techniques', 'B. Fundamental vocabulary, concepts, and basic workflows', 'C. Cross-domain integration with unrelated fields', 'D. Enterprise-scale deployment scenarios'], ans: 'B', difficulty: 'easy' },
+    { q: `Which Singapore government body most directly oversees professional standards related to ${skill} in its primary industry sector?`, opts: ['A. Land Transport Authority (LTA)', 'B. The relevant statutory board or regulatory authority for the skill domain', 'C. The National Environment Agency (NEA)', 'D. The Housing Development Board (HDB)'], ans: 'B', difficulty: 'easy' },
+    { q: `Practitioners of ${skill} in Singapore most commonly earn accreditation through:`, opts: ['A. Self-declaration with no external validation', 'B. SkillsFuture-recognised or industry-endorsed programmes', 'C. Overseas qualifications only, not recognised locally', 'D. Purely on-the-job experience with no formal pathway'], ans: 'B', difficulty: 'easy' },
+    { q: `When selecting between two approaches in ${skill}, the deciding factor should be:`, opts: ['A. Which approach requires the least documentation', 'B. Alignment with stated objectives, constraints, and stakeholder needs', 'C. Whichever approach is newer', 'D. Personal preference of the most senior person in the room'], ans: 'B', difficulty: 'medium' },
+    { q: `A practitioner applying ${skill} in a time-constrained environment should:`, opts: ['A. Skip validation steps to save time', 'B. Prioritise high-impact steps and document trade-offs made', 'C. Use the most complex approach available', 'D. Delegate all decisions to junior team members'], ans: 'B', difficulty: 'medium' },
+    { q: `What is the most effective way to communicate ${skill} outcomes to non-specialist stakeholders?`, opts: ['A. Use technical jargon to demonstrate expertise', 'B. Translate results into business impact using clear, relevant metrics', 'C. Provide raw data without interpretation', 'D. Avoid sharing details to protect intellectual property'], ans: 'B', difficulty: 'medium' },
+    { q: `Which risk is most commonly associated with poor implementation of ${skill}?`, opts: ['A. Over-investment in documentation', 'B. Misalignment between outputs and actual business needs', 'C. Excessive stakeholder engagement', 'D. Too many measurable outcomes'], ans: 'B', difficulty: 'medium' },
+    { q: `How does ${skill} typically integrate with adjacent disciplines in a professional context?`, opts: ['A. It operates in complete isolation from other functions', 'B. It shares data, insights, and methods with related disciplines to amplify outcomes', 'C. It replaces all other disciplines once mature', 'D. Integration is only relevant in multinational organisations'], ans: 'B', difficulty: 'medium' },
+    { q: `When scaling ${skill} practice from a team to an organisational level, the primary challenge is:`, opts: ['A. Acquiring more software licences', 'B. Ensuring consistent standards, governance, and knowledge transfer', 'C. Reducing the skill level required', 'D. Eliminating all existing processes'], ans: 'B', difficulty: 'medium' },
+    { q: `Which quality indicator best signals maturity in ${skill} within an organisation?`, opts: ['A. Frequency of tool updates', 'B. Repeatable processes, continuous improvement culture, and measurable outcomes', 'C. Headcount dedicated to the practice', 'D. Number of external consultants retained'], ans: 'B', difficulty: 'medium' },
+    { q: `A common anti-pattern in ${skill} practice is:`, opts: ['A. Reviewing outcomes regularly', 'B. Applying solutions before fully understanding the problem', 'C. Documenting assumptions and constraints', 'D. Engaging domain experts early'], ans: 'B', difficulty: 'medium' },
+    { q: `Under Singapore's Workplace Safety & Health framework, which ${skill} responsibility falls directly on the practitioner?`, opts: ['A. None — all responsibilities rest with regulators', 'B. Applying the skill safely and reporting risks or non-compliances', 'C. Only responsibilities explicitly written in employment contracts', 'D. Delegating all safety obligations to HR'], ans: 'B', difficulty: 'medium' },
+    { q: `In advanced ${skill} practice, how is uncertainty typically handled?`, opts: ['A. Ignored unless it becomes a confirmed problem', 'B. Quantified, monitored, and reflected in decision-making through scenario analysis', 'C. Treated as equivalent to risk without further analysis', 'D. Outsourced to another team'], ans: 'B', difficulty: 'hard' },
+    { q: `An expert in ${skill} distinguishes themselves from an intermediate practitioner primarily by:`, opts: ['A. Using more complex terminology', 'B. Exercising independent judgement in novel situations and anticipating second-order effects', 'C. Having a larger professional network', 'D. Owning more certifications'], ans: 'B', difficulty: 'hard' },
+    { q: `Which of the following represents a systemic failure mode in mature ${skill} implementations?`, opts: ['A. Over-documentation of routine decisions', 'B. Optimising local performance metrics at the expense of overall system objectives', 'C. Spending too much time on stakeholder communication', 'D. Using industry-standard methodologies'], ans: 'B', difficulty: 'hard' },
+    { q: `When ${skill} produces outputs that conflict with organisational strategy, the expert practitioner should:`, opts: ['A. Suppress the findings to avoid conflict', 'B. Surface the conflict constructively, providing evidence-based recommendations for resolution', 'C. Immediately escalate to regulators', 'D. Rerun the analysis until the output matches expectations'], ans: 'B', difficulty: 'hard' },
+    { q: `The concept of technical debt in ${skill} practice refers to:`, opts: ['A. Outstanding payments to technology vendors', 'B. Accumulated shortcuts and deferred improvements that increase future rework cost', 'C. The cost of external certifications', 'D. Budget allocated for tool procurement'], ans: 'B', difficulty: 'hard' },
+    { q: `When evaluating competing frameworks for ${skill}, an advanced practitioner weighs:`, opts: ['A. Brand recognition of the framework creator', 'B. Fitness-for-context, adoption overhead, long-term maintainability, and evidence base', 'C. Age of the framework only', 'D. Whichever framework is newest'], ans: 'B', difficulty: 'hard' },
+    { q: `In a rapidly evolving landscape, how should a senior ${skill} practitioner future-proof their approach?`, opts: ['A. Commit rigidly to a single methodology', 'B. Build transferable mental models and adapt methods as the domain evolves', 'C. Avoid learning new approaches to maintain consistency', 'D. Focus exclusively on current tools regardless of their longevity'], ans: 'B', difficulty: 'hard' },
+    { q: `The highest-order contribution of ${skill} to an organisation is:`, opts: ['A. Reducing headcount', 'B. Creating durable competitive advantage through systematic capability development', 'C. Generating reports for regulators', 'D. Eliminating the need for strategic planning'], ans: 'B', difficulty: 'hard' },
   ];
-  // Shuffle slightly for variety
-  return base.sort(() => Math.random() - 0.5).slice(0, 20);
+  return fisherYates(base).slice(0, 25).map(shuffleOptions);
 }

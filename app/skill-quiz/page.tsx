@@ -114,7 +114,7 @@ export default function SkillQuizPage() {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>🧠 Skill Gap Quiz</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            Answer 20 questions per skill. Score 80% or more (16/20) to advance and close that skill gap.
+            Answer 25 questions per skill. Score 80% or more (20/25) to advance and close that skill gap.
           </p>
         </div>
 
@@ -218,7 +218,7 @@ export default function SkillQuizPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <div className="w-12 h-12 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
         <p className="font-semibold" style={{ color: 'var(--foreground)' }}>Generating quiz for <span style={{ color: 'var(--primary)' }}>{quizSkill}</span>…</p>
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>AI is crafting 20 questions tailored to Singapore professionals.</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>AI is crafting 25 skill-specific questions tailored to Singapore professionals.</p>
       </div>
     );
   }
@@ -264,6 +264,19 @@ export default function SkillQuizPage() {
 
         {/* Question card */}
         <div className="card p-6 space-y-5">
+          {q.difficulty && (() => {
+            const d = q.difficulty!;
+            const badge = d === 'easy'
+              ? { label: 'Easy', color: '#15803d', bg: '#dcfce7' }
+              : d === 'medium'
+              ? { label: 'Medium', color: '#b45309', bg: '#fef3c7' }
+              : { label: 'Hard', color: '#dc2626', bg: '#fee2e2' };
+            return (
+              <span className="inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.color }}>
+                {d === 'easy' ? '🟢' : d === 'medium' ? '🟡' : '🔴'} {badge.label}
+              </span>
+            );
+          })()}
           <p className="font-semibold leading-relaxed" style={{ color: 'var(--foreground)', fontSize: '1rem' }}>
             {q.q}
           </p>
