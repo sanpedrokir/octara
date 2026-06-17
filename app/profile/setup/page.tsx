@@ -107,7 +107,7 @@ export default function ProfileSetupPage() {
   const userTypeOptions: { value: UserType; label: string; icon: string; desc: string }[] = [
     { value: 'student', label: 'Student', icon: '🎓', desc: 'Currently enrolled in a course or degree' },
     { value: 'working_adult', label: 'Working Adult', icon: '💼', desc: 'Employed and looking to upskill' },
-    { value: 'other', label: 'Other', icon: '✨', desc: 'Career transition, freelancer, or other' },
+    { value: 'other', label: 'Others', icon: '✨', desc: 'Career transition, freelancer, or other' },
   ];
 
   const isStudent = userType === 'student';

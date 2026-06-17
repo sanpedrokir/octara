@@ -176,6 +176,8 @@ export default async function DashboardPage() {
       )}
 
       {/* Stats grid */}
+      <div className="card p-4">
+        <h2 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Track Recommended Courses</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Courses Tracked', value: courseStats?.total ?? '0', icon: '📚', color: 'var(--primary)', bg: 'var(--primary-light)' },
@@ -195,6 +197,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         ))}
+      </div>
       </div>
 
       {/* Certifications & Training */}
