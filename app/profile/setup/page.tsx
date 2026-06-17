@@ -19,6 +19,7 @@ export default function ProfileSetupPage() {
   const [sector, setSector] = useState('');
   const [jobRole, setJobRole] = useState('');
   const [yearsExperience, setYearsExperience] = useState('');
+  const [highestEducation, setHighestEducation] = useState('');
 
   // Dropdown data
   const [sectors, setSectors] = useState<string[]>([]);
@@ -58,6 +59,7 @@ export default function ProfileSetupPage() {
     setJobRole('');
     setCompany('');
     setYearsExperience('');
+    setHighestEducation('');
     setInstitution('');
     setProgram('');
   }
@@ -74,6 +76,7 @@ export default function ProfileSetupPage() {
       if (!sector) { setError('Please select a sector'); return; }
       if (!jobRole) { setError('Please select a job role'); return; }
       if (!yearsExperience) { setError('Years of experience is required'); return; }
+      if (!highestEducation) { setError('Please select your highest education level'); return; }
     }
 
     setLoading(true);
@@ -87,6 +90,7 @@ export default function ProfileSetupPage() {
           bio, userType, institution, program,
           company, sector, jobRole,
           yearsExperience: yearsExperience ? Number(yearsExperience) : null,
+          highestEducation,
         }),
       });
       const { error: err } = await res.json();
@@ -275,6 +279,30 @@ export default function ProfileSetupPage() {
                     onChange={e => setYearsExperience(e.target.value)}
                     placeholder="e.g. 5"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                    Highest Education Level <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <select
+                    className="input"
+                    value={highestEducation}
+                    onChange={e => setHighestEducation(e.target.value)}
+                    style={{ appearance: 'auto' }}
+                  >
+                    <option value="">Select education level…</option>
+                    <option>GCE N-Level / O-Level</option>
+                    <option>GCE A-Level</option>
+                    <option>ITE Certificate / Nitec / Higher Nitec</option>
+                    <option>Diploma</option>
+                    <option>Advanced Diploma</option>
+                    <option>Bachelor&apos;s Degree</option>
+                    <option>Postgraduate Diploma</option>
+                    <option>Master&apos;s Degree</option>
+                    <option>Doctorate (PhD)</option>
+                    <option>Professional Qualification (e.g. ACCA, CPA, PMP)</option>
+                  </select>
                 </div>
               </div>
             )}

@@ -8,7 +8,7 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'Authentication required' }, { status: 401 });
     }
 
-    const { bio, userType, institution, program, company, sector, jobRole, yearsExperience } = await request.json();
+    const { bio, userType, institution, program, company, sector, jobRole, yearsExperience, highestEducation } = await request.json();
 
     if (!userType || !['student', 'working_adult', 'other'].includes(userType)) {
       return Response.json({ data: null, error: 'Please select a valid user type' }, { status: 400 });
@@ -31,15 +31,17 @@ export async function POST(request: Request) {
     await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS current_sector TEXT`;
     await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS current_job_role TEXT`;
     await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS years_experience INT`;
+    await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS highest_education TEXT`;
 
     await sql`
       UPDATE profiles
       SET bio             = ${bio ?? null},
           user_type       = ${userType},
-          company_name    = ${company ?? null},
-          current_sector  = ${sector ?? null},
+          company_name     = ${company ?? null},
+          current_sector   = ${sector ?? null},
           current_job_role = ${jobRole ?? null},
-          years_experience = ${yearsExperience ?? null}
+          years_experience = ${yearsExperience ?? null},
+          highest_education = ${highestEducation ?? null}
       WHERE user_id = ${session.userId}
     `;
 
