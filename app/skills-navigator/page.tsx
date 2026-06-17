@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import Navbar from '../ui/Navbar';
@@ -105,7 +105,7 @@ function saveSession(patch: Record<string, unknown>) {
   } catch { /* ignore */ }
 }
 
-export default function SkillsNavigatorPage() {
+function SkillsNavigatorContent() {
   const searchParams = useSearchParams();
   const [step, setStepRaw] = useState<Step>(1);
   const [career, setCareer] = useState<CareerAspiration | null>(null);
@@ -871,5 +871,13 @@ export default function SkillsNavigatorPage() {
       </div>
       <MobileNav />
     </div>
+  );
+}
+
+export default function SkillsNavigatorPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner label="Loading…" /></div>}>
+      <SkillsNavigatorContent />
+    </Suspense>
   );
 }
