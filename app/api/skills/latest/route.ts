@@ -36,11 +36,13 @@ export async function GET() {
     // (user ran analysis before the save-to-DB code was added)
     if (!assessment && roadmap) {
       const [career] = await sql`
-        SELECT jr.name AS job_role_name, i.name AS industry_name
+        SELECT COALESCE(jr.name, jrc.job_role) AS job_role_name,
+               COALESCE(i.name, jrc.sector)    AS industry_name
         FROM career_aspirations ca
-        JOIN job_roles jr ON ca.job_role_id = jr.id
-        JOIN industries i ON ca.industry_id = i.id
-        WHERE ca.user_id = ${session.userId} AND ca.is_active = true
+        LEFT JOIN job_roles jr ON ca.job_role_id = jr.id
+        LEFT JOIN industries i ON ca.industry_id = i.id
+        LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
+        WHERE ca.user_id = ${session.userId}
         LIMIT 1
       `;
       return Response.json({

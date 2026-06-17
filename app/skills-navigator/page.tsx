@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import Navbar from '../ui/Navbar';
 import DashboardSidebar from '../ui/DashboardSidebar';
@@ -105,6 +106,7 @@ function saveSession(patch: Record<string, unknown>) {
 }
 
 export default function SkillsNavigatorPage() {
+  const searchParams = useSearchParams();
   const [step, setStepRaw] = useState<Step>(1);
   const [career, setCareer] = useState<CareerAspiration | null>(null);
   const [trackedCourses, setTrackedCourses] = useState<TrackedCourse[]>([]);
@@ -161,12 +163,16 @@ export default function SkillsNavigatorPage() {
     const latest = latestJson.data;
     const careerData = careerJson.data;
 
-    // Detect if the saved analysis was for a different career goal
+    // Detect if the saved analysis was for a different career goal.
+    // Also treat empty analysisTargetRole as stale — can't verify it matches.
+    const forceFresh = searchParams.get('fresh') === '1';
     const careerGoalName = careerData?.job_role_name || '';
     const analysisTargetRole = latest?.assessment?.targetRole || '';
-    const analysisIsStale = !!(
-      careerGoalName && analysisTargetRole &&
-      analysisTargetRole.toLowerCase() !== careerGoalName.toLowerCase()
+    const analysisIsStale = forceFresh || !!(
+      careerGoalName && (
+        !analysisTargetRole ||
+        analysisTargetRole.toLowerCase() !== careerGoalName.toLowerCase()
+      )
     );
 
     if (latest?.assessment && !analysisIsStale) {

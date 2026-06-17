@@ -252,7 +252,7 @@ export default function CareerPage() {
       if (data) {
         setSaved(true);
         setCurrent(data);
-        setTimeout(() => router.push('/skills-navigator'), 800);
+        setTimeout(() => router.push('/skills-navigator?fresh=1'), 800);
       } else {
         setSaveError(error || 'Failed to save. Please try again.');
       }
