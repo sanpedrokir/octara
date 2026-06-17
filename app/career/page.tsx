@@ -175,6 +175,7 @@ export default function CareerPage() {
   const [ccs, setCcs] = useState<SkillEntry[]>([]);
 
   const router = useRouter();
+  const suppressSectorEffect = useRef(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -185,10 +186,43 @@ export default function CareerPage() {
     const [sectorsJson, careerJson] = await Promise.all([sectorsRes.json(), careerRes.json()]);
 
     if (sectorsJson.data) setSectors(sectorsJson.data);
+
     if (careerJson.data) {
-      setCurrent(careerJson.data);
+      const career: CareerAspiration = careerJson.data;
+      setCurrent(career);
       setNotes('');
+
+      // Pre-populate the search form from the saved career goal so the
+      // job roles list is visible when the user returns to this page.
+      const sectorName = career.industry_name;
+      if (sectorName) {
+        const savedTrack = career.catalog_track ?? '';
+        const rolesParams = new URLSearchParams({ sector: sectorName, limit: '500' });
+        if (savedTrack) rolesParams.set('tracks', savedTrack);
+
+        const [tracksRes, rolesRes] = await Promise.all([
+          fetch(`/api/job-role-catalog/tracks?sector=${encodeURIComponent(sectorName)}`),
+          fetch(`/api/job-role-catalog/roles?${rolesParams}`),
+        ]);
+        const [tracksJson, rolesJson] = await Promise.all([tracksRes.json(), rolesRes.json()]);
+
+        const fetchedTracks: string[] = tracksJson.data ?? [];
+        const fetchedRoles: CatalogRole[] = rolesJson.data?.rows ?? [];
+
+        // Suppress the selectedSector useEffect so it does not reset
+        // the tracks / selectedTracks we are about to set.
+        suppressSectorEffect.current = true;
+        setSelectedSector(sectorName);
+        setTracks(fetchedTracks);
+        if (savedTrack && fetchedTracks.includes(savedTrack)) setSelectedTracks([savedTrack]);
+        setResults(fetchedRoles);
+        setHasSearched(true);
+
+        const match = fetchedRoles.find(r => r.job_role === career.job_role_name);
+        if (match) setSelectedRole(match);
+      }
     }
+
     setLoading(false);
   }, []);
 
@@ -210,6 +244,10 @@ export default function CareerPage() {
   }, [selectedRole]);
 
   useEffect(() => {
+    if (suppressSectorEffect.current) {
+      suppressSectorEffect.current = false;
+      return;
+    }
     setSelectedTracks([]);
     setTracks([]);
     if (!selectedSector) return;
