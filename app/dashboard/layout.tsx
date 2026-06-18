@@ -2,7 +2,6 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Navbar from '../ui/Navbar';
-import DashboardSidebar from '../ui/DashboardSidebar';
 import MobileNav from '../ui/MobileNav';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -16,12 +15,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--background)' }}>
       <Navbar user={user ?? null} />
-      <div className="flex flex-1 max-w-7xl mx-auto w-full">
-        <DashboardSidebar role={user?.role} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
-          {children}
-        </main>
-      </div>
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-10">
+        {children}
+      </main>
       <MobileNav role={user?.role} />
     </div>
   );

@@ -5,6 +5,68 @@ import Link from 'next/link';
 import RecommendedCourses from '@/app/ui/RecommendedCourses';
 import Leaderboard from '@/app/ui/Leaderboard';
 
+const SECTIONS = [
+  {
+    href: '/career',
+    icon: '🎯',
+    label: 'Career Goal',
+    description: 'Set your target industry and job role.',
+    color: '#6366f1',
+    bg: '#eef2ff',
+    border: '#c7d2fe',
+  },
+  {
+    href: '/competency',
+    icon: '🧩',
+    label: 'Competency Profile',
+    description: 'Upload your resume and manage your skills.',
+    color: '#0891b2',
+    bg: '#ecfeff',
+    border: '#a5f3fc',
+  },
+  {
+    href: '/gap-analysis',
+    icon: '📊',
+    label: 'Gap Analysis',
+    description: 'See your skill gaps and get course recommendations.',
+    color: '#7c3aed',
+    bg: '#f5f3ff',
+    border: '#ddd6fe',
+  },
+  {
+    href: '/certifications',
+    icon: '🏆',
+    label: 'My Credentials',
+    description: 'Track certifications and training records.',
+    color: '#b45309',
+    bg: '#fefce8',
+    border: '#fde68a',
+  },
+  {
+    href: '/skill-quiz',
+    icon: '🧠',
+    label: 'Work Knowledge Quiz',
+    description: 'Test your sector knowledge. Score 80% to pass.',
+    color: '#15803d',
+    bg: '#f0fdf4',
+    border: '#bbf7d0',
+  },
+  {
+    href: '/profile',
+    icon: '👤',
+    label: 'My Profile',
+    description: 'Update your bio, location and personal details.',
+    color: '#0369a1',
+    bg: '#f0f9ff',
+    border: '#bae6fd',
+  },
+];
+
+const MUTED_SECTIONS = [
+  { href: '/skills-navigator', icon: '🧭', label: 'Skills Navigator', description: 'AI-powered personalised learning roadmap.' },
+  { href: '/my-courses',       icon: '📚', label: 'My Courses',        description: 'Track and manage your enrolled courses.' },
+];
+
 export default async function DashboardPage() {
   const session = await getCurrentUser();
   if (!session) redirect('/login');
@@ -13,6 +75,8 @@ export default async function DashboardPage() {
 
   const userRows = await sql`SELECT name FROM users WHERE id = ${session.userId}`;
   const user = userRows[0] as { name: string } | undefined;
+  const firstName = user?.name?.split(' ')[0] || 'there';
+
   const careerRows = await sql`
     SELECT i.name as industry_name, jr.name as job_role_name
     FROM career_aspirations ca
@@ -20,22 +84,21 @@ export default async function DashboardPage() {
     LEFT JOIN job_roles jr ON ca.job_role_id = jr.id
     WHERE ca.user_id = ${session.userId}
   `;
-  const career = careerRows[0] as { industry_name: string; job_role_name: string } | undefined;
+  const careerRaw = careerRows[0] as { industry_name: string | null; job_role_name: string | null } | undefined;
+  const career = (careerRaw?.industry_name && careerRaw?.job_role_name) ? careerRaw as { industry_name: string; job_role_name: string } : undefined;
+
   const courseStatsRows = await sql`
     SELECT
       COUNT(*) as total,
       COUNT(*) FILTER (WHERE status = 'completed') as completed,
       COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
-    FROM tracked_courses
-    WHERE user_id = ${session.userId}
+    FROM tracked_courses WHERE user_id = ${session.userId}
   `;
   const courseStats = courseStatsRows[0] as { total: string; completed: string; in_progress: string } | undefined;
-  const roadmapCountRows = await sql`SELECT COUNT(*) as count FROM learning_roadmaps WHERE user_id = ${session.userId}`;
-  const roadmapCount = roadmapCountRows[0] as { count: string } | undefined;
+
   const profileRows = await sql`SELECT bio, location FROM profiles WHERE user_id = ${session.userId}`;
   const profileData = profileRows[0] as { bio: string | null; location: string | null } | undefined;
 
-  // Certifications & Training counts
   let certCount = 0;
   let trainingCount = 0;
   try {
@@ -49,33 +112,26 @@ export default async function DashboardPage() {
     `;
     const credRows = await sql`
       SELECT category, COUNT(*)::int AS cnt
-      FROM user_certifications WHERE user_id = ${session.userId}
-      GROUP BY category
+      FROM user_certifications WHERE user_id = ${session.userId} GROUP BY category
     `;
     for (const row of credRows as Array<{ category: string; cnt: number }>) {
       if (row.category === 'certification') certCount = row.cnt;
-      if (row.category === 'training') trainingCount = row.cnt;
+      if (row.category === 'training')     trainingCount = row.cnt;
     }
-  } catch { /* table may not exist yet on first deploy */ }
+  } catch { /* first deploy */ }
 
-
-  // Progress computation — try skill_assessments first, fall back to learning_roadmaps
   const assessmentRows = await sql`
-    SELECT skill_gaps, strengths, current_skills FROM skill_assessments
-    WHERE user_id = ${session.userId}
-    ORDER BY created_at DESC LIMIT 1
+    SELECT skill_gaps FROM skill_assessments
+    WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 1
   `;
   let rawSkillGaps = (assessmentRows[0]?.skill_gaps ?? null) as Array<{ skill: string; priority: string }> | null;
-
   if (!rawSkillGaps || rawSkillGaps.length === 0) {
     const roadmapRows = await sql`
       SELECT skill_gaps FROM learning_roadmaps
-      WHERE user_id = ${session.userId}
-      ORDER BY created_at DESC LIMIT 1
+      WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 1
     `;
     rawSkillGaps = (roadmapRows[0]?.skill_gaps ?? null) as Array<{ skill: string; priority: string }> | null;
   }
-
   const skillGaps: Array<{ skill: string; priority: string }> = rawSkillGaps ?? [];
   const totalGaps = skillGaps.length;
   const hasAssessment = rawSkillGaps !== null && totalGaps > 0;
@@ -96,10 +152,6 @@ export default async function DashboardPage() {
   const totalTracked = Number(courseStats?.total ?? 0);
   const totalCompleted = Number(courseStats?.completed ?? 0);
 
-  // Weighted progress score (out of 100)
-  // 15 pts: milestones (career goal + assessment done)
-  // 55 pts: skill gaps covered (completed=full, in-progress=half)
-  // 30 pts: overall course completion rate
   let progressScore = 0;
   if (career) progressScore += 8;
   if (hasAssessment) progressScore += 7;
@@ -107,9 +159,7 @@ export default async function DashboardPage() {
     progressScore += Math.round((coveredByCompleted.size / totalGaps) * 55);
     progressScore += Math.round((coveredByInProgress.size / totalGaps) * 27);
   }
-  if (totalTracked > 0) {
-    progressScore += Math.round((totalCompleted / totalTracked) * 30);
-  }
+  if (totalTracked > 0) progressScore += Math.round((totalCompleted / totalTracked) * 30);
   progressScore = Math.min(100, progressScore);
 
   const progressLabel =
@@ -137,18 +187,21 @@ export default async function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
-          {greeting()}, {user?.name?.split(' ')[0] || 'there'} 👋
+    <div className="space-y-10 animate-fade-in">
+
+      {/* ── HEADER ───────────────────────────────────────────── */}
+      <div className="text-center pt-4">
+        <h1 className="text-3xl font-bold" style={{ color: 'var(--foreground)' }}>
+          {greeting()}, {firstName} 👋
         </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>Here&apos;s your career journey overview.</p>
+        <p className="mt-2 text-base" style={{ color: 'var(--muted)' }}>
+          Where would you like to go today?
+        </p>
       </div>
 
-      {/* Setup checklist if incomplete */}
+      {/* ── SETUP CHECKLIST ──────────────────────────────────── */}
       {(!hasCareer || !profileComplete) && (
-        <div className="card p-5" style={{ border: '2px solid var(--primary)', background: 'var(--primary-light)' }}>
+        <div className="card p-5 max-w-2xl mx-auto w-full" style={{ border: '2px solid var(--primary)', background: 'var(--primary-light)' }}>
           <h2 className="font-semibold mb-3" style={{ color: 'var(--primary)' }}>🚀 Complete your setup</h2>
           <div className="space-y-2">
             {!profileComplete && (
@@ -165,18 +218,67 @@ export default async function DashboardPage() {
                 <span style={{ color: 'var(--muted)' }}>– choose your target industry and role</span>
               </div>
             )}
-            {hasCareer && !hasAssessment && (
-              <div className="flex items-center gap-2 text-sm">
-                <span>⬜</span>
-                <Link href="/skills-navigator" className="font-medium no-underline" style={{ color: 'var(--primary)' }}>Run skills analysis</Link>
-                <span style={{ color: 'var(--muted)' }}>– get your personalised roadmap</span>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Career Progress */}
+      {/* ── SECTION CARDS ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {SECTIONS.map(s => (
+          <Link key={s.href} href={s.href} className="no-underline group">
+            <div
+              className="h-full rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5"
+              style={{ background: s.bg, border: `1.5px solid ${s.border}` }}
+            >
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+                style={{ background: 'white', boxShadow: `0 2px 8px ${s.border}` }}
+              >
+                {s.icon}
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-bold mb-1.5" style={{ color: s.color }}>{s.label}</h2>
+                <p className="text-sm leading-relaxed" style={{ color: '#475569' }}>{s.description}</p>
+              </div>
+              <div className="flex items-center justify-end">
+                <span className="text-sm font-semibold transition-transform duration-200 group-hover:translate-x-1" style={{ color: s.color }}>
+                  Go →
+                </span>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── COMING SOON ──────────────────────────────────────── */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-3 px-1" style={{ color: 'var(--muted)' }}>
+          Coming soon
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {MUTED_SECTIONS.map(s => (
+            <div key={s.href} className="rounded-2xl p-5 flex items-center gap-4"
+              style={{ background: 'var(--muted-bg)', border: '1.5px solid var(--card-border)', opacity: 0.6 }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: 'var(--background)' }}>
+                {s.icon}
+              </div>
+              <div>
+                <p className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>{s.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── DIVIDER ──────────────────────────────────────────── */}
+      <div className="flex items-center gap-4">
+        <div className="flex-1 border-t" style={{ borderColor: 'var(--card-border)' }} />
+        <span className="text-xs font-semibold uppercase tracking-widest px-2" style={{ color: 'var(--muted)' }}>Your Progress</span>
+        <div className="flex-1 border-t" style={{ borderColor: 'var(--card-border)' }} />
+      </div>
+
+      {/* ── CAREER READINESS PROGRESS ────────────────────────── */}
       <div className="card p-5">
         <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
           <div>
@@ -190,18 +292,10 @@ export default async function DashboardPage() {
             <p className="text-xs mt-0.5 font-medium" style={{ color: progressColor }}>{progressLabel}</p>
           </div>
         </div>
-
-        {/* Progress bar */}
         <div className="w-full rounded-full h-3 mb-4" style={{ background: 'var(--muted-bg)' }}>
-          <div
-            className="h-3 rounded-full transition-all duration-700"
-            style={{ width: `${progressScore}%`, background: progressColor }}
-          />
+          <div className="h-3 rounded-full transition-all duration-700" style={{ width: `${progressScore}%`, background: progressColor }} />
         </div>
-
-        {/* Breakdown */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Milestones */}
           <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
             <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Setup</p>
             <div className="space-y-1">
@@ -215,8 +309,6 @@ export default async function DashboardPage() {
               </div>
             </div>
           </div>
-
-          {/* Skill gaps */}
           <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
             <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Skill Gaps Covered</p>
             {totalGaps > 0 ? (
@@ -233,8 +325,6 @@ export default async function DashboardPage() {
               <p className="text-xs" style={{ color: 'var(--muted)' }}>Run skill analysis first</p>
             )}
           </div>
-
-          {/* Course completion */}
           <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
             <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Courses Completed</p>
             {totalTracked > 0 ? (
@@ -243,16 +333,13 @@ export default async function DashboardPage() {
                   {totalCompleted}
                   <span className="text-xs font-normal ml-1" style={{ color: 'var(--muted)' }}>/ {totalTracked}</span>
                 </p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  {totalTracked - totalCompleted} still in progress
-                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{totalTracked - totalCompleted} still in progress</p>
               </>
             ) : (
               <p className="text-xs" style={{ color: 'var(--muted)' }}>No courses tracked yet</p>
             )}
           </div>
         </div>
-
         {progressScore < 100 && (
           <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--card-border)' }}>
             <Link href="/skills-navigator" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
@@ -262,7 +349,7 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Certifications & Training */}
+      {/* ── CERTIFICATIONS & TRAINING ────────────────────────── */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🏆 Certifications & Training</h2>
@@ -293,35 +380,10 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Leaderboard */}
+      {/* ── LEADERBOARD ──────────────────────────────────────── */}
       <Leaderboard />
 
-      {/* Stats grid */}
-      <div className="card p-4">
-        <h2 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Track Recommended Courses</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Courses Tracked', value: courseStats?.total ?? '0', icon: '📚', color: 'var(--primary)', bg: 'var(--primary-light)' },
-          { label: 'Completed', value: courseStats?.completed ?? '0', icon: '✅', color: 'var(--teal)', bg: '#f0fdfa' },
-          { label: 'In Progress', value: courseStats?.in_progress ?? '0', icon: '⏳', color: 'var(--warning)', bg: '#fffbeb' },
-          { label: 'Roadmaps', value: roadmapCount?.count ?? '0', icon: '🗺️', color: '#7c3aed', bg: '#f5f3ff' },
-        ].map(stat => (
-          <div key={stat.label} className="card p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ background: stat.bg }}>
-                {stat.icon}
-              </div>
-              <div>
-                <p className="text-2xl font-bold" style={{ color: stat.color }}>{String(stat.value)}</p>
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>{stat.label}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      </div>
-
-      {/* Recommended courses based on career goal */}
+      {/* ── RECOMMENDED COURSES ──────────────────────────────── */}
       {hasCareer && <RecommendedCourses />}
 
     </div>

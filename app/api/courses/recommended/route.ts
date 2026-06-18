@@ -61,10 +61,10 @@ export async function GET() {
         jr.name AS job_role_name,
         jr.skill_keywords
       FROM career_aspirations ca
-      JOIN industries  i  ON ca.industry_id  = i.id
-      JOIN job_roles   jr ON ca.job_role_id  = jr.id
-      WHERE ca.user_id = ${session.userId} AND ca.is_active = true
-      ORDER BY ca.priority ASC
+      LEFT JOIN industries  i  ON ca.industry_id  = i.id
+      LEFT JOIN job_roles   jr ON ca.job_role_id  = jr.id
+      WHERE ca.user_id = ${session.userId}
+      ORDER BY ca.created_at DESC
       LIMIT 1
     `;
 
