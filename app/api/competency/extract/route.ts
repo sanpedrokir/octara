@@ -18,8 +18,10 @@ export async function POST(request: Request) {
         resumeText = text.trim();
       } else if (file) {
         if (file.name.endsWith('.pdf')) {
-          // Dynamically import to avoid Next.js build-time issues with pdf-parse
-          const pdfParse = (await import('pdf-parse')).default;
+          // Dynamic import avoids Next.js build-time issues; cast needed for ESM types
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pdfParseModule: any = await import('pdf-parse');
+          const pdfParse = pdfParseModule.default ?? pdfParseModule;
           const buffer = Buffer.from(await file.arrayBuffer());
           const parsed = await pdfParse(buffer);
           resumeText = parsed.text;
