@@ -45,11 +45,11 @@ export async function POST(request: Request) {
         const descParts: string[] = [];
         if (c.modeOfTraining) descParts.push(c.modeOfTraining);
         if (c.duration) descParts.push(c.duration);
-        if (c.subsidisedFee > 0) {
+        if ((c.subsidisedFee ?? 0) > 0) {
           descParts.push(`From S$${c.subsidisedFee} (subsidised)`);
-        } else if (c.totalCostOfTrainingPerTrainee === 0) {
+        } else if ((c.totalCostOfTrainingPerTrainee ?? -1) === 0) {
           descParts.push('Free');
-        } else if (c.totalCostOfTrainingPerTrainee > 0) {
+        } else if ((c.totalCostOfTrainingPerTrainee ?? 0) > 0) {
           descParts.push(`S$${c.totalCostOfTrainingPerTrainee}`);
         }
 
