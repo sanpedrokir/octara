@@ -685,7 +685,7 @@ export default function CompetencyPage() {
                   ))}
                 </select>
                 <button
-                  onClick={addManual}
+                  onClick={() => addManual()}
                   disabled={addingManual || !manualSkill.trim()}
                   className="btn-primary shrink-0 text-sm"
                 >
