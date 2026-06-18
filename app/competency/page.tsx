@@ -60,6 +60,7 @@ export default function CompetencyPage() {
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');
   const [extracted, setExtracted] = useState<ExtractedSkill[]>([]);
+  const [extractedPage, setExtractedPage] = useState(0);
   const [ssgMatches, setSsgMatches] = useState<Record<string, SsgMatch[]>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
@@ -67,6 +68,7 @@ export default function CompetencyPage() {
   // Profile tab state
   const [profile, setProfile] = useState<CompetencyRow[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profilePage, setProfilePage] = useState(0);
 
   // Add missing skill state
   const [searchQ, setSearchQ] = useState('');
@@ -77,7 +79,10 @@ export default function CompetencyPage() {
   const [manualProf, setManualProf] = useState<Proficiency>('intermediate');
   const [addingManual, setAddingManual] = useState(false);
 
+  const [searchPage, setSearchPage] = useState(0);
+
   const fileRef = useRef<HTMLInputElement>(null);
+  const manualRef = useRef<HTMLInputElement>(null);
 
   const loadProfile = useCallback(async () => {
     setLoadingProfile(true);
@@ -142,9 +147,16 @@ export default function CompetencyPage() {
 
       const { data, error } = await res.json();
       if (error) { setExtractError(error); return; }
-      setExtracted(data.competencies ?? []);
+      const skills: ExtractedSkill[] = data.competencies ?? [];
+      setExtracted(skills);
+      setExtractedPage(0);
       setSsgMatches(data.ssgMatches ?? {});
-      if ((data.competencies ?? []).length > 0) setTab('upload');
+      // Auto-saved server-side — mark all as saved and refresh profile
+      setSaved(new Set(skills.map(s => s.skill)));
+      if (skills.length > 0) {
+        loadProfile();
+        setTab('upload');
+      }
     } catch {
       setExtractError('Something went wrong. Please try again.');
     } finally {
@@ -185,12 +197,17 @@ export default function CompetencyPage() {
 
   // ── Search SSG skills ───────────────────────────────────────────────────────
   useEffect(() => {
+    setSearchPage(0);
     if (!searchQ.trim()) { setSearchResults([]); return; }
     const t = setTimeout(async () => {
       setSearching(true);
       const res = await fetch(`/api/competency/search-skills?q=${encodeURIComponent(searchQ)}`);
       const { data } = await res.json();
-      setSearchResults(data ?? []);
+      const seen = new Set<string>();
+      const deduped = (data ?? []).filter((s: SsgSearchResult) =>
+        seen.has(s.skill_title.toLowerCase()) ? false : (seen.add(s.skill_title.toLowerCase()), true)
+      );
+      setSearchResults(deduped);
       setSearching(false);
     }, 350);
     return () => clearTimeout(t);
@@ -217,15 +234,16 @@ export default function CompetencyPage() {
     loadProfile();
   }
 
-  async function addManual() {
-    if (!manualSkill.trim()) return;
+  async function addManual(overrideSkill?: string) {
+    const skillName = (overrideSkill ?? manualSkill).trim();
+    if (!skillName) return;
     setAddingManual(true);
     await fetch('/api/competency/profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ skill_title: manualSkill.trim(), proficiency_level: manualProf, source: 'manual' }),
+      body: JSON.stringify({ skill_title: skillName, proficiency_level: manualProf, source: 'manual' }),
     });
-    setManualSkill('');
+    if (!overrideSkill) setManualSkill('');
     setAddingManual(false);
     loadProfile();
   }
@@ -283,6 +301,15 @@ export default function CompetencyPage() {
       {/* ── Upload Tab ─────────────────────────────────────────────────────── */}
       {tab === 'upload' && (
         <div className="space-y-5">
+          {profile.length > 0 && extracted.length === 0 && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
+              <span>🧩</span>
+              <span>
+                You have <strong>{profile.length} competencies</strong> saved from your last resume upload.
+                View or edit them in the <button onClick={() => setTab('profile')} className="underline font-medium" style={{ color: '#1d4ed8' }}>My Competencies</button> tab.
+              </span>
+            </div>
+          )}
           <div className="card p-5 space-y-4">
             <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 1 — Provide your resume</h2>
 
@@ -342,74 +369,99 @@ export default function CompetencyPage() {
             <div className="card p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>
-                  Step 2 — Review extracted competencies
+                  Step 2 — Extracted competencies
                   <span className="ml-2 text-sm font-normal" style={{ color: 'var(--muted)' }}>({extracted.length} found)</span>
                 </h2>
-                <button
-                  onClick={saveAll}
-                  className="btn-primary text-sm"
-                  disabled={saved.size === extracted.length}
-                >
-                  {saved.size === extracted.length ? '✓ All saved' : `Save all (${extracted.length - saved.size})`}
-                </button>
+                <span className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>
+                  ✓ Auto-saved to profile
+                </span>
               </div>
 
-              <div className="space-y-2">
-                {extracted.map(skill => {
-                  const match = ssgMatches[skill.skill];
-                  const isSaved = saved.has(skill.skill);
-                  const isSaving = saving.has(skill.skill);
-                  const prof = PROFICIENCY_COLORS[skill.proficiency] ?? PROFICIENCY_COLORS.intermediate;
-
-                  return (
-                    <div
-                      key={skill.skill}
-                      className="flex items-start gap-3 p-3 rounded-xl"
-                      style={{ background: isSaved ? '#f0fdf4' : 'var(--muted-bg)', border: isSaved ? '1px solid #bbf7d0' : '1px solid transparent' }}
-                    >
-                      <span className="text-lg mt-0.5">{CATEGORY_ICONS[skill.category] ?? '🔹'}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{skill.skill}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={prof}>
-                            {skill.proficiency}
-                          </span>
-                          {match ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>
-                              ✓ SSG matched
-                            </span>
-                          ) : (
-                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#f3f4f6', color: '#9ca3af' }}>
-                              No SSG match
-                            </span>
-                          )}
+              {(() => {
+                const EX_PAGE_SIZE = 5;
+                const exTotalPages = Math.ceil(extracted.length / EX_PAGE_SIZE);
+                const pageSkills = extracted.slice(extractedPage * EX_PAGE_SIZE, (extractedPage + 1) * EX_PAGE_SIZE);
+                return (
+                  <div className="space-y-2">
+                    {pageSkills.map(skill => {
+                      const match = ssgMatches[skill.skill];
+                      const isSaved = saved.has(skill.skill);
+                      const isSaving = saving.has(skill.skill);
+                      const prof = PROFICIENCY_COLORS[skill.proficiency] ?? PROFICIENCY_COLORS.intermediate;
+                      return (
+                        <div
+                          key={skill.skill}
+                          className="flex items-start gap-3 p-3 rounded-xl"
+                          style={{ background: isSaved ? '#f0fdf4' : 'var(--muted-bg)', border: isSaved ? '1px solid #bbf7d0' : '1px solid transparent' }}
+                        >
+                          <span className="text-lg mt-0.5">{CATEGORY_ICONS[skill.category] ?? '🔹'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{skill.skill}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={prof}>
+                                {skill.proficiency}
+                              </span>
+                              {match ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>
+                                  ✓ SSG matched
+                                </span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#f3f4f6', color: '#9ca3af' }}>
+                                  No SSG match
+                                </span>
+                              )}
+                            </div>
+                            {match && (
+                              <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>
+                                SSG: {match[0].skill_title}
+                                {match[0].sector ? ` · ${match[0].sector}` : ''}
+                                {match[0].skill_code ? ` · ${match[0].skill_code}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => saveSkill(skill)}
+                            disabled={isSaved || isSaving}
+                            className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                            style={isSaved
+                              ? { background: '#dcfce7', color: '#15803d', cursor: 'default' }
+                              : { background: 'var(--primary)', color: 'white', cursor: isSaving ? 'wait' : 'pointer' }
+                            }
+                          >
+                            {isSaved ? '✓ Saved' : isSaving ? '…' : 'Add'}
+                          </button>
                         </div>
-                        {match && (
-                          <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>
-                            SSG: {match[0].skill_title}
-                            {match[0].sector ? ` · ${match[0].sector}` : ''}
-                            {match[0].skill_code ? ` · ${match[0].skill_code}` : ''}
-                          </p>
-                        )}
+                      );
+                    })}
+                    {exTotalPages > 1 && (
+                      <div className="flex items-center justify-between pt-2">
+                        <button
+                          onClick={() => setExtractedPage(p => Math.max(0, p - 1))}
+                          disabled={extractedPage === 0}
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                          style={{ color: extractedPage === 0 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                        >
+                          ← Previous
+                        </button>
+                        <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                          Page {extractedPage + 1} of {exTotalPages} · {extracted.length} total
+                        </span>
+                        <button
+                          onClick={() => setExtractedPage(p => Math.min(exTotalPages - 1, p + 1))}
+                          disabled={extractedPage === exTotalPages - 1}
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                          style={{ color: extractedPage === exTotalPages - 1 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                        >
+                          Next →
+                        </button>
                       </div>
-                      <button
-                        onClick={() => saveSkill(skill)}
-                        disabled={isSaved || isSaving}
-                        className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
-                        style={isSaved
-                          ? { background: '#dcfce7', color: '#15803d', cursor: 'default' }
-                          : { background: 'var(--primary)', color: 'white', cursor: isSaving ? 'wait' : 'pointer' }
-                        }
-                      >
-                        {isSaved ? '✓ Saved' : isSaving ? '…' : 'Add'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                Review each competency, then click "Add" to save it to your profile, or "Save all" to add everything at once.
+                All competencies were saved automatically. Upload a new resume anytime to refresh them. Switch to "My Competencies" to review or edit.
               </p>
             </div>
           )}
@@ -447,9 +499,13 @@ export default function CompetencyPage() {
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>No competencies yet — upload your resume to get started.</p>
                 <button onClick={() => setTab('upload')} className="btn-primary mt-3 text-sm">Upload Resume</button>
               </div>
-            ) : (
+            ) : (() => {
+              const PROF_PAGE_SIZE = 5;
+              const profTotalPages = Math.ceil(profile.length / PROF_PAGE_SIZE);
+              const pageProfile = profile.slice(profilePage * PROF_PAGE_SIZE, (profilePage + 1) * PROF_PAGE_SIZE);
+              return (
               <div className="space-y-2">
-                {profile.map(c => {
+                {pageProfile.map(c => {
                   const prof = PROFICIENCY_COLORS[c.proficiency_level] ?? PROFICIENCY_COLORS.intermediate;
                   return (
                     <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--muted-bg)' }}>
@@ -491,8 +547,32 @@ export default function CompetencyPage() {
                     </div>
                   );
                 })}
+                {profTotalPages > 1 && (
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      onClick={() => setProfilePage(p => Math.max(0, p - 1))}
+                      disabled={profilePage === 0}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                      style={{ color: profilePage === 0 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                    >
+                      ← Previous
+                    </button>
+                    <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                      Page {profilePage + 1} of {profTotalPages} · {profile.length} total
+                    </span>
+                    <button
+                      onClick={() => setProfilePage(p => Math.min(profTotalPages - 1, p + 1))}
+                      disabled={profilePage === profTotalPages - 1}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                      style={{ color: profilePage === profTotalPages - 1 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* Add from SSG Framework */}
@@ -513,37 +593,80 @@ export default function CompetencyPage() {
               )}
             </div>
 
-            {searchResults.length > 0 && (
-              <div className="space-y-1 max-h-60 overflow-y-auto">
-                {searchResults.map(s => (
-                  <div key={s.skill_title} className="flex items-center justify-between gap-2 p-2.5 rounded-lg" style={{ background: 'var(--muted-bg)' }}>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{s.skill_title}</p>
-                      <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
-                        {[s.skill_code, s.sector].filter(Boolean).join(' · ')}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => addSsgSkill(s)}
-                      disabled={addingSkill === s.skill_title || profile.some(c => c.skill_title === s.skill_title)}
-                      className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
-                      style={profile.some(c => c.skill_title === s.skill_title)
-                        ? { background: '#dcfce7', color: '#15803d', cursor: 'default' }
-                        : { background: 'var(--primary)', color: 'white' }
-                      }
-                    >
-                      {profile.some(c => c.skill_title === s.skill_title) ? '✓' : addingSkill === s.skill_title ? '…' : '+ Add'}
-                    </button>
-                  </div>
-                ))}
+            {!searching && searchQ.trim() && searchResults.length === 0 && (
+              <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm" style={{ background: '#fef9c3', border: '1px solid #fde68a', color: '#92400e' }}>
+                <span>No SSG match for &ldquo;{searchQ}&rdquo;</span>
+                <button
+                  onClick={() => { const q = searchQ; setSearchQ(''); addManual(q); }}
+                  disabled={addingManual}
+                  className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                  style={{ background: '#92400e', color: 'white' }}
+                >
+                  {addingManual ? '…' : 'Add as custom skill →'}
+                </button>
               </div>
             )}
+
+            {searchResults.length > 0 && (() => {
+              const PAGE_SIZE = 5;
+              const totalPages = Math.ceil(searchResults.length / PAGE_SIZE);
+              const pageItems = searchResults.slice(searchPage * PAGE_SIZE, (searchPage + 1) * PAGE_SIZE);
+              return (
+                <div className="space-y-1">
+                  {pageItems.map((s, i) => (
+                    <div key={`${s.skill_title}-${searchPage}-${i}`} className="flex items-center justify-between gap-2 p-2.5 rounded-lg" style={{ background: 'var(--muted-bg)' }}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{s.skill_title}</p>
+                        <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
+                          {[s.skill_code, s.sector].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => addSsgSkill(s)}
+                        disabled={addingSkill === s.skill_title || profile.some(c => c.skill_title === s.skill_title)}
+                        className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                        style={profile.some(c => c.skill_title === s.skill_title)
+                          ? { background: '#dcfce7', color: '#15803d', cursor: 'default' }
+                          : { background: 'var(--primary)', color: 'white' }
+                        }
+                      >
+                        {profile.some(c => c.skill_title === s.skill_title) ? '✓' : addingSkill === s.skill_title ? '…' : '+ Add'}
+                      </button>
+                    </div>
+                  ))}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        onClick={() => setSearchPage(p => Math.max(0, p - 1))}
+                        disabled={searchPage === 0}
+                        className="text-xs px-2.5 py-1 rounded-lg"
+                        style={{ color: searchPage === 0 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                        {searchPage + 1} / {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setSearchPage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={searchPage === totalPages - 1}
+                        className="text-xs px-2.5 py-1 rounded-lg"
+                        style={{ color: searchPage === totalPages - 1 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Manual add */}
             <div>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--muted)' }}>Or add a skill manually:</p>
               <div className="flex gap-2">
                 <input
+                  ref={manualRef}
                   type="text"
                   className="input flex-1"
                   placeholder="Skill name"

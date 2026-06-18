@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import RecommendedCourses from '@/app/ui/RecommendedCourses';
+import Leaderboard from '@/app/ui/Leaderboard';
 
 export default async function DashboardPage() {
   const session = await getCurrentUser();
@@ -316,6 +317,9 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Leaderboard */}
+      <Leaderboard />
 
       {/* Recommended courses based on career goal */}
       {hasCareer && <RecommendedCourses />}

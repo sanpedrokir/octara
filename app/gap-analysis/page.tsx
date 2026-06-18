@@ -91,6 +91,7 @@ export default function GapAnalysisPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
   const [filter, setFilter]         = useState<Filter>('all');
+  const [gapPage, setGapPage]       = useState(0);
   const [assessingKey, setAssessingKey] = useState<string | null>(null);
   const [pendingScore, setPendingScore] = useState<number>(0);
   const [savingAssess, setSavingAssess] = useState(false);
@@ -223,6 +224,9 @@ export default function GapAnalysisPage() {
     if (filter === 'missing') return !r.matched;
     return true;
   }) ?? [];
+  const GAP_PAGE_SIZE = 10;
+  const gapTotalPages = Math.ceil(filtered.length / GAP_PAGE_SIZE);
+  const pagedRows = filtered.slice(gapPage * GAP_PAGE_SIZE, (gapPage + 1) * GAP_PAGE_SIZE);
 
   // ── Empty / Error states ───────────────────────────────────────────────────
   if (loading) {
@@ -313,7 +317,7 @@ export default function GapAnalysisPage() {
             ]).map(t => (
               <button
                 key={t.id}
-                onClick={() => setFilter(t.id)}
+                onClick={() => { setFilter(t.id); setGapPage(0); }}
                 className="px-4 py-3 text-sm font-medium border-b-2 transition-colors"
                 style={{
                   borderColor: filter === t.id ? 'var(--primary)' : 'transparent',
@@ -338,12 +342,12 @@ export default function GapAnalysisPage() {
 
           {/* Rows */}
           <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
-            {filtered.map(row => {
+            {pagedRows.map((row, i) => {
               const style = STATUS_STYLE[row.status];
               const isAssessing = assessingKey === row.skill_title;
 
               return (
-                <div key={row.skill_title}>
+                <div key={`${row.skill_code ?? row.skill_title}-${i}`}>
                   {/* Main row */}
                   <div
                     className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_180px] gap-3 sm:gap-0 p-4"
@@ -482,6 +486,30 @@ export default function GapAnalysisPage() {
                 </div>
               );
             })}
+
+            {gapTotalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--card-border)' }}>
+                <button
+                  onClick={() => setGapPage(p => Math.max(0, p - 1))}
+                  disabled={gapPage === 0}
+                  className="text-sm px-4 py-2 rounded-lg font-medium"
+                  style={{ color: gapPage === 0 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                >
+                  ← Previous
+                </button>
+                <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Page {gapPage + 1} of {gapTotalPages} · {filtered.length} skills
+                </span>
+                <button
+                  onClick={() => setGapPage(p => Math.min(gapTotalPages - 1, p + 1))}
+                  disabled={gapPage === gapTotalPages - 1}
+                  className="text-sm px-4 py-2 rounded-lg font-medium"
+                  style={{ color: gapPage === gapTotalPages - 1 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -491,7 +519,7 @@ export default function GapAnalysisPage() {
         <div className="card p-5 space-y-5">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>AI Course Recommendations</h2>
+              <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Course Recommendations</h2>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                 {missingCount > 0
                   ? `Courses to bridge ${missingCount} missing competencies — SSG, YouTube, and free MOOCs`

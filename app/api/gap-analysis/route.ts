@@ -52,10 +52,10 @@ export async function GET() {
     }
 
     // Get required competencies from SSG Skills Framework for this sector
-    // Try exact sector first, then first-word prefix
+    // DISTINCT ON skill_title so each skill appears once at the highest required level
     const firstWord = sectorName.split(/[\s&,]/)[0]?.trim() ?? sectorName;
     const requiredSkills = await sql`
-      SELECT DISTINCT
+      SELECT DISTINCT ON (COALESCE(updated_skill_title, skill_title))
         COALESCE(updated_skill_title, skill_title) AS skill_title,
         skill_code,
         updated_sector_tagging AS sector,
@@ -63,7 +63,8 @@ export async function GET() {
       FROM jobs_skills_mapping
       WHERE updated_sector_tagging ILIKE ${'%' + sectorName + '%'}
          OR updated_sector_tagging ILIKE ${'%' + firstWord + '%'}
-      ORDER BY skill_title ASC
+      ORDER BY COALESCE(updated_skill_title, skill_title) ASC,
+               skill_proficiency_level DESC NULLS LAST
       LIMIT 60
     ` as Array<{ skill_title: string; skill_code: string | null; sector: string | null; required_level: string | null }>;
 

@@ -6,7 +6,18 @@ export function getPool(): Pool {
   if (!_pool) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error('DATABASE_URL environment variable is not set');
-    _pool = new Pool({ connectionString: url });
+    _pool = new Pool({
+      connectionString: url,
+      // keepAlive prevents Neon from silently dropping idle TCP connections
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      idleTimeoutMillis: 240000, // close idle clients after 4 min (before Neon's 5-min sleep)
+      max: 10,
+    });
+    _pool.on('error', () => {
+      // Drop the pool so the next db() call gets a fresh one
+      _pool = null;
+    });
   }
   return _pool;
 }
@@ -24,8 +35,20 @@ function makeSql(pool: Pool) {
       text += s;
       if (i < values.length) text += `$${i + 1}`;
     });
-    const result = await pool.query(text, values);
-    return result.rows;
+    try {
+      const result = await pool.query(text, values);
+      return result.rows;
+    } catch (err) {
+      // If the connection died (Neon woke from sleep, stale TCP), reset and retry once
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('Connection') || msg.includes('connect') || msg.includes('ECONNRESET')) {
+        _pool = null;
+        const fresh = getPool();
+        const result = await fresh.query(text, values);
+        return result.rows;
+      }
+      throw err;
+    }
   };
 }
 
