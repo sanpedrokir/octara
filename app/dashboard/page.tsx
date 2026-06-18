@@ -176,62 +176,6 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Stats grid */}
-      <div className="card p-4">
-        <h2 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Track Recommended Courses</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Courses Tracked', value: courseStats?.total ?? '0', icon: '📚', color: 'var(--primary)', bg: 'var(--primary-light)' },
-          { label: 'Completed', value: courseStats?.completed ?? '0', icon: '✅', color: 'var(--teal)', bg: '#f0fdfa' },
-          { label: 'In Progress', value: courseStats?.in_progress ?? '0', icon: '⏳', color: 'var(--warning)', bg: '#fffbeb' },
-          { label: 'Roadmaps', value: roadmapCount?.count ?? '0', icon: '🗺️', color: '#7c3aed', bg: '#f5f3ff' },
-        ].map(stat => (
-          <div key={stat.label} className="card p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ background: stat.bg }}>
-                {stat.icon}
-              </div>
-              <div>
-                <p className="text-2xl font-bold" style={{ color: stat.color }}>{String(stat.value)}</p>
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>{stat.label}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      </div>
-
-      {/* Certifications & Training */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🏆 Certifications & Training</h2>
-          <Link href="/certifications" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
-            {certCount + trainingCount > 0 ? 'View all →' : 'Add entries →'}
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#fefce8', border: '1px solid #fde68a' }}>
-            <span className="text-2xl">🏆</span>
-            <div>
-              <p className="text-2xl font-bold" style={{ color: '#92400e' }}>{certCount}</p>
-              <p className="text-xs font-medium" style={{ color: '#92400e' }}>Certification{certCount !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
-          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#ede9fe', border: '1px solid #c4b5fd' }}>
-            <span className="text-2xl">📖</span>
-            <div>
-              <p className="text-2xl font-bold" style={{ color: '#5b21b6' }}>{trainingCount}</p>
-              <p className="text-xs font-medium" style={{ color: '#5b21b6' }}>Training{trainingCount !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
-        </div>
-        {certCount + trainingCount === 0 && (
-          <p className="text-xs mt-3" style={{ color: 'var(--muted)' }}>
-            Add your certifications and training records to track your credentials.
-          </p>
-        )}
-      </div>
-
       {/* Career Progress */}
       <div className="card p-5">
         <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
@@ -318,8 +262,64 @@ export default async function DashboardPage() {
         )}
       </div>
 
+      {/* Certifications & Training */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🏆 Certifications & Training</h2>
+          <Link href="/certifications" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
+            {certCount + trainingCount > 0 ? 'View all →' : 'Add entries →'}
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#fefce8', border: '1px solid #fde68a' }}>
+            <span className="text-2xl">🏆</span>
+            <div>
+              <p className="text-2xl font-bold" style={{ color: '#92400e' }}>{certCount}</p>
+              <p className="text-xs font-medium" style={{ color: '#92400e' }}>Certification{certCount !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#ede9fe', border: '1px solid #c4b5fd' }}>
+            <span className="text-2xl">📖</span>
+            <div>
+              <p className="text-2xl font-bold" style={{ color: '#5b21b6' }}>{trainingCount}</p>
+              <p className="text-xs font-medium" style={{ color: '#5b21b6' }}>Training{trainingCount !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </div>
+        {certCount + trainingCount === 0 && (
+          <p className="text-xs mt-3" style={{ color: 'var(--muted)' }}>
+            Add your certifications and training records to track your credentials.
+          </p>
+        )}
+      </div>
+
       {/* Leaderboard */}
       <Leaderboard />
+
+      {/* Stats grid */}
+      <div className="card p-4">
+        <h2 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Track Recommended Courses</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Courses Tracked', value: courseStats?.total ?? '0', icon: '📚', color: 'var(--primary)', bg: 'var(--primary-light)' },
+          { label: 'Completed', value: courseStats?.completed ?? '0', icon: '✅', color: 'var(--teal)', bg: '#f0fdfa' },
+          { label: 'In Progress', value: courseStats?.in_progress ?? '0', icon: '⏳', color: 'var(--warning)', bg: '#fffbeb' },
+          { label: 'Roadmaps', value: roadmapCount?.count ?? '0', icon: '🗺️', color: '#7c3aed', bg: '#f5f3ff' },
+        ].map(stat => (
+          <div key={stat.label} className="card p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ background: stat.bg }}>
+                {stat.icon}
+              </div>
+              <div>
+                <p className="text-2xl font-bold" style={{ color: stat.color }}>{String(stat.value)}</p>
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>{stat.label}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      </div>
 
       {/* Recommended courses based on career goal */}
       {hasCareer && <RecommendedCourses />}
