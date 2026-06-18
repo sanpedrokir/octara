@@ -9,6 +9,7 @@ const items = [
   { href: '/skills-navigator', label: 'Skills', icon: '🧭' },
   { href: '/skill-quiz', label: 'Quiz', icon: '🧠' },
   { href: '/competency', label: 'Competency', icon: '🧩' },
+  { href: '/gap-analysis', label: 'Gap Analysis', icon: '📊' },
   { href: '/profile', label: 'Profile', icon: '👤' },
 ];
 
