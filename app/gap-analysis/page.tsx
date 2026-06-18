@@ -337,7 +337,7 @@ export default function GapAnalysisPage() {
           </div>
 
           {/* Rows */}
-          <div className="divide-y" style={{ divideColor: 'var(--card-border)' }}>
+          <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
             {filtered.map(row => {
               const style = STATUS_STYLE[row.status];
               const isAssessing = assessingKey === row.skill_title;
