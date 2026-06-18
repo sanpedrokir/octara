@@ -1,0 +1,578 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import LoadingSpinner from '../ui/LoadingSpinner';
+
+type Tab = 'upload' | 'profile';
+type Proficiency = 'basic' | 'intermediate' | 'advanced' | 'expert';
+
+interface ExtractedSkill {
+  skill: string;
+  proficiency: string;
+  category: string;
+}
+
+interface SsgMatch {
+  skill_title: string;
+  skill_code: string | null;
+  sector: string | null;
+}
+
+interface CompetencyRow {
+  id: number;
+  skill_title: string;
+  skill_code: string | null;
+  proficiency_level: string;
+  category: string | null;
+  source: string;
+  ssg_matched: boolean;
+  ssg_sector: string | null;
+}
+
+interface SsgSearchResult {
+  skill_title: string;
+  skill_code: string | null;
+  sector: string | null;
+  proficiency_level: string | null;
+}
+
+const PROFICIENCY_COLORS: Record<string, { bg: string; color: string }> = {
+  basic:        { bg: '#f3f4f6', color: '#6b7280' },
+  intermediate: { bg: '#eff6ff', color: '#2563eb' },
+  advanced:     { bg: '#f0fdf4', color: '#15803d' },
+  expert:       { bg: '#fdf4ff', color: '#7c3aed' },
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  technical:  '💻',
+  domain:     '🏢',
+  leadership: '👥',
+  soft:       '🤝',
+  tool:       '🔧',
+};
+
+export default function CompetencyPage() {
+  const [tab, setTab] = useState<Tab>('upload');
+
+  // Upload tab state
+  const [resumeText, setResumeText] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState('');
+  const [extracted, setExtracted] = useState<ExtractedSkill[]>([]);
+  const [ssgMatches, setSsgMatches] = useState<Record<string, SsgMatch[]>>({});
+  const [saving, setSaving] = useState<Set<string>>(new Set());
+  const [saved, setSaved] = useState<Set<string>>(new Set());
+
+  // Profile tab state
+  const [profile, setProfile] = useState<CompetencyRow[]>([]);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  // Add missing skill state
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<SsgSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [addingSkill, setAddingSkill] = useState<string | null>(null);
+  const [manualSkill, setManualSkill] = useState('');
+  const [manualProf, setManualProf] = useState<Proficiency>('intermediate');
+  const [addingManual, setAddingManual] = useState(false);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadProfile = useCallback(async () => {
+    setLoadingProfile(true);
+    const res = await fetch('/api/competency/profile');
+    const { data } = await res.json();
+    if (data) setProfile(data);
+    setLoadingProfile(false);
+  }, []);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  // ── File upload handler ─────────────────────────────────────────────────────
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setExtractError('');
+
+    if (file.name.endsWith('.txt')) {
+      const text = await file.text();
+      setResumeText(text);
+    } else if (file.name.endsWith('.pdf')) {
+      // Send PDF to API for server-side parsing
+      setResumeText('');
+      setExtractError('');
+      // Store file for extraction
+      (fileRef.current as HTMLInputElement & { _file?: File })._file = file;
+    } else {
+      setExtractError('Supported formats: PDF, TXT. For DOCX, paste the text below.');
+    }
+  }
+
+  // ── Extract competencies ────────────────────────────────────────────────────
+  async function handleExtract() {
+    setExtractError('');
+    setExtracted([]);
+    setSsgMatches({});
+    setSaved(new Set());
+
+    const pdfFile = (fileRef.current as HTMLInputElement & { _file?: File })?._file;
+
+    if (!resumeText.trim() && !pdfFile) {
+      setExtractError('Please paste your resume text or upload a file.');
+      return;
+    }
+
+    setExtracting(true);
+    try {
+      let res: Response;
+
+      if (pdfFile && !resumeText.trim()) {
+        const fd = new FormData();
+        fd.append('file', pdfFile);
+        res = await fetch('/api/competency/extract', { method: 'POST', body: fd });
+      } else {
+        res = await fetch('/api/competency/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: resumeText }),
+        });
+      }
+
+      const { data, error } = await res.json();
+      if (error) { setExtractError(error); return; }
+      setExtracted(data.competencies ?? []);
+      setSsgMatches(data.ssgMatches ?? {});
+      if ((data.competencies ?? []).length > 0) setTab('upload');
+    } catch {
+      setExtractError('Something went wrong. Please try again.');
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  // ── Save a single extracted skill ───────────────────────────────────────────
+  async function saveSkill(skill: ExtractedSkill) {
+    if (saving.has(skill.skill) || saved.has(skill.skill)) return;
+    setSaving(prev => new Set([...prev, skill.skill]));
+
+    const match = ssgMatches[skill.skill]?.[0];
+    await fetch('/api/competency/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        skill_title: skill.skill,
+        skill_code: match?.skill_code ?? null,
+        proficiency_level: skill.proficiency,
+        category: skill.category,
+        source: 'resume',
+        ssg_matched: !!match,
+        ssg_sector: match?.sector ?? null,
+      }),
+    });
+
+    setSaved(prev => new Set([...prev, skill.skill]));
+    setSaving(prev => { const n = new Set(prev); n.delete(skill.skill); return n; });
+    loadProfile();
+  }
+
+  async function saveAll() {
+    for (const skill of extracted) {
+      if (!saved.has(skill.skill)) await saveSkill(skill);
+    }
+  }
+
+  // ── Search SSG skills ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!searchQ.trim()) { setSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      const res = await fetch(`/api/competency/search-skills?q=${encodeURIComponent(searchQ)}`);
+      const { data } = await res.json();
+      setSearchResults(data ?? []);
+      setSearching(false);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchQ]);
+
+  async function addSsgSkill(s: SsgSearchResult) {
+    if (addingSkill === s.skill_title) return;
+    setAddingSkill(s.skill_title);
+    await fetch('/api/competency/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        skill_title: s.skill_title,
+        skill_code: s.skill_code,
+        proficiency_level: 'intermediate',
+        source: 'ssg',
+        ssg_matched: true,
+        ssg_sector: s.sector,
+      }),
+    });
+    setAddingSkill(null);
+    setSearchQ('');
+    setSearchResults([]);
+    loadProfile();
+  }
+
+  async function addManual() {
+    if (!manualSkill.trim()) return;
+    setAddingManual(true);
+    await fetch('/api/competency/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skill_title: manualSkill.trim(), proficiency_level: manualProf, source: 'manual' }),
+    });
+    setManualSkill('');
+    setAddingManual(false);
+    loadProfile();
+  }
+
+  async function deleteSkill(id: number) {
+    await fetch(`/api/competency/profile?id=${id}`, { method: 'DELETE' });
+    setProfile(prev => prev.filter(c => c.id !== id));
+  }
+
+  async function updateProficiency(id: number, proficiency: string) {
+    const row = profile.find(c => c.id === id);
+    if (!row) return;
+    await fetch('/api/competency/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...row, skill_title: row.skill_title, proficiency_level: proficiency }),
+    });
+    setProfile(prev => prev.map(c => c.id === id ? { ...c, proficiency_level: proficiency } : c));
+  }
+
+  const ssgCount = profile.filter(c => c.ssg_matched).length;
+  const tabs = [
+    { id: 'upload' as Tab, label: 'Upload Resume', icon: '📄' },
+    { id: 'profile' as Tab, label: `My Competencies${profile.length > 0 ? ` (${profile.length})` : ''}`, icon: '🧩' },
+  ];
+
+  return (
+    <div className="space-y-6 animate-fade-in max-w-3xl">
+      <div>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>Competency Profile</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+          Extract your competencies from your resume and map them to the SSG Skills Framework.
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--muted-bg)' }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: tab === t.id ? 'var(--card)' : 'transparent',
+              color: tab === t.id ? 'var(--primary)' : 'var(--muted)',
+              boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Upload Tab ─────────────────────────────────────────────────────── */}
+      {tab === 'upload' && (
+        <div className="space-y-5">
+          <div className="card p-5 space-y-4">
+            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 1 — Provide your resume</h2>
+
+            {/* File upload */}
+            <div
+              className="rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
+              style={{ borderColor: 'var(--card-border)' }}
+              onClick={() => fileRef.current?.click()}
+            >
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".pdf,.txt"
+                className="hidden"
+                onChange={handleFile}
+              />
+              <p className="text-2xl mb-2">📎</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                {fileName ? fileName : 'Click to upload your resume'}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>PDF or TXT · max 5 MB</p>
+            </div>
+
+            {/* Text paste */}
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                Or paste resume text here
+              </label>
+              <textarea
+                className="input font-mono text-xs"
+                rows={8}
+                placeholder="Paste the full text of your resume here…"
+                value={resumeText}
+                onChange={e => setResumeText(e.target.value)}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+
+            {extractError && (
+              <div className="p-3 rounded-lg text-sm" style={{ background: '#fef2f2', color: 'var(--danger)', border: '1px solid #fecaca' }}>
+                {extractError}
+              </div>
+            )}
+
+            <button
+              onClick={handleExtract}
+              disabled={extracting}
+              className="btn-primary"
+              style={{ opacity: extracting ? 0.7 : 1 }}
+            >
+              {extracting ? <><LoadingSpinner label="" /> Extracting…</> : '🔍 Extract Competencies'}
+            </button>
+          </div>
+
+          {/* Extracted results */}
+          {extracted.length > 0 && (
+            <div className="card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>
+                  Step 2 — Review extracted competencies
+                  <span className="ml-2 text-sm font-normal" style={{ color: 'var(--muted)' }}>({extracted.length} found)</span>
+                </h2>
+                <button
+                  onClick={saveAll}
+                  className="btn-primary text-sm"
+                  disabled={saved.size === extracted.length}
+                >
+                  {saved.size === extracted.length ? '✓ All saved' : `Save all (${extracted.length - saved.size})`}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {extracted.map(skill => {
+                  const match = ssgMatches[skill.skill];
+                  const isSaved = saved.has(skill.skill);
+                  const isSaving = saving.has(skill.skill);
+                  const prof = PROFICIENCY_COLORS[skill.proficiency] ?? PROFICIENCY_COLORS.intermediate;
+
+                  return (
+                    <div
+                      key={skill.skill}
+                      className="flex items-start gap-3 p-3 rounded-xl"
+                      style={{ background: isSaved ? '#f0fdf4' : 'var(--muted-bg)', border: isSaved ? '1px solid #bbf7d0' : '1px solid transparent' }}
+                    >
+                      <span className="text-lg mt-0.5">{CATEGORY_ICONS[skill.category] ?? '🔹'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{skill.skill}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={prof}>
+                            {skill.proficiency}
+                          </span>
+                          {match ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>
+                              ✓ SSG matched
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#f3f4f6', color: '#9ca3af' }}>
+                              No SSG match
+                            </span>
+                          )}
+                        </div>
+                        {match && (
+                          <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>
+                            SSG: {match[0].skill_title}
+                            {match[0].sector ? ` · ${match[0].sector}` : ''}
+                            {match[0].skill_code ? ` · ${match[0].skill_code}` : ''}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => saveSkill(skill)}
+                        disabled={isSaved || isSaving}
+                        className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                        style={isSaved
+                          ? { background: '#dcfce7', color: '#15803d', cursor: 'default' }
+                          : { background: 'var(--primary)', color: 'white', cursor: isSaving ? 'wait' : 'pointer' }
+                        }
+                      >
+                        {isSaved ? '✓ Saved' : isSaving ? '…' : 'Add'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                Review each competency, then click "Add" to save it to your profile, or "Save all" to add everything at once.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Profile Tab ────────────────────────────────────────────────────── */}
+      {tab === 'profile' && (
+        <div className="space-y-5">
+          {/* Summary */}
+          {profile.length > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Total Competencies', value: profile.length, color: 'var(--primary)', bg: 'var(--primary-light)' },
+                { label: 'SSG Framework Mapped', value: ssgCount, color: '#15803d', bg: '#f0fdf4' },
+                { label: 'Self-Identified', value: profile.length - ssgCount, color: '#7c3aed', bg: '#f5f3ff' },
+              ].map(s => (
+                <div key={s.label} className="card p-4 text-center">
+                  <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Competency list */}
+          <div className="card p-5 space-y-3">
+            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>My Competencies</h2>
+
+            {loadingProfile ? (
+              <LoadingSpinner label="Loading…" />
+            ) : profile.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-3xl mb-2">🧩</p>
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>No competencies yet — upload your resume to get started.</p>
+                <button onClick={() => setTab('upload')} className="btn-primary mt-3 text-sm">Upload Resume</button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {profile.map(c => {
+                  const prof = PROFICIENCY_COLORS[c.proficiency_level] ?? PROFICIENCY_COLORS.intermediate;
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--muted-bg)' }}>
+                      <span className="text-base">{CATEGORY_ICONS[c.category ?? ''] ?? '🔹'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{c.skill_title}</span>
+                          {c.ssg_matched && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>SSG ✓</span>
+                          )}
+                          <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                            {c.source === 'resume' ? '📄 resume' : c.source === 'ssg' ? '🏛 SSG' : '✍️ manual'}
+                          </span>
+                        </div>
+                        {(c.skill_code || c.ssg_sector) && (
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                            {[c.skill_code, c.ssg_sector].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                      {/* Proficiency selector */}
+                      <select
+                        className="text-xs px-2 py-1 rounded-lg font-medium border-0"
+                        value={c.proficiency_level}
+                        onChange={e => updateProficiency(c.id, e.target.value)}
+                        style={{ ...prof, cursor: 'pointer' }}
+                      >
+                        {['basic', 'intermediate', 'advanced', 'expert'].map(p => (
+                          <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => deleteSkill(c.id)}
+                        className="shrink-0 text-xs px-2 py-1 rounded-lg"
+                        style={{ color: 'var(--danger)', background: '#fef2f2' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Add from SSG Framework */}
+          <div className="card p-5 space-y-4">
+            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>
+              Add missing competency from SSG Skills Framework
+            </h2>
+            <div className="relative">
+              <input
+                type="text"
+                className="input pr-8"
+                placeholder="Search SSG skills (e.g. Data Analytics, Risk Management)…"
+                value={searchQ}
+                onChange={e => setSearchQ(e.target.value)}
+              />
+              {searching && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--muted)' }}>⏳</span>
+              )}
+            </div>
+
+            {searchResults.length > 0 && (
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {searchResults.map(s => (
+                  <div key={s.skill_title} className="flex items-center justify-between gap-2 p-2.5 rounded-lg" style={{ background: 'var(--muted-bg)' }}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{s.skill_title}</p>
+                      <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
+                        {[s.skill_code, s.sector].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => addSsgSkill(s)}
+                      disabled={addingSkill === s.skill_title || profile.some(c => c.skill_title === s.skill_title)}
+                      className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                      style={profile.some(c => c.skill_title === s.skill_title)
+                        ? { background: '#dcfce7', color: '#15803d', cursor: 'default' }
+                        : { background: 'var(--primary)', color: 'white' }
+                      }
+                    >
+                      {profile.some(c => c.skill_title === s.skill_title) ? '✓' : addingSkill === s.skill_title ? '…' : '+ Add'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Manual add */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--muted)' }}>Or add a skill manually:</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="input flex-1"
+                  placeholder="Skill name"
+                  value={manualSkill}
+                  onChange={e => setManualSkill(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addManual()}
+                />
+                <select
+                  className="input w-36"
+                  value={manualProf}
+                  onChange={e => setManualProf(e.target.value as Proficiency)}
+                  style={{ appearance: 'auto' }}
+                >
+                  {(['basic', 'intermediate', 'advanced', 'expert'] as Proficiency[]).map(p => (
+                    <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={addManual}
+                  disabled={addingManual || !manualSkill.trim()}
+                  className="btn-primary shrink-0 text-sm"
+                >
+                  {addingManual ? '…' : 'Add'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
