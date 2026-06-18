@@ -57,7 +57,7 @@ export async function POST(request: Request) {
           title: c.title,
           provider: c.providerName || 'SkillsFuture Singapore',
           type: 'ssg',
-          url: c.url,
+          url: c.url ?? '',
           description: descParts.join(' · ') || 'SSG-accredited course aligned to the Skills Framework.',
           skills_covered: [skill],
         });
