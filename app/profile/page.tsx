@@ -20,6 +20,25 @@ function fmtMonth(val: string): string {
   return `${month} ${y}`;
 }
 
+// Placeholder — to be replaced when admin loads Thai institution data via XLS
+const TH_IHLS = [
+  'Chulalongkorn University (CU)',
+  'Mahidol University (MU)',
+  'Thammasat University (TU)',
+  'Kasetsart University (KU)',
+  'Chiang Mai University (CMU)',
+  'Prince of Songkla University (PSU)',
+  'Khon Kaen University (KKU)',
+  "King Mongkut's Institute of Technology Ladkrabang (KMITL)",
+  "King Mongkut's University of Technology Thonburi (KMUTT)",
+  'Silpakorn University',
+  'Bangkok University',
+  'Assumption University (ABAC)',
+  'Rangsit University',
+  'Stamford International University',
+  'Webster University Thailand',
+];
+
 const SG_IHLS = [
   // Autonomous Universities
   'National University of Singapore (NUS)',
@@ -75,6 +94,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [country, setCountry] = useState<'SG' | 'TH'>('SG');
 
   const [basicForm, setBasicForm] = useState({ name: '', bio: '', phone: '', location: '', linkedin_url: '', resume_text: '' });
   const [eduForm, setEduForm] = useState({ institution: '', degree: '', field_of_study: '', start_year: '', end_year: '', is_current: false });
@@ -89,12 +109,15 @@ export default function ProfilePage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [profileRes, eduRes, expRes] = await Promise.all([
+    const [profileRes, eduRes, expRes, meRes] = await Promise.all([
       fetch('/api/profile'),
       fetch('/api/education'),
       fetch('/api/experience'),
+      fetch('/api/user/me'),
     ]);
-    const [profileJson, eduJson, expJson] = await Promise.all([profileRes.json(), eduRes.json(), expRes.json()]);
+    const [profileJson, eduJson, expJson, meJson] = await Promise.all([profileRes.json(), eduRes.json(), expRes.json(), meRes.json()]);
+
+    if (meJson.data?.country === 'TH') setCountry('TH');
 
     if (profileJson.data) {
       setUser(profileJson.data);
@@ -285,21 +308,34 @@ export default function ProfilePage() {
                         required={institutionSelect !== 'Other'}
                       >
                         <option value="">Select institution…</option>
-                        <optgroup label="Autonomous Universities">
-                          {SG_IHLS.slice(0, 6).map(s => <option key={s} value={s}>{s}</option>)}
-                        </optgroup>
-                        <optgroup label="Polytechnics">
-                          {SG_IHLS.slice(6, 11).map(s => <option key={s} value={s}>{s}</option>)}
-                        </optgroup>
-                        <optgroup label="Institute of Technical Education">
-                          {SG_IHLS.slice(11, 14).map(s => <option key={s} value={s}>{s}</option>)}
-                        </optgroup>
-                        <optgroup label="Arts Institutions">
-                          {SG_IHLS.slice(14, 16).map(s => <option key={s} value={s}>{s}</option>)}
-                        </optgroup>
-                        <optgroup label="Private / International">
-                          {SG_IHLS.slice(16).map(s => <option key={s} value={s}>{s}</option>)}
-                        </optgroup>
+                        {country === 'TH' ? (
+                          <>
+                            <optgroup label="Public Universities">
+                              {TH_IHLS.slice(0, 10).map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                            <optgroup label="Private / International">
+                              {TH_IHLS.slice(10).map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                          </>
+                        ) : (
+                          <>
+                            <optgroup label="Autonomous Universities">
+                              {SG_IHLS.slice(0, 6).map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                            <optgroup label="Polytechnics">
+                              {SG_IHLS.slice(6, 11).map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                            <optgroup label="Institute of Technical Education">
+                              {SG_IHLS.slice(11, 14).map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                            <optgroup label="Arts Institutions">
+                              {SG_IHLS.slice(14, 16).map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                            <optgroup label="Private / International">
+                              {SG_IHLS.slice(16).map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                          </>
+                        )}
                         <option value="Other">Other (please specify)</option>
                       </select>
                       {institutionSelect === 'Other' && (

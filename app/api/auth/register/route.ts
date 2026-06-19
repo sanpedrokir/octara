@@ -9,6 +9,7 @@ export async function POST(request: Request) {
       firstName, lastName, email, password, userType,
       institution, level,
       company, title, otherDetails,
+      country,
     } = body;
 
     // ── Validation ──────────────────────────────────────────────
@@ -54,6 +55,13 @@ export async function POST(request: Request) {
       VALUES (${fullName}, ${email.toLowerCase().trim()}, ${passwordHash}, 'learner')
       RETURNING id, email, name, role
     ` as Array<{ id: number; email: string; name: string; role: string }>;
+
+    // ── Ensure country column exists ─────────────────────────────
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(2) DEFAULT 'SG'`;
+
+    // ── Update country on newly created user ──────────────────────
+    const resolvedCountry = (country === 'TH' ? 'TH' : 'SG');
+    await sql`UPDATE users SET country = ${resolvedCountry} WHERE id = ${user.id}`;
 
     // ── Ensure extra profile columns exist ───────────────────────
     await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS company_name TEXT`;

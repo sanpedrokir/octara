@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-export default function LoginPage() {
+
+export default function ThaiLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,7 +15,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -22,7 +22,6 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const { data, error: err } = await res.json();
-
       if (err) {
         setError(err);
       } else if (data) {
@@ -44,28 +43,28 @@ export default function LoginPage() {
             <div className="flex justify-center mb-3">
               <img src="/octara-logo.png" alt="Octara" style={{ height: '120px', width: 'auto' }} />
             </div>
-            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--foreground)' }}>Welcome back</h1>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>Sign in to your Octara account</p>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--foreground)' }}>ยินดีต้อนรับ</h1>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>Welcome back · Sign in to your Octara account</p>
           </div>
 
           {/* Country selector */}
           <div className="mb-6">
             <p className="text-xs font-semibold text-center mb-2 uppercase tracking-wide" style={{ color: 'var(--muted)' }}>Select your country</p>
             <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all"
+                style={{ border: '2px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+              >
+                <span style={{ fontSize: '1.4rem' }}>🇸🇬</span> Singapore
+              </button>
               <div
                 className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-semibold"
                 style={{ border: '2px solid var(--primary)', background: 'var(--primary-faint, rgba(99,102,241,0.08))', color: 'var(--primary)', cursor: 'default' }}
               >
-                <span style={{ fontSize: '1.4rem' }}>🇸🇬</span> Singapore
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push('/th/login')}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all"
-                style={{ border: '2px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
-              >
                 <span style={{ fontSize: '1.4rem' }}>🇹🇭</span> Thailand
-              </button>
+              </div>
             </div>
           </div>
 
@@ -83,7 +82,6 @@ export default function LoginPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 className="input"
-                placeholder=""
                 required
                 autoComplete="email"
               />
@@ -101,7 +99,6 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 className="input"
-                placeholder=""
                 required
                 autoComplete="current-password"
               />
@@ -114,7 +111,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm" style={{ color: 'var(--muted)' }}>
             Don&apos;t have an account?{' '}
-            <Link href="/register" className="font-semibold" style={{ color: 'var(--primary)' }}>Sign up</Link>
+            <Link href="/th/register" className="font-semibold" style={{ color: 'var(--primary)' }}>Sign up</Link>
           </p>
         </div>
       </div>
