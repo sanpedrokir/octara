@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Industry, JobRole } from '@/lib/types';
 
-type Tab = 'overview' | 'industries' | 'job-roles' | 'catalog' | 'skills-mapping';
+type Tab = 'overview' | 'industries' | 'job-roles' | 'catalog' | 'skills-mapping' | 'tsc-ccs';
 
 type CatalogRow = {
   id: number;
@@ -84,6 +84,20 @@ export default function AdminPage() {
   const [mappingSearch, setMappingSearch] = useState('');
   const [mappingPage, setMappingPage] = useState(0);
   const MAPPING_PAGE_SIZE = 50;
+
+  // TSC/CCS tab state
+  type TscCcsRow = { id: number; sector: string; track: string | null; job_role: string; skill_title: string; skill_type: string | null; proficiency_level: string | null; skill_code: string | null };
+  const [tscFile, setTscFile] = useState<File | null>(null);
+  const [tscUploading, setTscUploading] = useState(false);
+  const [tscRows, setTscRows] = useState<TscCcsRow[]>([]);
+  const [tscTotal, setTscTotal] = useState(0);
+  const [tscTracks, setTscTracks] = useState<string[]>([]);
+  const [tscLastUpload, setTscLastUpload] = useState<CatalogUpload | null>(null);
+  const [tscTrackFilter, setTscTrackFilter] = useState('');
+  const [tscTypeFilter, setTscTypeFilter] = useState('');
+  const [tscSearch, setTscSearch] = useState('');
+  const [tscPage, setTscPage] = useState(0);
+  const TSC_PAGE_SIZE = 50;
 
   const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
     setMessage(text);
@@ -269,6 +283,47 @@ export default function AdminPage() {
     }
   }
 
+  const loadTscCcs = useCallback(async () => {
+    const params = new URLSearchParams({ limit: String(TSC_PAGE_SIZE), offset: String(tscPage * TSC_PAGE_SIZE) });
+    if (tscTrackFilter) params.set('track', tscTrackFilter);
+    if (tscTypeFilter) params.set('type', tscTypeFilter);
+    if (tscSearch) params.set('q', tscSearch);
+    const res = await fetch(`/api/admin/tsc-ccs?${params}`);
+    const { data } = await res.json();
+    if (data) {
+      setTscRows(data.rows);
+      setTscTotal(data.total);
+      setTscTracks(data.tracks);
+      setTscLastUpload(data.lastUpload);
+    }
+  }, [tscPage, tscTrackFilter, tscTypeFilter, tscSearch]);
+
+  useEffect(() => { if (tab === 'tsc-ccs') loadTscCcs(); }, [tab, loadTscCcs]);
+
+  async function uploadTscCcs(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tscFile) return;
+    setTscUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', tscFile);
+      const res = await fetch('/api/admin/tsc-ccs/upload', { method: 'POST', body: formData });
+      const { data, error } = await res.json();
+      if (error) {
+        showMsg(error, 'error');
+      } else {
+        showMsg(data.message, 'success');
+        setTscFile(null);
+        setTscPage(0);
+        loadTscCcs();
+      }
+    } catch (err) {
+      showMsg('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
+    } finally {
+      setTscUploading(false);
+    }
+  }
+
   const [syncSuccess, setSyncSuccess] = useState(false);
   type SkillEntry = { status: number; ok: boolean; snippet: string; error?: string };
   const [ssgDiag, setSsgDiag] = useState<{ hasCredentials: boolean; hasToken: boolean; tokenStatus: number; tokenError?: string; skillResults: Record<string, SkillEntry> } | null>(null);
@@ -312,6 +367,7 @@ export default function AdminPage() {
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '⚙️' },
     { id: 'catalog', label: 'Job Role Catalog (SSG XLS Upload)', icon: '📁' },
+    { id: 'tsc-ccs', label: 'TSC/CCS Job Role Mapping', icon: '🏷️' },
     { id: 'skills-mapping', label: 'Jobs & Skills Mapping (SSG XLS Upload)', icon: '🧩' },
     { id: 'industries', label: 'Sectors (Non SSG)', icon: '🏭' },
     { id: 'job-roles', label: 'Job Roles (Non SSG)', icon: '👔' },
@@ -647,6 +703,120 @@ export default function AdminPage() {
                 >
                   Next →
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TSC/CCS Job Role Mapping Tab */}
+      {tab === 'tsc-ccs' && (
+        <div className="space-y-5">
+          <div className="card p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>🏷️ Upload TSC/CCS Job Role Mapping</h3>
+              <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                Upload the Excel/CSV file with columns: <strong>Track, Job Role, TSC_CCS Title, TSC_CCS Type, Proficiency Level, TSC_CCS Code</strong>.
+                Each upload <strong>upserts</strong> — existing rows with matching Job Role + Code are updated; new rows are inserted. Job roles are automatically matched to catalog sectors.
+              </p>
+            </div>
+            <form onSubmit={uploadTscCcs} className="flex flex-col sm:flex-row gap-3 items-start">
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                onChange={e => setTscFile(e.target.files?.[0] ?? null)}
+                className="input"
+              />
+              <button type="submit" disabled={!tscFile || tscUploading} className="btn-primary text-sm shrink-0" style={{ opacity: !tscFile || tscUploading ? 0.5 : 1 }}>
+                {tscUploading ? 'Uploading…' : '⬆️ Upload & Upsert'}
+              </button>
+            </form>
+            {tscLastUpload && (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                Last upload: <strong>{tscLastUpload.filename || 'file'}</strong> — {tscLastUpload.row_count} rows — {timeAgo(tscLastUpload.created_at)}
+              </p>
+            )}
+          </div>
+
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-wrap gap-3 items-center justify-between">
+              <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>Browse TSC/CCS Mapping ({tscTotal})</h3>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  className="input text-sm"
+                  value={tscTrackFilter}
+                  onChange={e => { setTscTrackFilter(e.target.value); setTscPage(0); }}
+                >
+                  <option value="">— All tracks —</option>
+                  {tscTracks.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <select
+                  className="input text-sm"
+                  value={tscTypeFilter}
+                  onChange={e => { setTscTypeFilter(e.target.value); setTscPage(0); }}
+                >
+                  <option value="">— TSC & CCS —</option>
+                  <option value="tsc">TSC only</option>
+                  <option value="ccs">CCS only</option>
+                </select>
+                <input
+                  className="input text-sm"
+                  placeholder="Search job role or skill…"
+                  value={tscSearch}
+                  onChange={e => { setTscSearch(e.target.value); setTscPage(0); }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {tscRows.map(row => (
+                <div key={row.id} className="card p-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    {row.track && <span className="badge" style={{ background: 'var(--muted-bg)', color: 'var(--muted)' }}>{row.track}</span>}
+                    {row.skill_type && (
+                      <span
+                        className="badge"
+                        style={{
+                          background: row.skill_type.toLowerCase() === 'tsc' ? 'rgba(59,130,246,0.12)' : 'rgba(168,85,247,0.12)',
+                          color: row.skill_type.toLowerCase() === 'tsc' ? '#2563eb' : '#7c3aed',
+                          fontWeight: 600,
+                          fontSize: '0.7rem',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {row.skill_type.toUpperCase()}
+                      </span>
+                    )}
+                    {row.proficiency_level && (
+                      <span className="badge" style={{ background: 'rgba(16,185,129,0.12)', color: '#059669' }}>
+                        PL {row.proficiency_level}
+                      </span>
+                    )}
+                    {row.skill_code && <span className="text-xs font-mono" style={{ color: 'var(--muted)' }}>{row.skill_code}</span>}
+                  </div>
+                  <p className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{row.job_role}</p>
+                  <p className="text-sm mt-0.5" style={{ color: 'var(--muted)' }}>{row.skill_title}</p>
+                  {row.sector && row.sector !== 'Unknown' && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Sector: {row.sector}</p>
+                  )}
+                  {row.sector === 'Unknown' && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--warning, #d97706)' }}>⚠ Sector not matched — upload catalog first</p>
+                  )}
+                </div>
+              ))}
+              {tscRows.length === 0 && (
+                <p className="text-center py-8 text-sm" style={{ color: 'var(--muted)' }}>
+                  No TSC/CCS data yet. Upload a file above to populate it.<br />
+                  <span className="text-xs">Note: data is also auto-populated when you upload the full SSG Job Role Catalog XLSX.</span>
+                </p>
+              )}
+            </div>
+
+            {tscTotal > TSC_PAGE_SIZE && (
+              <div className="flex items-center justify-between text-sm">
+                <button onClick={() => setTscPage(p => Math.max(0, p - 1))} disabled={tscPage === 0} className="btn-secondary text-sm" style={{ opacity: tscPage === 0 ? 0.5 : 1 }}>← Previous</button>
+                <span style={{ color: 'var(--muted)' }}>Page {tscPage + 1} of {Math.ceil(tscTotal / TSC_PAGE_SIZE)}</span>
+                <button onClick={() => setTscPage(p => p + 1)} disabled={(tscPage + 1) * TSC_PAGE_SIZE >= tscTotal} className="btn-secondary text-sm" style={{ opacity: (tscPage + 1) * TSC_PAGE_SIZE >= tscTotal ? 0.5 : 1 }}>Next →</button>
               </div>
             )}
           </div>
