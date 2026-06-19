@@ -51,22 +51,36 @@ export async function GET() {
       return Response.json({ data: null, error: 'NO_SECTOR' }, { status: 404 });
     }
 
-    // Get required competencies from SSG Skills Framework for this sector
-    // DISTINCT ON skill_title so each skill appears once at the highest required level
-    const firstWord = sectorName.split(/[\s&,]/)[0]?.trim() ?? sectorName;
-    const requiredSkills = await sql`
-      SELECT DISTINCT ON (COALESCE(updated_skill_title, skill_title))
-        COALESCE(updated_skill_title, skill_title) AS skill_title,
+    // Step 1: get required competencies from job_role_tsc_ccs (role-specific TSC/CCS data)
+    let requiredSkills = await sql`
+      SELECT DISTINCT ON (LOWER(TRIM(skill_title)))
+        skill_title,
         skill_code,
-        updated_sector_tagging AS sector,
-        skill_proficiency_level AS required_level
-      FROM jobs_skills_mapping
-      WHERE updated_sector_tagging ILIKE ${'%' + sectorName + '%'}
-         OR updated_sector_tagging ILIKE ${'%' + firstWord + '%'}
-      ORDER BY COALESCE(updated_skill_title, skill_title) ASC,
-               skill_proficiency_level DESC NULLS LAST
-      LIMIT 60
-    ` as Array<{ skill_title: string; skill_code: string | null; sector: string | null; required_level: string | null }>;
+        skill_type,
+        proficiency_level AS required_level
+      FROM job_role_tsc_ccs
+      WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${roleName}))
+        AND (sector = ${sectorName} OR sector = 'Unknown' OR sector IS NULL)
+      ORDER BY LOWER(TRIM(skill_title)), skill_type, id
+    ` as Array<{ skill_title: string; skill_code: string | null; skill_type: string | null; required_level: string | null }>;
+
+    // Step 2: if no role-specific data, fall back to jobs_skills_mapping filtered by sector
+    if (requiredSkills.length === 0) {
+      const firstWord = sectorName.split(/[\s&,]/)[0]?.trim() ?? sectorName;
+      requiredSkills = await sql`
+        SELECT DISTINCT ON (COALESCE(updated_skill_title, skill_title))
+          COALESCE(updated_skill_title, skill_title) AS skill_title,
+          skill_code,
+          updated_skill_type AS skill_type,
+          skill_proficiency_level AS required_level
+        FROM jobs_skills_mapping
+        WHERE updated_sector_tagging ILIKE ${'%' + sectorName + '%'}
+           OR updated_sector_tagging ILIKE ${'%' + firstWord + '%'}
+        ORDER BY COALESCE(updated_skill_title, skill_title) ASC,
+                 skill_proficiency_level DESC NULLS LAST
+        LIMIT 100
+      ` as Array<{ skill_title: string; skill_code: string | null; skill_type: string | null; required_level: string | null }>;
+    }
 
     // User's saved competencies
     const userSkills = await sql`
