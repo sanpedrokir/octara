@@ -517,4 +517,16 @@ CREATE TABLE IF NOT EXISTS job_role_tsc_ccs (
   created_at         TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_job_role_tsc_ccs_lookup ON job_role_tsc_ccs(sector, track, job_role);
+
+CREATE TABLE IF NOT EXISTS course_recommendations (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  courses    JSONB NOT NULL DEFAULT '[]',
+  youtube    JSONB NOT NULL DEFAULT '{}',
+  mooc       JSONB NOT NULL DEFAULT '[]',
+  sector     TEXT,
+  role       TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id)
+);
 `;

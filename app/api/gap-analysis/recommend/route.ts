@@ -1,4 +1,5 @@
 import { requireAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
 import { searchCoursesWithSource } from '@/lib/ssg-api';
 
 export interface YouTubeVideo {
@@ -21,6 +22,33 @@ export interface MoocCourse {
   _status?: 'tracked' | 'completed';
 }
 
+// ── GET: return saved recommendations ────────────────────────────────────────
+export async function GET() {
+  try {
+    const session = await requireAuth();
+    const sql = db();
+    const rows = await sql`
+      SELECT courses, youtube, mooc FROM course_recommendations
+      WHERE user_id = ${session.userId}
+    ` as Array<{ courses: object; youtube: object; mooc: object }>;
+
+    if (!rows.length) return Response.json({ data: null, error: null });
+    return Response.json({ data: rows[0], error: null });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed';
+    return Response.json({ data: null, error: msg }, { status: 500 });
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function fetchYouTubeVideo(courseTitle: string, skill: string): Promise<YouTubeVideo> {
   const query = `${courseTitle} ${skill} tutorial`.trim();
   const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
@@ -35,8 +63,8 @@ async function fetchYouTubeVideo(courseTitle: string, skill: string): Promise<Yo
 
   try {
     const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=1&key=${apiKey}&relevanceLanguage=en&order=relevance&videoDuration=medium`;
-    const res = await fetch(url);
-    if (!res.ok) return fallback;
+    const res = await withTimeout(fetch(url), 5000, null as unknown as Response);
+    if (!res || !res.ok) return fallback;
     const data = await res.json() as {
       items?: Array<{
         id: { videoId: string };
@@ -65,8 +93,9 @@ async function fetchYouTubeVideo(courseTitle: string, skill: string): Promise<Yo
 async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
   try {
     const apiUrl = `https://api.coursera.org/api/courses.v1?q=search&query=${encodeURIComponent(query)}&limit=5&fields=name,slug,shortDescription,workload`;
-    const res = await fetch(apiUrl, { signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return [];
+    const fetchPromise = fetch(apiUrl);
+    const res = await withTimeout(fetchPromise, 8000, null as unknown as Response);
+    if (!res || !res.ok) return [];
     const data = await res.json() as {
       elements?: Array<{ id: string; name: string; slug: string; shortDescription?: string; workload?: string }>;
     };
@@ -88,8 +117,7 @@ async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
 }
 
 async function fetchCourseraCourses(queries: string[]): Promise<MoocCourse[]> {
-  // Fetch all queries in parallel — dramatically faster than sequential
-  const batches = await Promise.all(queries.slice(0, 7).map(q => fetchCourseraForQuery(q)));
+  const batches = await Promise.all(queries.slice(0, 5).map(q => fetchCourseraForQuery(q)));
   const seen = new Set<string>();
   const results: MoocCourse[] = [];
   for (const batch of batches) {
@@ -102,18 +130,20 @@ async function fetchCourseraCourses(queries: string[]): Promise<MoocCourse[]> {
   return results;
 }
 
+// ── POST: generate and save recommendations ───────────────────────────────────
 export async function POST(request: Request) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    const sql = db();
 
     const body = await request.json() as { missingSkills: string[]; sector: string; role: string };
     const { missingSkills, sector = '', role = '' } = body;
 
     if (!missingSkills?.length) {
-      return Response.json({ data: { courses: [], youtube: [], mooc: [] }, error: null });
+      return Response.json({ data: { courses: [], youtube: {}, mooc: [] }, error: null });
     }
 
-    // ── 1. SSG courses (parallel per skill) ──────────────────────────────────
+    // ── 1. SSG courses (parallel per skill) ────────────────────────────────
     const skillsToSearch = missingSkills.slice(0, 8);
     const ssgResults = await Promise.all(skillsToSearch.map(s => searchCoursesWithSource(s)));
 
@@ -149,13 +179,31 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 2. YouTube + MOOC fetched in parallel ─────────────────────────────────
-    const moocQueries = [role.trim(), sector.trim(), ...missingSkills.slice(0, 5)].filter(Boolean);
+    // ── 2. YouTube + MOOC in parallel ──────────────────────────────────────
+    const moocQueries = [role.trim(), sector.trim(), ...missingSkills.slice(0, 3)].filter(Boolean);
 
-    const [youtube, mooc] = await Promise.all([
+    const [youtubeList, mooc] = await Promise.all([
       Promise.all(courses.map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? ''))),
       fetchCourseraCourses(moocQueries),
     ]);
+
+    // Convert youtube list to map keyed by course title for easy lookup
+    const youtube: Record<string, YouTubeVideo> = {};
+    for (const v of youtubeList) youtube[v.courseTitle] = v;
+
+    // ── 3. Save to DB (upsert — replace previous recommendations) ──────────
+    await sql`
+      INSERT INTO course_recommendations (user_id, courses, youtube, mooc, sector, role)
+      VALUES (${session.userId}, ${JSON.stringify(courses)}, ${JSON.stringify(youtube)}, ${JSON.stringify(mooc)}, ${sector}, ${role})
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        courses    = EXCLUDED.courses,
+        youtube    = EXCLUDED.youtube,
+        mooc       = EXCLUDED.mooc,
+        sector     = EXCLUDED.sector,
+        role       = EXCLUDED.role,
+        created_at = NOW()
+    `;
 
     return Response.json({ data: { courses, youtube, mooc }, error: null });
   } catch (err) {

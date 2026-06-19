@@ -162,6 +162,21 @@ export default function GapAnalysisPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Auto-load saved recommendations on mount
+  useEffect(() => {
+    fetch('/api/gap-analysis/recommend')
+      .then(r => r.json())
+      .then(({ data }) => {
+        if (!data) return;
+        setSsgCourses((data.courses ?? []).map((c: SsgCourse) => ({ ...c })));
+        setYoutubeMap(typeof data.youtube === 'object' && !Array.isArray(data.youtube)
+          ? data.youtube as Record<string, YouTubeVideo>
+          : {});
+        setMoocCourses((data.mooc ?? []).map((c: MoocCourse) => ({ ...c })));
+      })
+      .catch(() => {});
+  }, []);
+
   function openAssess(skill: CompetencyRow) {
     setAssessingKey(skill.skill_title);
     setPendingScore(skill.self_assessment_score ?? 0);
@@ -203,9 +218,9 @@ export default function GapAnalysisPage() {
       setCourseError(e);
     } else {
       setSsgCourses((data?.courses ?? []).map((c: SsgCourse) => ({ ...c })));
-      const ytMap: Record<string, YouTubeVideo> = {};
-      for (const v of (data?.youtube ?? []) as YouTubeVideo[]) ytMap[v.courseTitle] = v;
-      setYoutubeMap(ytMap);
+      setYoutubeMap(typeof data?.youtube === 'object' && !Array.isArray(data?.youtube)
+        ? data.youtube as Record<string, YouTubeVideo>
+        : {});
       setMoocCourses((data?.mooc ?? []).map((c: MoocCourse) => ({ ...c })));
     }
     setLoadingCourses(false);
@@ -611,7 +626,7 @@ export default function GapAnalysisPage() {
               >
                 {loadingCourses
                   ? <><LoadingSpinner label="" /> Fetching…</>
-                  : ssgCourses.length ? '🔄 Regenerate' : '🤖 Recommend Courses'}
+                  : ssgCourses.length ? '🔄 Regenerate' : '🤖 Generate Recommendations'}
               </button>
             )}
           </div>
@@ -636,7 +651,7 @@ export default function GapAnalysisPage() {
             <div className="card p-8 text-center space-y-2">
               <p className="text-3xl">🤖</p>
               <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                Click &ldquo;Recommend Courses&rdquo; to get SSG courses, YouTube videos and MOOC recommendations.
+                Click &ldquo;Generate Recommendations&rdquo; to get SSG courses, YouTube videos and MOOC recommendations. Once generated, they are saved automatically.
               </p>
             </div>
           )}
