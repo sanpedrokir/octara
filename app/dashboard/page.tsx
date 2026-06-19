@@ -2,6 +2,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import QuizLeaderboard from '@/app/ui/QuizLeaderboard';
 const SECTIONS = [
   {
     href: '/career',
@@ -40,6 +41,15 @@ const SECTIONS = [
     border: '#fde68a',
   },
   {
+    href: '/my-courses',
+    icon: '📚',
+    label: 'My Courses',
+    description: 'Track learning progress.',
+    color: '#be185d',
+    bg: '#fdf2f8',
+    border: '#fbcfe8',
+  },
+  {
     href: '/skill-quiz',
     icon: '🧠',
     label: 'Work Knowledge Quiz',
@@ -59,10 +69,6 @@ const SECTIONS = [
   },
 ];
 
-const MUTED_SECTIONS = [
-  { href: '/my-courses', icon: '📚', label: 'My Courses', description: 'Track and manage your enrolled courses.' },
-];
-
 export default async function DashboardPage() {
   const session = await getCurrentUser();
   if (!session) redirect('/login');
@@ -75,14 +81,19 @@ export default async function DashboardPage() {
   const firstName = user?.name?.split(' ')[0] || 'there';
 
   const careerRows = await sql`
-    SELECT i.name as industry_name, jr.name as job_role_name
+    SELECT
+      i.name    AS industry_name,
+      jr.name   AS job_role_name,
+      COALESCE(i.name, jrc.sector) AS career_sector
     FROM career_aspirations ca
-    LEFT JOIN industries i ON ca.industry_id = i.id
-    LEFT JOIN job_roles jr ON ca.job_role_id = jr.id
+    LEFT JOIN industries      i   ON ca.industry_id        = i.id
+    LEFT JOIN job_roles       jr  ON ca.job_role_id        = jr.id
+    LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
     WHERE ca.user_id = ${session.userId}
   `;
-  const careerRaw = careerRows[0] as { industry_name: string | null; job_role_name: string | null } | undefined;
-  const career = (careerRaw?.industry_name && careerRaw?.job_role_name) ? careerRaw as { industry_name: string; job_role_name: string } : undefined;
+  const careerRaw = careerRows[0] as { industry_name: string | null; job_role_name: string | null; career_sector: string | null } | undefined;
+  const career = (careerRaw?.industry_name && careerRaw?.job_role_name) ? careerRaw as { industry_name: string; job_role_name: string; career_sector: string | null } : undefined;
+  const careerSector = careerRaw?.career_sector ?? '';
 
   const courseStatsRows = await sql`
     SELECT
@@ -249,29 +260,6 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* ── COMING SOON ──────────────────────────────────────── */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-widest mb-3 px-1" style={{ color: 'var(--muted)' }}>
-          Also available
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {MUTED_SECTIONS.map(s => (
-            <Link key={s.href} href={s.href} className="no-underline">
-              <div className="rounded-2xl p-5 flex items-center gap-4"
-                style={{ background: 'var(--muted-bg)', border: '1.5px solid var(--card-border)' }}>
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: 'var(--background)' }}>
-                  {s.icon}
-                </div>
-                <div>
-                  <p className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>{s.label}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-
       {/* ── DIVIDER ──────────────────────────────────────────── */}
       <div className="flex items-center gap-4">
         <div className="flex-1 border-t" style={{ borderColor: 'var(--card-border)' }} />
@@ -346,6 +334,24 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── QUIZ LEADERBOARD ─────────────────────────────────── */}
+      {careerSector && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🧠 Work Knowledge Quiz</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                See how you rank against other learners in {careerSector}
+              </p>
+            </div>
+            <Link href="/skill-quiz" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
+              Take Quiz →
+            </Link>
+          </div>
+          <QuizLeaderboard sector={careerSector} compact={true} />
+        </div>
+      )}
 
       {/* ── CERTIFICATIONS & TRAINING ────────────────────────── */}
       <div className="card p-5">

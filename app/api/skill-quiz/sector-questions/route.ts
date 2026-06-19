@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       FROM sector_scenario_questions
       WHERE sector = ${resolvedSector}
       ORDER BY RANDOM()
-      LIMIT 30
+      LIMIT 20
     `;
 
     return Response.json({

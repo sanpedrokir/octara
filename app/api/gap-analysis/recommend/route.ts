@@ -111,8 +111,13 @@ async function fetchYouTubeVideo(courseTitle: string, skill: string): Promise<Yo
 async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
   try {
     const apiUrl = `https://api.coursera.org/api/courses.v1?q=search&query=${encodeURIComponent(query)}&limit=5&fields=name,slug,shortDescription,workload`;
-    const fetchPromise = fetch(apiUrl);
-    const res = await withTimeout(fetchPromise, 8000, null as unknown as Response);
+    const fetchPromise = fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; EduBot/1.0)',
+        'Accept': 'application/json',
+      },
+    });
+    const res = await withTimeout(fetchPromise, 10000, null as unknown as Response);
     if (!res || !res.ok) return [];
     const data = await res.json() as {
       elements?: Array<{ id: string; name: string; slug: string; shortDescription?: string; workload?: string }>;
@@ -134,16 +139,51 @@ async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
   }
 }
 
-async function fetchCourseraCourses(queries: string[]): Promise<MoocCourse[]> {
-  const batches = await Promise.all(queries.slice(0, 5).map(q => fetchCourseraForQuery(q)));
+// Curated fallback courses used when Coursera API is unreachable
+function getCuratedMooc(sector: string, role: string, skills: string[]): MoocCourse[] {
+  const keyword = (role || sector || skills[0] || '').toLowerCase();
+  const base: MoocCourse[] = [
+    { title: 'Learning How to Learn', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/learning-how-to-learn', description: 'Powerful mental tools to help you master tough subjects · approx. 15 hours', skills_covered: [skills[0] ?? sector] },
+    { title: 'The Science of Well-Being', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/the-science-of-well-being', description: 'Yale\'s most popular course on happiness and productivity · approx. 19 hours', skills_covered: [skills[1] ?? sector] },
+    { title: 'Project Management Principles', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/project-management-foundations', description: 'Foundations of project management for professionals · approx. 17 hours', skills_covered: [skills[2] ?? sector] },
+    { title: 'Introduction to Data Analytics', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/introduction-to-data-analytics', description: 'IBM – data analytics fundamentals and tools · approx. 14 hours', skills_covered: [skills[3] ?? sector] },
+    { title: 'Business Communication Skills', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/wharton-communication-skills', description: 'Wharton – communication for career advancement · approx. 10 hours', skills_covered: [skills[4] ?? sector] },
+  ];
+
+  if (/tech|software|digital|infocomm|ict|data|cyber|ai|cloud/i.test(keyword)) {
+    return [
+      { title: 'Google IT Support', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/professional-certificates/google-it-support', description: 'Google – IT fundamentals for the modern workplace · approx. 6 months', skills_covered: [skills[0] ?? sector] },
+      { title: 'IBM Data Science', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/professional-certificates/ibm-data-science', description: 'IBM – data science professional certificate · approx. 10 months', skills_covered: [skills[1] ?? sector] },
+      { title: 'Deep Learning Specialization', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/specializations/deep-learning', description: 'DeepLearning.AI – neural networks and deep learning · approx. 5 months', skills_covered: [skills[2] ?? sector] },
+      { title: 'Cloud Computing Fundamentals', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/cloud-computing', description: 'Illinois – distributed systems and cloud architectures · approx. 20 hours', skills_covered: [skills[3] ?? sector] },
+      { title: 'Cybersecurity Fundamentals', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/intro-cyber-security', description: 'NYU – introduction to cybersecurity · approx. 10 hours', skills_covered: [skills[4] ?? sector] },
+    ];
+  }
+  if (/finance|banking|accounting|insurance/i.test(keyword)) {
+    return [
+      { title: 'Financial Markets', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/financial-markets-global', description: 'Yale (Robert Shiller) – overview of financial markets · approx. 33 hours', skills_covered: [skills[0] ?? sector] },
+      { title: 'Introduction to Corporate Finance', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/wharton-corporate-finance', description: 'Wharton – corporate finance fundamentals · approx. 16 hours', skills_covered: [skills[1] ?? sector] },
+      { title: 'FinTech: Finance Industry Transformation', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/hong-kong-fintech', description: 'HKU – FinTech trends and digital banking · approx. 10 hours', skills_covered: [skills[2] ?? sector] },
+      ...base.slice(2),
+    ];
+  }
+  return base;
+}
+
+async function fetchCourseraCourses(queries: string[], sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
+  const batches = await Promise.all(queries.slice(0, 4).map(q => fetchCourseraForQuery(q)));
   const seen = new Set<string>();
   const results: MoocCourse[] = [];
   for (const batch of batches) {
     for (const c of batch) {
-      if (seen.has(c.url) || results.length >= 20) continue;
+      if (seen.has(c.url) || results.length >= 15) continue;
       seen.add(c.url);
       results.push(c);
     }
+  }
+  // If Coursera API returned nothing, use curated fallback
+  if (results.length === 0) {
+    return getCuratedMooc(sector, role, skills);
   }
   return results;
 }
@@ -203,7 +243,7 @@ export async function POST(request: Request) {
 
     const [youtubeList, mooc] = await Promise.all([
       Promise.all(courses.map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? ''))),
-      fetchCourseraCourses(moocQueries),
+      fetchCourseraCourses(moocQueries, sector, role, missingSkills),
     ]);
 
     // Convert youtube list to map keyed by course title for easy lookup

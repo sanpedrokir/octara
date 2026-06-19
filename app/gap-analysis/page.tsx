@@ -617,7 +617,7 @@ export default function GapAnalysisPage() {
                   : 'All competencies matched — great job!'}
               </p>
             </div>
-            {missingCount > 0 && (
+            {missingCount > 0 && ssgCourses.length === 0 && (
               <button
                 onClick={recommendCourses}
                 disabled={loadingCourses}
@@ -626,7 +626,7 @@ export default function GapAnalysisPage() {
               >
                 {loadingCourses
                   ? <><LoadingSpinner label="" /> Fetching…</>
-                  : ssgCourses.length ? '🔄 Regenerate' : '🤖 Generate Recommendations'}
+                  : '🤖 Generate Recommendations'}
               </button>
             )}
           </div>

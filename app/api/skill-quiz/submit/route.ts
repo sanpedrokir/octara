@@ -1,8 +1,24 @@
 import { requireAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
+async function ensureTable() {
+  const sql = db();
+  await sql`
+    CREATE TABLE IF NOT EXISTS skill_quiz_results (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER NOT NULL,
+      skill_name VARCHAR(255),
+      score      INTEGER NOT NULL,
+      total      INTEGER NOT NULL,
+      passed     BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+}
+
 export async function POST(request: Request) {
   try {
+    await ensureTable();
     const session = await requireAuth();
     const { skill, score, total } = await request.json() as { skill: string; score: number; total: number };
 

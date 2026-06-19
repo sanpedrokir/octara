@@ -7,8 +7,8 @@ import { useState, useEffect } from 'react';
 const items = [
   { href: '/dashboard', label: 'Home', icon: '📊' },
   { href: '/career', label: 'Career', icon: '🎯' },
-  { href: '/competency', label: 'Competency', icon: '🧩' },
   { href: '/gap-analysis', label: 'Gap Analysis', icon: '📊' },
+  { href: '/skill-quiz', label: 'Quiz', icon: '🧠' },
   { href: '/profile', label: 'Profile', icon: '👤' },
 ];
 

@@ -10,8 +10,9 @@ const navItems = [
   { href: '/competency',       label: 'Competency Profile',    icon: '🧩' },
   { href: '/gap-analysis',     label: 'Gap Analysis',          icon: '📊' },
   { href: '/certifications',   label: 'My Credentials',        icon: '🏆' },
+  { href: '/my-courses',       label: 'My Courses',            icon: '📚' },
+  { href: '/skill-quiz',       label: 'Work Knowledge Quiz',   icon: '🧠' },
   { href: '/profile',          label: 'My Profile',            icon: '👤' },
-  { href: '/my-courses',       label: 'My Courses',            icon: '📚', muted: true },
 ];
 
 export default function DashboardSidebar({ role: roleProp }: { role?: string }) {
@@ -35,7 +36,6 @@ export default function DashboardSidebar({ role: roleProp }: { role?: string }) 
     >
       {navItems.map(item => {
         const active = pathname === item.href;
-        const muted = (item as { muted?: boolean }).muted;
         return (
           <Link
             key={item.href}
@@ -43,16 +43,12 @@ export default function DashboardSidebar({ role: roleProp }: { role?: string }) 
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors no-underline"
             style={{
               background: active ? 'var(--primary-light)' : 'transparent',
-              color: active ? 'var(--primary)' : muted ? '#94a3b8' : '#1e293b',
+              color: active ? 'var(--primary)' : '#1e293b',
               fontWeight: active ? '600' : '500',
-              opacity: muted ? 0.7 : 1,
             }}
           >
             <span className="text-base">{item.icon}</span>
-            <span>
-              {item.label}
-              {muted && <span className="block text-xs font-normal" style={{ color: '#94a3b8' }}>(Ignore for now)</span>}
-            </span>
+            <span>{item.label}</span>
           </Link>
         );
       })}
