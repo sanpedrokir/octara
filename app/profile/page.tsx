@@ -475,7 +475,7 @@ export default function ProfilePage() {
                           <p className="font-semibold" style={{ color: 'var(--foreground)' }}>{exp.title}</p>
                           <p className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{exp.company}</p>
                           <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                            {fmtMonth(exp.start_date)}{exp.end_date ? ` – ${fmtMonth(exp.end_date)}` : exp.is_current ? ' – Present' : ''}
+                            {fmtMonth(exp.start_date ?? '')}{exp.end_date ? ` – ${fmtMonth(exp.end_date)}` : exp.is_current ? ' – Present' : ''}
                           </p>
                           {exp.description && <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{exp.description}</p>}
                         </div>
