@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 const navItems = [
   { href: '/dashboard',        label: 'Overview',              icon: '📊' },
@@ -15,8 +16,19 @@ const navItems = [
   { href: '/my-courses',       label: 'My Courses',            icon: '📚', muted: true },
 ];
 
-export default function DashboardSidebar({ role }: { role?: string }) {
+export default function DashboardSidebar({ role: roleProp }: { role?: string }) {
   const pathname = usePathname();
+  const [fetchedRole, setFetchedRole] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (roleProp !== undefined) return;
+    fetch('/api/user/me')
+      .then(r => r.json())
+      .then(({ data }) => { if (data?.role) setFetchedRole(data.role); })
+      .catch(() => {});
+  }, [roleProp]);
+
+  const role = roleProp ?? fetchedRole;
 
   return (
     <aside

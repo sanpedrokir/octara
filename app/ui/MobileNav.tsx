@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 const items = [
   { href: '/dashboard', label: 'Home', icon: '📊' },
@@ -13,8 +14,19 @@ const items = [
   { href: '/profile', label: 'Profile', icon: '👤' },
 ];
 
-export default function MobileNav({ role }: { role?: string }) {
+export default function MobileNav({ role: roleProp }: { role?: string }) {
   const pathname = usePathname();
+  const [fetchedRole, setFetchedRole] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (roleProp !== undefined) return;
+    fetch('/api/user/me')
+      .then(r => r.json())
+      .then(({ data }) => { if (data?.role) setFetchedRole(data.role); })
+      .catch(() => {});
+  }, [roleProp]);
+
+  const role = roleProp ?? fetchedRole;
   const allItems = role === 'admin'
     ? [...items, { href: '/admin', label: 'Admin', icon: '⚙️' }]
     : items;

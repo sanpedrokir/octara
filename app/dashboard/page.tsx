@@ -46,7 +46,7 @@ const SECTIONS = [
     href: '/skill-quiz',
     icon: '🧠',
     label: 'Work Knowledge Quiz',
-    description: 'Test your sector knowledge. Score 80% to pass.',
+    description: 'Test your work knowledge, move up the Leaderboard!',
     color: '#15803d',
     bg: '#f0fdf4',
     border: '#bbf7d0',
