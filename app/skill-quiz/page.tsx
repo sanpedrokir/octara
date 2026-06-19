@@ -119,7 +119,7 @@ export default function WorkKnowledgeQuizPage() {
           {careerSector ? `Loading ${careerSector} quiz…` : 'Detecting your sector…'}
         </p>
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          Selecting 20 random questions from the question bank.
+          Hold on tight for the quizzes!
         </p>
       </div>
     );
