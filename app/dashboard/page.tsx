@@ -73,8 +73,9 @@ export default async function DashboardPage() {
 
   const sql = db();
 
-  const userRows = await sql`SELECT name FROM users WHERE id = ${session.userId}`;
-  const user = userRows[0] as { name: string } | undefined;
+  const userRows = await sql`SELECT name, role FROM users WHERE id = ${session.userId}`;
+  const user = userRows[0] as { name: string; role: string } | undefined;
+  const isAdmin = user?.role === 'admin';
   const firstName = user?.name?.split(' ')[0] || 'there';
 
   const careerRows = await sql`
@@ -252,6 +253,32 @@ export default async function DashboardPage() {
             </div>
           </Link>
         ))}
+
+        {/* Admin card — only for admin users */}
+        {isAdmin && (
+          <Link href="/admin" className="no-underline group">
+            <div
+              className="h-full rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5"
+              style={{ background: '#faf5ff', border: '1.5px solid #ddd6fe' }}
+            >
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+                style={{ background: 'white', boxShadow: '0 2px 8px #ddd6fe' }}
+              >
+                ⚙️
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-bold mb-1.5" style={{ color: '#7c3aed' }}>Admin Panel</h2>
+                <p className="text-sm leading-relaxed" style={{ color: '#475569' }}>Manage sectors, job roles, TSC/CCS data and platform settings.</p>
+              </div>
+              <div className="flex items-center justify-end">
+                <span className="text-sm font-semibold transition-transform duration-200 group-hover:translate-x-1" style={{ color: '#7c3aed' }}>
+                  Go →
+                </span>
+              </div>
+            </div>
+          </Link>
+        )}
       </div>
 
       {/* ── COMING SOON ──────────────────────────────────────── */}

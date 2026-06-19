@@ -65,10 +65,11 @@ export default function Navbar({ user }: NavbarProps) {
           <div className="hidden md:flex items-center gap-3">
             {user ? (
               <>
-                {user.role === 'admin' ? (
-                  <Link href="/admin" className="text-sm font-medium no-underline" style={{ color: 'var(--primary)' }}>{user.name}</Link>
-                ) : (
-                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{user.name}</span>
+                <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{user.name}</span>
+                {user.role === 'admin' && (
+                  <Link href="/admin" className="btn-secondary text-sm no-underline" style={{ padding: '0.35rem 0.75rem' }}>
+                    ⚙️ Admin
+                  </Link>
                 )}
                 <button onClick={handleLogout} className="btn-ghost text-sm">
                   Sign out
