@@ -22,10 +22,28 @@ export interface MoocCourse {
   _status?: 'tracked' | 'completed';
 }
 
+async function ensureTable() {
+  const sql = db();
+  await sql`
+    CREATE TABLE IF NOT EXISTS course_recommendations (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      courses    JSONB NOT NULL DEFAULT '[]',
+      youtube    JSONB NOT NULL DEFAULT '{}',
+      mooc       JSONB NOT NULL DEFAULT '[]',
+      sector     TEXT,
+      role       TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id)
+    )
+  `;
+}
+
 // ── GET: return saved recommendations ────────────────────────────────────────
 export async function GET() {
   try {
     const session = await requireAuth();
+    await ensureTable();
     const sql = db();
     const rows = await sql`
       SELECT courses, youtube, mooc FROM course_recommendations
@@ -134,6 +152,7 @@ async function fetchCourseraCourses(queries: string[]): Promise<MoocCourse[]> {
 export async function POST(request: Request) {
   try {
     const session = await requireAuth();
+    await ensureTable();
     const sql = db();
 
     const body = await request.json() as { missingSkills: string[]; sector: string; role: string };
