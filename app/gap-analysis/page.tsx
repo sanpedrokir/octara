@@ -33,26 +33,39 @@ interface GapData {
   summary: GapSummary;
 }
 
-interface Course {
+interface SsgCourse {
   title: string;
   provider: string;
-  type: 'ssg' | 'youtube' | 'mooc' | 'online';
+  type: 'ssg';
   url: string;
   description: string;
   skills_covered: string[];
-  // runtime state
+  _trackId?: number;
+  _status?: 'tracked' | 'completed';
+}
+
+interface YouTubeVideo {
+  courseTitle: string;
+  videoId: string;
+  title: string;
+  channelTitle: string;
+  thumbnailUrl: string;
+  watchUrl: string;
+}
+
+interface MoocCourse {
+  title: string;
+  provider: string;
+  type: 'mooc';
+  url: string;
+  description: string;
+  skills_covered: string[];
   _trackId?: number;
   _status?: 'tracked' | 'completed';
 }
 
 const SCORE_LABELS = ['', 'No knowledge', 'Basic awareness', 'Applied', 'Proficient', 'Expert'];
 const SCORE_COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#6366f1'];
-const TYPE_META: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  ssg:     { label: 'SSG',     icon: '🏛',  color: '#7c3aed', bg: '#f5f3ff' },
-  youtube: { label: 'YouTube', icon: '▶',   color: '#dc2626', bg: '#fef2f2' },
-  mooc:    { label: 'MOOC',    icon: '🎓',  color: '#2563eb', bg: '#eff6ff' },
-  online:  { label: 'Online',  icon: '🌐',  color: '#059669', bg: '#f0fdf4' },
-};
 
 const STATUS_STYLE: Record<Status, { row: string; badge: string; badgeText: string }> = {
   strong:       { row: '#f0fdf4', badge: '#dcfce7', badgeText: '#15803d' },
@@ -67,6 +80,8 @@ const STATUS_LABEL: Record<Status, string> = {
   course_earned:'🎓 Course earned',
   missing:      '✗ Missing',
 };
+
+const PAGE_SIZE = 5;
 
 function ScoreDots({ score, size = 18 }: { score: number | null; size?: number }) {
   return (
@@ -86,6 +101,34 @@ function ScoreDots({ score, size = 18 }: { score: number | null; size?: number }
   );
 }
 
+function Pagination({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-1 pt-3" style={{ borderTop: '1px solid var(--card-border)' }}>
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        className="text-sm px-4 py-2 rounded-lg font-medium"
+        style={{ color: page === 0 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+      >
+        ← Previous
+      </button>
+      <span className="text-sm" style={{ color: 'var(--muted)' }}>
+        Page {page + 1} of {totalPages} · {total} items
+      </span>
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page === totalPages - 1}
+        className="text-sm px-4 py-2 rounded-lg font-medium"
+        style={{ color: page === totalPages - 1 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+      >
+        Next →
+      </button>
+    </div>
+  );
+}
+
 export default function GapAnalysisPage() {
   const [gapData, setGapData]       = useState<GapData | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -95,40 +138,37 @@ export default function GapAnalysisPage() {
   const [assessingKey, setAssessingKey] = useState<string | null>(null);
   const [pendingScore, setPendingScore] = useState<number>(0);
   const [savingAssess, setSavingAssess] = useState(false);
-  const [courses, setCourses]       = useState<Course[]>([]);
+
+  // Course recommendation state
   const [loadingCourses, setLoadingCourses] = useState(false);
-  const [courseError, setCourseError] = useState('');
-  const [trackingId, setTrackingId] = useState<string | null>(null);
+  const [courseError, setCourseError]       = useState('');
+  const [ssgCourses, setSsgCourses]         = useState<SsgCourse[]>([]);
+  const [youtubeMap, setYoutubeMap]         = useState<Record<string, YouTubeVideo>>({});
+  const [moocCourses, setMoocCourses]       = useState<MoocCourse[]>([]);
+  const [ssgPage, setSsgPage]               = useState(0);
+  const [moocPage, setMoocPage]             = useState(0);
+  const [trackingId, setTrackingId]         = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     const res = await fetch('/api/gap-analysis');
     const { data, error: e } = await res.json();
-    if (e === 'NO_CAREER_GOAL') {
-      setError('NO_CAREER_GOAL');
-    } else if (e === 'NO_SECTOR') {
-      setError('NO_SECTOR');
-    } else if (e) {
-      setError(e);
-    } else {
-      setGapData(data);
-    }
+    if (e === 'NO_CAREER_GOAL') setError('NO_CAREER_GOAL');
+    else if (e === 'NO_SECTOR') setError('NO_SECTOR');
+    else if (e) setError(e);
+    else setGapData(data);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Open self-assess panel for a skill
   function openAssess(skill: CompetencyRow) {
     setAssessingKey(skill.skill_title);
     setPendingScore(skill.self_assessment_score ?? 0);
   }
 
-  function closeAssess() {
-    setAssessingKey(null);
-    setPendingScore(0);
-  }
+  function closeAssess() { setAssessingKey(null); setPendingScore(0); }
 
   async function saveAssessment(skillTitle: string, score: number) {
     setSavingAssess(true);
@@ -142,17 +182,18 @@ export default function GapAnalysisPage() {
     load();
   }
 
-  // Recommend courses for missing skills
   async function recommendCourses() {
     if (!gapData) return;
-    const missing = gapData.required
-      .filter(r => r.status === 'missing')
-      .map(r => r.skill_title);
+    const missing = gapData.required.filter(r => r.status === 'missing').map(r => r.skill_title);
     if (!missing.length) return;
 
     setLoadingCourses(true);
     setCourseError('');
-    setCourses([]);
+    setSsgCourses([]);
+    setYoutubeMap({});
+    setMoocCourses([]);
+    setSsgPage(0);
+    setMoocPage(0);
 
     const res = await fetch('/api/gap-analysis/recommend', {
       method: 'POST',
@@ -160,20 +201,24 @@ export default function GapAnalysisPage() {
       body: JSON.stringify({ missingSkills: missing, sector: gapData.career.sector, role: gapData.career.role }),
     });
     const { data, error: e } = await res.json();
-    if (e) { setCourseError(e); }
-    else { setCourses(data?.courses ?? []); }
+    if (e) {
+      setCourseError(e);
+    } else {
+      setSsgCourses((data?.courses ?? []).map((c: SsgCourse) => ({ ...c })));
+      const ytMap: Record<string, YouTubeVideo> = {};
+      for (const v of (data?.youtube ?? []) as YouTubeVideo[]) ytMap[v.courseTitle] = v;
+      setYoutubeMap(ytMap);
+      setMoocCourses((data?.mooc ?? []).map((c: MoocCourse) => ({ ...c })));
+    }
     setLoadingCourses(false);
   }
 
-  // Track a course from recommendations
-  async function trackCourse(course: Course, markComplete = false) {
+  async function trackCourse(course: SsgCourse | MoocCourse, markComplete = false) {
     const courseKey = `${course.title}::${course.provider}`;
     setTrackingId(courseKey);
-
     const existing = course._trackId;
 
     if (markComplete && existing) {
-      // Mark existing tracked record as completed
       const res = await fetch('/api/courses/track', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -181,7 +226,6 @@ export default function GapAnalysisPage() {
       });
       const { data } = await res.json();
       if (data) {
-        // Credit each skill covered into user_competencies
         for (const skill of course.skills_covered) {
           await fetch('/api/competency/profile', {
             method: 'POST',
@@ -189,11 +233,11 @@ export default function GapAnalysisPage() {
             body: JSON.stringify({ skill_title: skill, proficiency_level: 'intermediate', source: 'course', ssg_matched: false }),
           });
         }
-        setCourses(prev => prev.map(c =>
-          c.title === course.title && c.provider === course.provider
-            ? { ...c, _status: 'completed' } : c
-        ));
-        load(); // refresh gap analysis
+        const updater = (c: SsgCourse | MoocCourse) =>
+          c.title === course.title && c.provider === course.provider ? { ...c, _status: 'completed' as const } : c;
+        if (course.type === 'ssg') setSsgCourses(prev => prev.map(updater as (c: SsgCourse) => SsgCourse));
+        else setMoocCourses(prev => prev.map(updater as (c: MoocCourse) => MoocCourse));
+        load();
       }
     } else if (!existing) {
       const res = await fetch('/api/courses/track', {
@@ -208,17 +252,16 @@ export default function GapAnalysisPage() {
       });
       const { data } = await res.json();
       if (data) {
-        setCourses(prev => prev.map(c =>
-          c.title === course.title && c.provider === course.provider
-            ? { ...c, _trackId: data.id, _status: 'tracked' } : c
-        ));
+        const updater = (c: SsgCourse | MoocCourse) =>
+          c.title === course.title && c.provider === course.provider ? { ...c, _trackId: data.id, _status: 'tracked' as const } : c;
+        if (course.type === 'ssg') setSsgCourses(prev => prev.map(updater as (c: SsgCourse) => SsgCourse));
+        else setMoocCourses(prev => prev.map(updater as (c: MoocCourse) => MoocCourse));
       }
     }
-
     setTrackingId(null);
   }
 
-  // Filter rows
+  // Gap table filtering + pagination
   const filtered = gapData?.required.filter(r => {
     if (filter === 'matched') return r.matched;
     if (filter === 'missing') return !r.matched;
@@ -227,6 +270,59 @@ export default function GapAnalysisPage() {
   const GAP_PAGE_SIZE = 10;
   const gapTotalPages = Math.ceil(filtered.length / GAP_PAGE_SIZE);
   const pagedRows = filtered.slice(gapPage * GAP_PAGE_SIZE, (gapPage + 1) * GAP_PAGE_SIZE);
+
+  // SSG pagination
+  const ssgPaged = ssgCourses.slice(ssgPage * PAGE_SIZE, (ssgPage + 1) * PAGE_SIZE);
+  // MOOC pagination
+  const moocPaged = moocCourses.slice(moocPage * PAGE_SIZE, (moocPage + 1) * PAGE_SIZE);
+
+  const missingCount = gapData?.required.filter(r => r.status === 'missing').length ?? 0;
+  const anyTracked = ssgCourses.some(c => c._status) || moocCourses.some(c => c._status);
+
+  // ── Shared course card action buttons ─────────────────────────────────
+  function CourseActions({ course }: { course: SsgCourse | MoocCourse }) {
+    const isTracking = trackingId === `${course.title}::${course.provider}`;
+    const isTracked = course._status === 'tracked';
+    const isCompleted = course._status === 'completed';
+    if (isCompleted) return null;
+    return (
+      <div className="flex gap-2 flex-wrap pt-1">
+        {!isTracked ? (
+          <button
+            onClick={() => trackCourse(course)}
+            disabled={!!isTracking}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium"
+            style={{ background: 'var(--primary)', color: 'white', opacity: isTracking ? 0.7 : 1 }}
+          >
+            {isTracking ? '…' : '📌 Track'}
+          </button>
+        ) : (
+          <>
+            <span className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+              📌 Tracking
+            </span>
+            <button
+              onClick={() => trackCourse(course, true)}
+              disabled={!!isTracking}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{ background: '#dcfce7', color: '#15803d', opacity: isTracking ? 0.7 : 1 }}
+            >
+              {isTracking ? '…' : '✓ Mark Complete'}
+            </button>
+          </>
+        )}
+        <a
+          href={course.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs px-3 py-1.5 rounded-lg font-medium"
+          style={{ background: 'var(--muted-bg)', color: 'var(--foreground)', border: '1px solid var(--card-border)' }}
+        >
+          Open ↗
+        </a>
+      </div>
+    );
+  }
 
   // ── Empty / Error states ───────────────────────────────────────────────────
   if (loading) {
@@ -263,7 +359,6 @@ export default function GapAnalysisPage() {
   if (!gapData) return null;
 
   const { career, summary } = gapData;
-  const missingCount = gapData.required.filter(r => r.status === 'missing').length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -278,10 +373,10 @@ export default function GapAnalysisPage() {
       {/* ── Summary cards ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Required',    value: summary.total,        color: '#1e40af', bg: '#eff6ff' },
-          { label: 'Matched',     value: summary.matched,      color: '#15803d', bg: '#f0fdf4' },
-          { label: 'Missing',     value: summary.missing,      color: '#b91c1c', bg: '#fef2f2' },
-          { label: 'Self-Rated',  value: summary.strong,       color: '#7c3aed', bg: '#f5f3ff' },
+          { label: 'Required',   value: summary.total,   color: '#1e40af', bg: '#eff6ff' },
+          { label: 'Matched',    value: summary.matched, color: '#15803d', bg: '#f0fdf4' },
+          { label: 'Missing',    value: summary.missing, color: '#b91c1c', bg: '#fef2f2' },
+          { label: 'Self-Rated', value: summary.strong,  color: '#7c3aed', bg: '#f5f3ff' },
         ].map(s => (
           <div key={s.label} className="card p-4 text-center">
             <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
@@ -290,22 +385,19 @@ export default function GapAnalysisPage() {
         ))}
       </div>
 
-      {/* ── No data from SSG ────────────────────────────────────────────── */}
+      {/* ── No SSG data ─────────────────────────────────────────────────── */}
       {gapData.required.length === 0 && (
         <div className="card p-8 text-center space-y-3">
           <p className="text-3xl">🔍</p>
-          <p className="font-medium" style={{ color: 'var(--foreground)' }}>
-            No SSG skills found for "{career.sector}"
-          </p>
+          <p className="font-medium" style={{ color: 'var(--foreground)' }}>No SSG skills found for "{career.sector}"</p>
           <p className="text-sm" style={{ color: 'var(--muted)' }}>
-            The SSG Skills Framework database may not have entries for this sector yet.
-            Try uploading your resume to build your competency profile manually.
+            Upload your resume to build your competency profile manually.
           </p>
           <Link href="/competency" className="btn-primary inline-block text-sm">Go to Competency Profile</Link>
         </div>
       )}
 
-      {/* ── 3-Column Competency Table ────────────────────────────────────── */}
+      {/* ── Competency Table ─────────────────────────────────────────────── */}
       {gapData.required.length > 0 && (
         <div className="card overflow-hidden">
           {/* Filter tabs */}
@@ -348,28 +440,20 @@ export default function GapAnalysisPage() {
 
               return (
                 <div key={`${row.skill_code ?? row.skill_title}-${i}`}>
-                  {/* Main row */}
                   <div
                     className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_180px] gap-3 sm:gap-0 p-4"
                     style={{ background: style.row }}
                   >
-                    {/* Col 1: Required competency */}
+                    {/* Col 1 */}
                     <div className="flex flex-col gap-1">
                       <div className="flex items-start gap-2 flex-wrap">
-                        <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                          {row.skill_title}
-                        </span>
-                        <span
-                          className="text-xs px-1.5 py-0.5 rounded-full font-medium"
-                          style={{ background: style.badge, color: style.badgeText }}
-                        >
+                        <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{row.skill_title}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: style.badge, color: style.badgeText }}>
                           {STATUS_LABEL[row.status]}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {row.skill_code && (
-                          <span className="text-xs font-mono" style={{ color: 'var(--muted)' }}>{row.skill_code}</span>
-                        )}
+                        {row.skill_code && <span className="text-xs font-mono" style={{ color: 'var(--muted)' }}>{row.skill_code}</span>}
                         {row.required_level && (
                           <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
                             Required: {row.required_level}
@@ -378,7 +462,7 @@ export default function GapAnalysisPage() {
                       </div>
                     </div>
 
-                    {/* Col 2: User's current level */}
+                    {/* Col 2 */}
                     <div className="flex flex-col justify-center gap-1 sm:px-4">
                       {row.user_proficiency ? (
                         <>
@@ -392,12 +476,14 @@ export default function GapAnalysisPage() {
                             >
                               {row.user_proficiency}
                             </span>
-                            {row.ssg_matched && (
-                              <span className="text-xs" style={{ color: '#15803d' }}>✓ SSG</span>
-                            )}
+                            {row.ssg_matched && <span className="text-xs" style={{ color: '#15803d' }}>✓ SSG</span>}
                           </div>
                           <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                            {row.source === 'resume' ? '📄 from resume' : row.source === 'course' ? '🎓 course earned' : row.source === 'ssg' ? '🏛 SSG' : row.source === 'self_assessment' ? '⭐ self-assessed' : '✍️ self-added'}
+                            {row.source === 'resume' ? '📄 from resume'
+                              : row.source === 'course' ? '🎓 course earned'
+                              : row.source === 'ssg' ? '🏛 SSG'
+                              : row.source === 'self_assessment' ? '⭐ self-assessed'
+                              : '✍️ self-added'}
                           </span>
                         </>
                       ) : row.status === 'course_earned' ? (
@@ -407,7 +493,7 @@ export default function GapAnalysisPage() {
                       )}
                     </div>
 
-                    {/* Col 3: Self-assess */}
+                    {/* Col 3 */}
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       {row.self_assessment_score ? (
                         <>
@@ -415,11 +501,7 @@ export default function GapAnalysisPage() {
                           <span className="text-xs" style={{ color: SCORE_COLORS[row.self_assessment_score] }}>
                             {row.self_assessment_score}/5 · {SCORE_LABELS[row.self_assessment_score]}
                           </span>
-                          <button
-                            onClick={() => openAssess(row)}
-                            className="text-xs underline"
-                            style={{ color: 'var(--muted)' }}
-                          >
+                          <button onClick={() => openAssess(row)} className="text-xs underline" style={{ color: 'var(--muted)' }}>
                             Edit
                           </button>
                         </>
@@ -435,12 +517,9 @@ export default function GapAnalysisPage() {
                     </div>
                   </div>
 
-                  {/* Inline self-assessment panel */}
+                  {/* Self-assess panel */}
                   {isAssessing && (
-                    <div
-                      className="px-4 pb-4 pt-3 space-y-3"
-                      style={{ background: '#f8fafc', borderTop: '1px solid var(--card-border)' }}
-                    >
+                    <div className="px-4 pb-4 pt-3 space-y-3" style={{ background: '#f8fafc', borderTop: '1px solid var(--card-border)' }}>
                       <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                         How would you rate your <strong>{row.skill_title}</strong> competency?
                       </p>
@@ -473,11 +552,7 @@ export default function GapAnalysisPage() {
                         >
                           {savingAssess ? 'Saving…' : 'Save Assessment'}
                         </button>
-                        <button
-                          onClick={closeAssess}
-                          className="text-sm px-4 py-2 rounded-lg"
-                          style={{ background: 'var(--muted-bg)', color: 'var(--foreground)' }}
-                        >
+                        <button onClick={closeAssess} className="text-sm px-4 py-2 rounded-lg" style={{ background: 'var(--muted-bg)', color: 'var(--foreground)' }}>
                           Cancel
                         </button>
                       </div>
@@ -514,16 +589,18 @@ export default function GapAnalysisPage() {
         </div>
       )}
 
-      {/* ── Course Recommendations ───────────────────────────────────────── */}
+      {/* ── Course Recommendations wrapper ───────────────────────────────── */}
       {gapData.required.length > 0 && (
-        <div className="card p-5 space-y-5">
+        <div className="space-y-5">
+
+          {/* Header + generate button */}
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Course Recommendations</h2>
+              <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>📚 Course Recommendations</h2>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                 {missingCount > 0
-                  ? `Courses to bridge ${missingCount} missing competencies — SSG, YouTube, and free MOOCs`
-                  : 'All competencies matched! Great job.'}
+                  ? `SSG courses, YouTube videos and MOOCs to bridge ${missingCount} missing competencies`
+                  : 'All competencies matched — great job!'}
               </p>
             </div>
             {missingCount > 0 && (
@@ -533,7 +610,9 @@ export default function GapAnalysisPage() {
                 className="btn-primary text-sm shrink-0"
                 style={{ opacity: loadingCourses ? 0.7 : 1 }}
               >
-                {loadingCourses ? <><LoadingSpinner label="" /> Generating…</> : courses.length ? '🔄 Regenerate' : '🤖 Recommend Courses'}
+                {loadingCourses
+                  ? <><LoadingSpinner label="" /> Fetching…</>
+                  : ssgCourses.length ? '🔄 Regenerate' : '🤖 Recommend Courses'}
               </button>
             )}
           </div>
@@ -545,140 +624,189 @@ export default function GapAnalysisPage() {
           )}
 
           {loadingCourses && (
-            <div className="flex items-center gap-3 py-4">
+            <div className="card p-6 flex items-center gap-3">
               <LoadingSpinner label="" />
               <span className="text-sm" style={{ color: 'var(--muted)' }}>
-                AI is analysing your gaps and matching courses…
+                Fetching SSG courses, YouTube videos and MOOC recommendations…
               </span>
             </div>
           )}
 
-          {courses.length > 0 && (
-            <div className="space-y-3">
-              {courses.map((course, i) => {
-                const meta = TYPE_META[course.type] ?? TYPE_META.online;
-                const isTracking = trackingId === `${course.title}::${course.provider}`;
-                const isTracked = course._status === 'tracked';
-                const isCompleted = course._status === 'completed';
-
-                return (
-                  <div
-                    key={i}
-                    className="rounded-xl p-4 space-y-2"
-                    style={{ background: isCompleted ? '#f0fdf4' : 'var(--muted-bg)', border: `1px solid ${isCompleted ? '#bbf7d0' : 'transparent'}` }}
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Type badge */}
-                      <div
-                        className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
-                        style={{ background: meta.bg, color: meta.color }}
-                      >
-                        {meta.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <a
-                            href={course.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-semibold hover:underline"
-                            style={{ color: 'var(--foreground)' }}
-                          >
-                            {course.title}
-                          </a>
-                          <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: meta.bg, color: meta.color }}>
-                            {meta.label}
-                          </span>
-                          {isCompleted && (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>
-                              ✓ Completed
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{course.provider}</p>
-                        <p className="text-sm mt-1.5" style={{ color: 'var(--foreground)', lineHeight: 1.5 }}>
-                          {course.description}
-                        </p>
-                        {/* Skills covered */}
-                        {course.skills_covered?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            <span className="text-xs" style={{ color: 'var(--muted)' }}>Covers:</span>
-                            {course.skills_covered.map(s => (
-                              <span
-                                key={s}
-                                className="text-xs px-1.5 py-0.5 rounded"
-                                style={{ background: '#f1f5f9', color: '#475569' }}
-                              >
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    {!isCompleted && (
-                      <div className="flex gap-2 pt-1 pl-11">
-                        {!isTracked ? (
-                          <button
-                            onClick={() => trackCourse(course)}
-                            disabled={!!isTracking}
-                            className="text-sm px-3 py-1.5 rounded-lg font-medium"
-                            style={{ background: 'var(--primary)', color: 'white', opacity: isTracking ? 0.7 : 1 }}
-                          >
-                            {isTracking ? '…' : '📌 Track'}
-                          </button>
-                        ) : (
-                          <>
-                            <span className="text-sm px-3 py-1.5 rounded-lg font-medium" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
-                              📌 Tracking
-                            </span>
-                            <button
-                              onClick={() => trackCourse(course, true)}
-                              disabled={!!isTracking}
-                              className="text-sm px-3 py-1.5 rounded-lg font-medium"
-                              style={{ background: '#dcfce7', color: '#15803d', opacity: isTracking ? 0.7 : 1 }}
-                            >
-                              {isTracking ? '…' : '✓ Mark Complete'}
-                            </button>
-                          </>
-                        )}
-                        <a
-                          href={course.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm px-3 py-1.5 rounded-lg font-medium"
-                          style={{ background: 'var(--muted-bg)', color: 'var(--foreground)', border: '1px solid var(--card-border)' }}
-                        >
-                          Open ↗
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {courses.length === 0 && !loadingCourses && missingCount > 0 && (
-            <div className="text-center py-6" style={{ color: 'var(--muted)' }}>
-              <p className="text-2xl mb-2">🤖</p>
-              <p className="text-sm">Click "Recommend Courses" to get AI-curated learning resources for your skill gaps.</p>
+          {/* Empty state */}
+          {ssgCourses.length === 0 && !loadingCourses && missingCount > 0 && (
+            <div className="card p-8 text-center space-y-2">
+              <p className="text-3xl">🤖</p>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Click &ldquo;Recommend Courses&rdquo; to get SSG courses, YouTube videos and MOOC recommendations.
+              </p>
             </div>
           )}
 
           {missingCount === 0 && (
-            <div className="text-center py-6" style={{ color: 'var(--muted)' }}>
-              <p className="text-2xl mb-2">🏆</p>
+            <div className="card p-8 text-center space-y-2">
+              <p className="text-3xl">🏆</p>
               <p className="text-sm font-medium" style={{ color: '#15803d' }}>All required competencies matched!</p>
-              <p className="text-xs mt-1">Keep building your profile by uploading your resume or adding new skills.</p>
+            </div>
+          )}
+
+          {/* ── SECTION 1: SSG Courses + paired YouTube ──────────────────── */}
+          {ssgCourses.length > 0 && (
+            <div className="card p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold" style={{ color: '#7c3aed' }}>🏛</span>
+                <div>
+                  <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>SSG Courses</h3>
+                  <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                    SkillsFuture-accredited courses · Each paired with a YouTube study video
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {ssgPaged.map((course, i) => {
+                  const yt = youtubeMap[course.title];
+                  const isCompleted = course._status === 'completed';
+
+                  return (
+                    <div
+                      key={i}
+                      className="rounded-xl overflow-hidden"
+                      style={{ border: `1.5px solid ${isCompleted ? '#bbf7d0' : 'var(--card-border)'}`, background: isCompleted ? '#f0fdf4' : 'var(--background)' }}
+                    >
+                      {/* SSG course row */}
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-start gap-3">
+                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+                            🏛
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <a href={course.url} target="_blank" rel="noopener noreferrer"
+                                className="text-sm font-semibold hover:underline" style={{ color: 'var(--foreground)' }}>
+                                {course.title}
+                              </a>
+                              <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#f5f3ff', color: '#7c3aed' }}>SSG</span>
+                              {isCompleted && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                            </div>
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{course.provider}</p>
+                            <p className="text-xs mt-1" style={{ color: '#475569' }}>{course.description}</p>
+                            {course.skills_covered?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                <span className="text-xs" style={{ color: 'var(--muted)' }}>Skill:</span>
+                                {course.skills_covered.map(s => (
+                                  <span key={s} className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>{s}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <CourseActions course={course} />
+                      </div>
+
+                      {/* Paired YouTube video */}
+                      {yt && (
+                        <div className="border-t px-4 py-3 flex items-start gap-3" style={{ borderColor: 'var(--card-border)', background: '#fef2f2' }}>
+                          {/* Thumbnail or fallback */}
+                          <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                            {yt.thumbnailUrl ? (
+                              <img
+                                src={yt.thumbnailUrl}
+                                alt={yt.title}
+                                className="rounded-lg object-cover"
+                                style={{ width: 120, height: 68 }}
+                              />
+                            ) : (
+                              <div className="rounded-lg flex items-center justify-center text-2xl"
+                                style={{ width: 120, height: 68, background: '#dc2626', color: 'white' }}>
+                                ▶
+                              </div>
+                            )}
+                          </a>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{ background: '#fef2f2', color: '#dc2626' }}>▶ YouTube</span>
+                            </div>
+                            <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer"
+                              className="text-xs font-medium hover:underline line-clamp-2" style={{ color: 'var(--foreground)' }}>
+                              {yt.videoId ? yt.title : `Search: ${yt.title}`}
+                            </a>
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                              {yt.channelTitle}
+                              {!yt.videoId && <span> · Opens YouTube search</span>}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Pagination page={ssgPage} total={ssgCourses.length} onChange={p => { setSsgPage(p); }} />
+            </div>
+          )}
+
+          {/* ── SECTION 2: MOOC Courses ──────────────────────────────────── */}
+          {moocCourses.length > 0 && (
+            <div className="card p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold" style={{ color: '#2563eb' }}>🎓</span>
+                <div>
+                  <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>MOOC Courses</h3>
+                  <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                    Coursera courses relevant to your career goal and skill gaps
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {moocPaged.map((course, i) => {
+                  const isCompleted = course._status === 'completed';
+                  return (
+                    <div
+                      key={i}
+                      className="rounded-xl p-4 space-y-2"
+                      style={{ background: isCompleted ? '#f0fdf4' : 'var(--muted-bg)', border: `1px solid ${isCompleted ? '#bbf7d0' : 'transparent'}` }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                          🎓
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <a href={course.url} target="_blank" rel="noopener noreferrer"
+                              className="text-sm font-semibold hover:underline" style={{ color: 'var(--foreground)' }}>
+                              {course.title}
+                            </a>
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb' }}>Coursera</span>
+                            {isCompleted && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                          </div>
+                          <p className="text-xs mt-1" style={{ color: '#475569', lineHeight: 1.5 }}>{course.description}</p>
+                          {course.skills_covered?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              <span className="text-xs" style={{ color: 'var(--muted)' }}>Relevant to:</span>
+                              {course.skills_covered.map(s => (
+                                <span key={s} className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>{s}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="pl-11">
+                        <CourseActions course={course} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Pagination page={moocPage} total={moocCourses.length} onChange={p => { setMoocPage(p); }} />
             </div>
           )}
 
           {/* Link to My Courses */}
-          {courses.some(c => c._status) && (
-            <div className="pt-2 border-t flex items-center justify-between" style={{ borderColor: 'var(--card-border)' }}>
+          {anyTracked && (
+            <div className="flex items-center justify-between px-1">
               <p className="text-xs" style={{ color: 'var(--muted)' }}>Tracked courses appear in My Courses.</p>
               <Link href="/my-courses" className="text-xs font-medium" style={{ color: 'var(--primary)' }}>
                 View My Courses →
