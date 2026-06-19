@@ -145,8 +145,7 @@ export default function GapAnalysisPage() {
   const [ssgCourses, setSsgCourses]         = useState<SsgCourse[]>([]);
   const [youtubeMap, setYoutubeMap]         = useState<Record<string, YouTubeVideo>>({});
   const [moocCourses, setMoocCourses]       = useState<MoocCourse[]>([]);
-  const [ssgPage, setSsgPage]               = useState(0);
-  const [moocPage, setMoocPage]             = useState(0);
+  const [combinedPage, setCombinedPage]     = useState(0);
   const [trackingId, setTrackingId]         = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -192,8 +191,7 @@ export default function GapAnalysisPage() {
     setSsgCourses([]);
     setYoutubeMap({});
     setMoocCourses([]);
-    setSsgPage(0);
-    setMoocPage(0);
+    setCombinedPage(0);
 
     const res = await fetch('/api/gap-analysis/recommend', {
       method: 'POST',
@@ -271,10 +269,11 @@ export default function GapAnalysisPage() {
   const gapTotalPages = Math.ceil(filtered.length / GAP_PAGE_SIZE);
   const pagedRows = filtered.slice(gapPage * GAP_PAGE_SIZE, (gapPage + 1) * GAP_PAGE_SIZE);
 
-  // SSG pagination
-  const ssgPaged = ssgCourses.slice(ssgPage * PAGE_SIZE, (ssgPage + 1) * PAGE_SIZE);
-  // MOOC pagination
-  const moocPaged = moocCourses.slice(moocPage * PAGE_SIZE, (moocPage + 1) * PAGE_SIZE);
+  // Combined 3-column pagination
+  const combinedTotal = Math.max(ssgCourses.length, moocCourses.length);
+  const ssgPaged  = ssgCourses.slice(combinedPage * PAGE_SIZE, (combinedPage + 1) * PAGE_SIZE);
+  const moocPaged = moocCourses.slice(combinedPage * PAGE_SIZE, (combinedPage + 1) * PAGE_SIZE);
+  const rowCount  = Math.max(ssgPaged.length, moocPaged.length);
 
   const missingCount = gapData?.required.filter(r => r.status === 'missing').length ?? 0;
   const anyTracked = ssgCourses.some(c => c._status) || moocCourses.some(c => c._status);
@@ -649,158 +648,143 @@ export default function GapAnalysisPage() {
             </div>
           )}
 
-          {/* ── SECTION 1: SSG Courses + paired YouTube ──────────────────── */}
-          {ssgCourses.length > 0 && (
-            <div className="card p-5 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold" style={{ color: '#7c3aed' }}>🏛</span>
-                <div>
-                  <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>SSG Courses</h3>
-                  <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                    SkillsFuture-accredited courses · Each paired with a YouTube study video
-                  </p>
-                </div>
+          {/* ── 3-Column Course Table: SSG | YouTube | MOOC ──────────────── */}
+          {(ssgCourses.length > 0 || moocCourses.length > 0) && (
+            <div className="card overflow-hidden">
+              {/* Column headers */}
+              <div className="hidden md:grid grid-cols-3 border-b text-xs font-semibold uppercase tracking-wide" style={{ borderColor: 'var(--card-border)', background: 'var(--muted-bg)' }}>
+                <div className="px-4 py-3 border-r" style={{ borderColor: 'var(--card-border)', color: '#7c3aed' }}>🏛 SSG Courses</div>
+                <div className="px-4 py-3 border-r" style={{ borderColor: 'var(--card-border)', color: '#dc2626' }}>▶ YouTube Study Video</div>
+                <div className="px-4 py-3" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</div>
               </div>
 
-              <div className="space-y-4">
-                {ssgPaged.map((course, i) => {
-                  const yt = youtubeMap[course.title];
-                  const isCompleted = course._status === 'completed';
+              {/* Rows */}
+              {Array.from({ length: rowCount }).map((_, i) => {
+                const ssg  = ssgPaged[i];
+                const yt   = ssg ? youtubeMap[ssg.title] : undefined;
+                const mooc = moocPaged[i];
 
-                  return (
-                    <div
-                      key={i}
-                      className="rounded-xl overflow-hidden"
-                      style={{ border: `1.5px solid ${isCompleted ? '#bbf7d0' : 'var(--card-border)'}`, background: isCompleted ? '#f0fdf4' : 'var(--background)' }}
-                    >
-                      {/* SSG course row */}
-                      <div className="p-4 space-y-2">
-                        <div className="flex items-start gap-3">
-                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
-                            🏛
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <a href={course.url} target="_blank" rel="noopener noreferrer"
-                                className="text-sm font-semibold hover:underline" style={{ color: 'var(--foreground)' }}>
-                                {course.title}
-                              </a>
+                return (
+                  <div
+                    key={i}
+                    className="grid grid-cols-1 md:grid-cols-3 border-b"
+                    style={{ borderColor: 'var(--card-border)' }}
+                  >
+                    {/* ── SSG Column ── */}
+                    <div className="p-4 border-b md:border-b-0 md:border-r space-y-2" style={{ borderColor: 'var(--card-border)', background: ssg?._status === 'completed' ? '#f0fdf4' : 'white' }}>
+                      {/* Mobile label */}
+                      <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#7c3aed' }}>🏛 SSG Course</p>
+                      {ssg ? (
+                        <>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                               <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#f5f3ff', color: '#7c3aed' }}>SSG</span>
-                              {isCompleted && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                              {ssg._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
                             </div>
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{course.provider}</p>
-                            <p className="text-xs mt-1" style={{ color: '#475569' }}>{course.description}</p>
-                            {course.skills_covered?.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                <span className="text-xs" style={{ color: 'var(--muted)' }}>Skill:</span>
-                                {course.skills_covered.map(s => (
-                                  <span key={s} className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>{s}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <CourseActions course={course} />
-                      </div>
-
-                      {/* Paired YouTube video */}
-                      {yt && (
-                        <div className="border-t px-4 py-3 flex items-start gap-3" style={{ borderColor: 'var(--card-border)', background: '#fef2f2' }}>
-                          {/* Thumbnail or fallback */}
-                          <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                            {yt.thumbnailUrl ? (
-                              <img
-                                src={yt.thumbnailUrl}
-                                alt={yt.title}
-                                className="rounded-lg object-cover"
-                                style={{ width: 120, height: 68 }}
-                              />
-                            ) : (
-                              <div className="rounded-lg flex items-center justify-center text-2xl"
-                                style={{ width: 120, height: 68, background: '#dc2626', color: 'white' }}>
-                                ▶
-                              </div>
-                            )}
-                          </a>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                              <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{ background: '#fef2f2', color: '#dc2626' }}>▶ YouTube</span>
-                            </div>
-                            <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer"
-                              className="text-xs font-medium hover:underline line-clamp-2" style={{ color: 'var(--foreground)' }}>
-                              {yt.videoId ? yt.title : `Search: ${yt.title}`}
+                            <a href={ssg.url} target="_blank" rel="noopener noreferrer"
+                              className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
+                              {ssg.title}
                             </a>
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                              {yt.channelTitle}
-                              {!yt.videoId && <span> · Opens YouTube search</span>}
-                            </p>
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{ssg.provider}</p>
+                            <p className="text-xs mt-1" style={{ color: '#475569' }}>{ssg.description}</p>
+                            {ssg.skills_covered?.length > 0 && (
+                              <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                {ssg.skills_covered[0]}
+                              </span>
+                            )}
                           </div>
-                        </div>
+                          <CourseActions course={ssg} />
+                        </>
+                      ) : (
+                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
                       )}
                     </div>
-                  );
-                })}
-              </div>
 
-              <Pagination page={ssgPage} total={ssgCourses.length} onChange={p => { setSsgPage(p); }} />
-            </div>
-          )}
-
-          {/* ── SECTION 2: MOOC Courses ──────────────────────────────────── */}
-          {moocCourses.length > 0 && (
-            <div className="card p-5 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold" style={{ color: '#2563eb' }}>🎓</span>
-                <div>
-                  <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>MOOC Courses</h3>
-                  <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                    Coursera courses relevant to your career goal and skill gaps
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {moocPaged.map((course, i) => {
-                  const isCompleted = course._status === 'completed';
-                  return (
-                    <div
-                      key={i}
-                      className="rounded-xl p-4 space-y-2"
-                      style={{ background: isCompleted ? '#f0fdf4' : 'var(--muted-bg)', border: `1px solid ${isCompleted ? '#bbf7d0' : 'transparent'}` }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold" style={{ background: '#eff6ff', color: '#2563eb' }}>
-                          🎓
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <a href={course.url} target="_blank" rel="noopener noreferrer"
-                              className="text-sm font-semibold hover:underline" style={{ color: 'var(--foreground)' }}>
-                              {course.title}
-                            </a>
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb' }}>Coursera</span>
-                            {isCompleted && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                    {/* ── YouTube Column ── */}
+                    <div className="p-4 border-b md:border-b-0 md:border-r" style={{ borderColor: 'var(--card-border)', background: '#fef9f9' }}>
+                      {/* Mobile label */}
+                      <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#dc2626' }}>▶ YouTube</p>
+                      {yt ? (
+                        <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer" className="flex gap-3 items-start no-underline group">
+                          <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 88, height: 50, background: '#dc2626' }}>
+                            {yt.thumbnailUrl ? (
+                              <img src={yt.thumbnailUrl} alt={yt.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-white text-lg">▶</div>
+                            )}
                           </div>
-                          <p className="text-xs mt-1" style={{ color: '#475569', lineHeight: 1.5 }}>{course.description}</p>
-                          {course.skills_covered?.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              <span className="text-xs" style={{ color: 'var(--muted)' }}>Relevant to:</span>
-                              {course.skills_covered.map(s => (
-                                <span key={s} className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>{s}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="pl-11">
-                        <CourseActions course={course} />
-                      </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium leading-snug group-hover:underline line-clamp-3" style={{ color: 'var(--foreground)' }}>
+                              {yt.videoId ? yt.title : `Search: ${yt.title}`}
+                            </p>
+                            <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                              {yt.channelTitle}{!yt.videoId && ' · YouTube search'}
+                            </p>
+                          </div>
+                        </a>
+                      ) : ssg ? (
+                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>No video found</p>
+                      ) : (
+                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
 
-              <Pagination page={moocPage} total={moocCourses.length} onChange={p => { setMoocPage(p); }} />
+                    {/* ── MOOC Column ── */}
+                    <div className="p-4 space-y-2" style={{ background: mooc?._status === 'completed' ? '#f0fdf4' : 'white' }}>
+                      {/* Mobile label */}
+                      <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</p>
+                      {mooc ? (
+                        <>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                              <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb' }}>Coursera</span>
+                              {mooc._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                            </div>
+                            <a href={mooc.url} target="_blank" rel="noopener noreferrer"
+                              className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
+                              {mooc.title}
+                            </a>
+                            <p className="text-xs mt-1 line-clamp-2" style={{ color: '#475569', lineHeight: 1.5 }}>{mooc.description}</p>
+                            {mooc.skills_covered?.length > 0 && (
+                              <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                {mooc.skills_covered[0]}
+                              </span>
+                            )}
+                          </div>
+                          <CourseActions course={mooc} />
+                        </>
+                      ) : (
+                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Pagination */}
+              {combinedTotal > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--card-border)' }}>
+                  <button
+                    onClick={() => setCombinedPage(p => Math.max(0, p - 1))}
+                    disabled={combinedPage === 0}
+                    className="text-sm px-4 py-2 rounded-lg font-medium"
+                    style={{ color: combinedPage === 0 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                  >
+                    ← Previous
+                  </button>
+                  <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                    Page {combinedPage + 1} of {Math.ceil(combinedTotal / PAGE_SIZE)}
+                  </span>
+                  <button
+                    onClick={() => setCombinedPage(p => Math.min(Math.ceil(combinedTotal / PAGE_SIZE) - 1, p + 1))}
+                    disabled={combinedPage >= Math.ceil(combinedTotal / PAGE_SIZE) - 1}
+                    className="text-sm px-4 py-2 rounded-lg font-medium"
+                    style={{ color: combinedPage >= Math.ceil(combinedTotal / PAGE_SIZE) - 1 ? 'var(--muted)' : 'var(--primary)', background: 'var(--muted-bg)' }}
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

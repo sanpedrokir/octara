@@ -62,44 +62,43 @@ async function fetchYouTubeVideo(courseTitle: string, skill: string): Promise<Yo
   }
 }
 
+async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
+  try {
+    const apiUrl = `https://api.coursera.org/api/courses.v1?q=search&query=${encodeURIComponent(query)}&limit=5&fields=name,slug,shortDescription,workload`;
+    const res = await fetch(apiUrl, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return [];
+    const data = await res.json() as {
+      elements?: Array<{ id: string; name: string; slug: string; shortDescription?: string; workload?: string }>;
+    };
+    return (data.elements ?? []).map(c => {
+      const rawDesc = c.shortDescription ?? '';
+      const desc = rawDesc.length > 140 ? rawDesc.slice(0, 137) + '…' : rawDesc || 'Coursera course relevant to your career goal.';
+      return {
+        title: c.name,
+        provider: 'Coursera',
+        type: 'mooc' as const,
+        url: `https://www.coursera.org/learn/${c.slug}`,
+        description: desc + (c.workload ? ` · ${c.workload}` : ''),
+        skills_covered: [query],
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 async function fetchCourseraCourses(queries: string[]): Promise<MoocCourse[]> {
+  // Fetch all queries in parallel — dramatically faster than sequential
+  const batches = await Promise.all(queries.slice(0, 7).map(q => fetchCourseraForQuery(q)));
   const seen = new Set<string>();
   const results: MoocCourse[] = [];
-
-  for (const query of queries) {
-    if (results.length >= 20) break;
-    try {
-      const apiUrl = `https://api.coursera.org/api/courses.v1?q=search&query=${encodeURIComponent(query)}&limit=8&fields=name,slug,shortDescription,workload`;
-      const res = await fetch(apiUrl);
-      if (!res.ok) continue;
-      const data = await res.json() as {
-        elements?: Array<{
-          id: string;
-          name: string;
-          slug: string;
-          shortDescription?: string;
-          workload?: string;
-        }>;
-      };
-      for (const c of data.elements ?? []) {
-        if (seen.has(c.slug)) continue;
-        seen.add(c.slug);
-        const rawDesc = c.shortDescription ?? '';
-        const desc = rawDesc.length > 140 ? rawDesc.slice(0, 137) + '…' : rawDesc || 'Coursera course relevant to your career goal.';
-        results.push({
-          title: c.name,
-          provider: 'Coursera',
-          type: 'mooc',
-          url: `https://www.coursera.org/learn/${c.slug}`,
-          description: desc + (c.workload ? ` · ${c.workload}` : ''),
-          skills_covered: [query],
-        });
-      }
-    } catch {
-      // skip failed query, continue with next
+  for (const batch of batches) {
+    for (const c of batch) {
+      if (seen.has(c.url) || results.length >= 20) continue;
+      seen.add(c.url);
+      results.push(c);
     }
   }
-
   return results;
 }
 
@@ -114,7 +113,7 @@ export async function POST(request: Request) {
       return Response.json({ data: { courses: [], youtube: [], mooc: [] }, error: null });
     }
 
-    // ── 1. SSG courses ───────────────────────────────────────────────────
+    // ── 1. SSG courses (parallel per skill) ──────────────────────────────────
     const skillsToSearch = missingSkills.slice(0, 8);
     const ssgResults = await Promise.all(skillsToSearch.map(s => searchCoursesWithSource(s)));
 
@@ -150,19 +149,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 2. YouTube — one video per SSG course (parallel) ─────────────────
-    const youtube = await Promise.all(
-      courses.map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? ''))
-    );
+    // ── 2. YouTube + MOOC fetched in parallel ─────────────────────────────────
+    const moocQueries = [role.trim(), sector.trim(), ...missingSkills.slice(0, 5)].filter(Boolean);
 
-    // ── 3. MOOC — Coursera by role + sector + top skills ─────────────────
-    const moocQueries = [
-      role.trim(),
-      sector.trim(),
-      ...missingSkills.slice(0, 5),
-    ].filter(Boolean);
-
-    const mooc = await fetchCourseraCourses(moocQueries);
+    const [youtube, mooc] = await Promise.all([
+      Promise.all(courses.map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? ''))),
+      fetchCourseraCourses(moocQueries),
+    ]);
 
     return Response.json({ data: { courses, youtube, mooc }, error: null });
   } catch (err) {
