@@ -41,7 +41,7 @@ export default function ThaiLoginPage() {
         <div className="card w-full max-w-md p-8">
           {/* Country picker — top left, above logo */}
           <div className="flex items-center gap-3 mb-4">
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>I am from</span>
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>ฉันมาจาก</span>
             <div className="flex flex-col items-center gap-0.5">
               <button
                 type="button"
@@ -71,7 +71,7 @@ export default function ThaiLoginPage() {
               <img src="/octara-logo.png" alt="Octara" style={{ height: '120px', width: 'auto' }} />
             </div>
             <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--foreground)' }}>ยินดีต้อนรับ</h1>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>Welcome back · Sign in to your Octara account</p>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>เข้าสู่บัญชี Octara ของคุณ</p>
           </div>
 
           {error && (
@@ -82,7 +82,7 @@ export default function ThaiLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Email address</label>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>อีเมล</label>
               <input
                 type="email"
                 value={email}
@@ -95,9 +95,9 @@ export default function ThaiLoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium" style={{ color: 'var(--foreground)' }}>Password</label>
+                <label className="block text-sm font-medium" style={{ color: 'var(--foreground)' }}>รหัสผ่าน</label>
                 <Link href="/forgot-password" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
-                  Forgot password?
+                  ลืมรหัสผ่าน?
                 </Link>
               </div>
               <input
@@ -111,13 +111,13 @@ export default function ThaiLoginPage() {
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full justify-center" style={{ opacity: loading ? 0.7 : 1 }}>
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm" style={{ color: 'var(--muted)' }}>
-            Don&apos;t have an account?{' '}
-            <Link href="/th/register" className="font-semibold" style={{ color: 'var(--primary)' }}>Sign up</Link>
+            ยังไม่มีบัญชี?{' '}
+            <Link href="/th/register" className="font-semibold" style={{ color: 'var(--primary)' }}>สมัครสมาชิก</Link>
           </p>
         </div>
       </div>
