@@ -23,8 +23,10 @@ export async function GET(request: Request) {
     const skillRows = await sql`
       SELECT skill_title, skill_type, proficiency_level, skill_code
       FROM job_role_tsc_ccs
-      WHERE sector = ${sector} AND job_role = ${jobRole} AND (${track} = '' OR track = ${track} OR track IS NULL)
-      ORDER BY id
+      WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${jobRole}))
+        AND (sector = ${sector} OR sector = 'Unknown' OR sector IS NULL)
+        AND (${track} = '' OR LOWER(TRIM(track)) = LOWER(TRIM(${track})) OR track IS NULL)
+      ORDER BY skill_type, id
     `;
 
     const cwfMap = new Map<string, string[]>();
