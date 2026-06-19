@@ -9,6 +9,41 @@ import type { Education, WorkExperience } from '@/lib/types';
 
 type Tab = 'basic' | 'education' | 'experience';
 
+const SG_IHLS = [
+  // Autonomous Universities
+  'National University of Singapore (NUS)',
+  'Nanyang Technological University (NTU)',
+  'Singapore Management University (SMU)',
+  'Singapore University of Technology and Design (SUTD)',
+  'Singapore Institute of Technology (SIT)',
+  'Singapore University of Social Sciences (SUSS)',
+  // Polytechnics
+  'Singapore Polytechnic (SP)',
+  'Ngee Ann Polytechnic (NP)',
+  'Temasek Polytechnic (TP)',
+  'Republic Polytechnic (RP)',
+  'Nanyang Polytechnic (NYP)',
+  // ITE
+  'Institute of Technical Education (ITE) – College Central',
+  'Institute of Technical Education (ITE) – College East',
+  'Institute of Technical Education (ITE) – College West',
+  // Arts
+  'LASALLE College of the Arts',
+  'Nanyang Academy of Fine Arts (NAFA)',
+  // Private / International
+  'SIM Global Education',
+  'Kaplan Singapore',
+  'PSB Academy',
+  'James Cook University Singapore',
+  'Curtin Singapore',
+  'Management Development Institute of Singapore (MDIS)',
+  'Murdoch University Singapore',
+  'DigiPen Institute of Technology Singapore',
+  'S P Jain School of Global Management',
+  'INSEAD Singapore',
+  'ESSEC Business School Singapore',
+];
+
 interface UserData {
   name: string;
   email: string;
@@ -32,7 +67,14 @@ export default function ProfilePage() {
 
   const [basicForm, setBasicForm] = useState({ name: '', bio: '', phone: '', location: '', linkedin_url: '', resume_text: '' });
   const [eduForm, setEduForm] = useState({ institution: '', degree: '', field_of_study: '', start_year: '', end_year: '', is_current: false });
+  const [institutionSelect, setInstitutionSelect] = useState('');
+  const [institutionOther, setInstitutionOther] = useState('');
   const [expForm, setExpForm] = useState({ company: '', title: '', start_date: '', end_date: '', is_current: false, description: '' });
+  const [expIndustries, setExpIndustries] = useState<Array<{ id: number; name: string }>>([]);
+  const [expSectorId, setExpSectorId] = useState('');
+  const [expJobRoles, setExpJobRoles] = useState<Array<{ id: number; name: string }>>([]);
+  const [expJobRoleSelect, setExpJobRoleSelect] = useState('');
+  const [expJobRoleOther, setExpJobRoleOther] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -61,6 +103,21 @@ export default function ProfilePage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Load industries (SSG sectors) for Experience form
+  useEffect(() => {
+    fetch('/api/industries')
+      .then(r => r.json())
+      .then(({ data }) => { if (data) setExpIndustries(data); });
+  }, []);
+
+  // Load job roles whenever sector changes
+  useEffect(() => {
+    if (!expSectorId) { setExpJobRoles([]); setExpJobRoleSelect(''); setExpForm(p => ({ ...p, title: '' })); return; }
+    fetch(`/api/job-roles?industry_id=${expSectorId}`)
+      .then(r => r.json())
+      .then(({ data }) => { if (data) setExpJobRoles(data); setExpJobRoleSelect(''); setExpForm(p => ({ ...p, title: '' })); });
+  }, [expSectorId]);
+
   async function saveBasic(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -78,6 +135,8 @@ export default function ProfilePage() {
     if (data) {
       setEducation(prev => [data, ...prev]);
       setEduForm({ institution: '', degree: '', field_of_study: '', start_year: '', end_year: '', is_current: false });
+      setInstitutionSelect('');
+      setInstitutionOther('');
     }
   }
 
@@ -93,6 +152,7 @@ export default function ProfilePage() {
     if (data) {
       setExperience(prev => [data, ...prev]);
       setExpForm({ company: '', title: '', start_date: '', end_date: '', is_current: false, description: '' });
+      setExpSectorId(''); setExpJobRoleSelect(''); setExpJobRoleOther('');
     }
   }
 
@@ -176,11 +236,11 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>LinkedIn URL</label>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>LinkedIn URL <span className="font-normal text-xs" style={{ color: 'var(--muted)' }}>(Optional)</span></label>
                     <input className="input" value={basicForm.linkedin_url} onChange={e => setBasicForm(p => ({ ...p, linkedin_url: e.target.value }))} placeholder="https://linkedin.com/in/..." />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Resume / Work Summary</label>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Resume / Work Summary <span className="font-normal text-xs" style={{ color: 'var(--muted)' }}>(Optional)</span></label>
                     <textarea className="input" rows={5} value={basicForm.resume_text} onChange={e => setBasicForm(p => ({ ...p, resume_text: e.target.value }))} placeholder="Paste your resume text here for better AI skill analysis…" style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.8rem' }} />
                     <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Used by AI to generate personalised skill gap analysis</p>
                   </div>
@@ -197,14 +257,76 @@ export default function ProfilePage() {
                 <div className="card p-5">
                   <h3 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Add Education</h3>
                   <form onSubmit={addEducation} className="space-y-3">
-                    <input className="input" placeholder="Institution *" value={eduForm.institution} onChange={e => setEduForm(p => ({ ...p, institution: e.target.value }))} required />
-                    <div className="grid grid-cols-2 gap-3">
-                      <input className="input" placeholder="Degree" value={eduForm.degree} onChange={e => setEduForm(p => ({ ...p, degree: e.target.value }))} />
-                      <input className="input" placeholder="Field of Study" value={eduForm.field_of_study} onChange={e => setEduForm(p => ({ ...p, field_of_study: e.target.value }))} />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Institution Name *</label>
+                      <select
+                        className="input"
+                        value={institutionSelect}
+                        onChange={e => {
+                          setInstitutionSelect(e.target.value);
+                          if (e.target.value !== 'Other') {
+                            setEduForm(p => ({ ...p, institution: e.target.value }));
+                            setInstitutionOther('');
+                          } else {
+                            setEduForm(p => ({ ...p, institution: '' }));
+                          }
+                        }}
+                        required={institutionSelect !== 'Other'}
+                      >
+                        <option value="">Select institution…</option>
+                        <optgroup label="Autonomous Universities">
+                          {SG_IHLS.slice(0, 6).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="Polytechnics">
+                          {SG_IHLS.slice(6, 11).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="Institute of Technical Education">
+                          {SG_IHLS.slice(11, 14).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="Arts Institutions">
+                          {SG_IHLS.slice(14, 16).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="Private / International">
+                          {SG_IHLS.slice(16).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <option value="Other">Other (please specify)</option>
+                      </select>
+                      {institutionSelect === 'Other' && (
+                        <div>
+                          <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Institution Name (not in list) *</label>
+                          <input
+                            className="input"
+                            placeholder="e.g. Harvard University"
+                            value={institutionOther}
+                            onChange={e => {
+                              setInstitutionOther(e.target.value);
+                              setEduForm(p => ({ ...p, institution: e.target.value }));
+                            }}
+                            required
+                            autoFocus
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <input className="input" placeholder="Start Year" type="number" value={eduForm.start_year} onChange={e => setEduForm(p => ({ ...p, start_year: e.target.value }))} />
-                      <input className="input" placeholder="End Year" type="number" value={eduForm.end_year} onChange={e => setEduForm(p => ({ ...p, end_year: e.target.value }))} disabled={eduForm.is_current} />
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Courses / Program</label>
+                        <input className="input" value={eduForm.degree} onChange={e => setEduForm(p => ({ ...p, degree: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Field of Study</label>
+                        <input className="input" value={eduForm.field_of_study} onChange={e => setEduForm(p => ({ ...p, field_of_study: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Start Year</label>
+                        <input className="input" type="number" value={eduForm.start_year} onChange={e => setEduForm(p => ({ ...p, start_year: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>End Year</label>
+                        <input className="input" type="number" value={eduForm.end_year} onChange={e => setEduForm(p => ({ ...p, end_year: e.target.value }))} disabled={eduForm.is_current} />
+                      </div>
                     </div>
                     <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--foreground)' }}>
                       <input type="checkbox" checked={eduForm.is_current} onChange={e => setEduForm(p => ({ ...p, is_current: e.target.checked }))} className="rounded" />
@@ -240,20 +362,90 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div className="card p-5">
                   <h3 className="font-semibold mb-4" style={{ color: 'var(--foreground)' }}>Add Work Experience</h3>
-                  <form onSubmit={addExperience} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <input className="input" placeholder="Company *" value={expForm.company} onChange={e => setExpForm(p => ({ ...p, company: e.target.value }))} required />
-                      <input className="input" placeholder="Job Title *" value={expForm.title} onChange={e => setExpForm(p => ({ ...p, title: e.target.value }))} required />
+                  <form onSubmit={addExperience} className="space-y-4">
+
+                    {/* Sector */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Sector</label>
+                      <select
+                        className="input"
+                        value={expSectorId}
+                        onChange={e => setExpSectorId(e.target.value)}
+                      >
+                        <option value="">Select sector…</option>
+                        {expIndustries.map(ind => (
+                          <option key={ind.id} value={String(ind.id)}>{ind.name}</option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <input className="input" placeholder="Start (e.g. Jan 2022)" value={expForm.start_date} onChange={e => setExpForm(p => ({ ...p, start_date: e.target.value }))} />
-                      <input className="input" placeholder="End (e.g. Dec 2024)" value={expForm.end_date} onChange={e => setExpForm(p => ({ ...p, end_date: e.target.value }))} disabled={expForm.is_current} />
+
+                    {/* Job Role */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Job Role *</label>
+                      <select
+                        className="input"
+                        value={expJobRoleSelect}
+                        onChange={e => {
+                          setExpJobRoleSelect(e.target.value);
+                          if (e.target.value !== 'Other') {
+                            setExpForm(p => ({ ...p, title: e.target.value }));
+                            setExpJobRoleOther('');
+                          } else {
+                            setExpForm(p => ({ ...p, title: '' }));
+                          }
+                        }}
+                        required={expJobRoleSelect !== 'Other'}
+                      >
+                        <option value="">Select job role…</option>
+                        {expJobRoles.map(jr => (
+                          <option key={jr.id} value={jr.name}>{jr.name}</option>
+                        ))}
+                        <option value="Other">Other (please specify)</option>
+                      </select>
+                      {expJobRoleSelect === 'Other' && (
+                        <div className="mt-2">
+                          <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Job Title (not in list) *</label>
+                          <input
+                            className="input"
+                            placeholder="e.g. Product Manager"
+                            value={expJobRoleOther}
+                            onChange={e => { setExpJobRoleOther(e.target.value); setExpForm(p => ({ ...p, title: e.target.value })); }}
+                            required
+                            autoFocus
+                          />
+                        </div>
+                      )}
                     </div>
+
+                    {/* Company */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Company *</label>
+                      <input className="input" value={expForm.company} onChange={e => setExpForm(p => ({ ...p, company: e.target.value }))} required />
+                    </div>
+
+                    {/* Dates */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Start Date</label>
+                        <input className="input" placeholder="e.g. Jan 2022" value={expForm.start_date} onChange={e => setExpForm(p => ({ ...p, start_date: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>End Date</label>
+                        <input className="input" placeholder="e.g. Dec 2024" value={expForm.end_date} onChange={e => setExpForm(p => ({ ...p, end_date: e.target.value }))} disabled={expForm.is_current} />
+                      </div>
+                    </div>
+
                     <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--foreground)' }}>
                       <input type="checkbox" checked={expForm.is_current} onChange={e => setExpForm(p => ({ ...p, is_current: e.target.checked }))} className="rounded" />
                       Current role
                     </label>
-                    <textarea className="input" rows={2} placeholder="Key responsibilities and achievements…" value={expForm.description} onChange={e => setExpForm(p => ({ ...p, description: e.target.value }))} style={{ resize: 'vertical' }} />
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Key Responsibilities & Achievements</label>
+                      <textarea className="input" rows={3} value={expForm.description} onChange={e => setExpForm(p => ({ ...p, description: e.target.value }))} style={{ resize: 'vertical' }} />
+                    </div>
+
                     <button type="submit" className="btn-primary text-sm">Add Experience</button>
                   </form>
                 </div>
