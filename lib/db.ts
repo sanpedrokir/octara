@@ -198,6 +198,31 @@ CREATE TABLE IF NOT EXISTS user_skills (
 );
 CREATE INDEX IF NOT EXISTS idx_user_skills_user ON user_skills(user_id);
 
+CREATE TABLE IF NOT EXISTS sector_scenario_questions (
+  id             SERIAL PRIMARY KEY,
+  sector         TEXT NOT NULL,
+  question       TEXT NOT NULL,
+  option_a       TEXT NOT NULL,
+  option_b       TEXT NOT NULL,
+  option_c       TEXT NOT NULL,
+  option_d       TEXT NOT NULL,
+  correct_answer TEXT NOT NULL,
+  explanation    TEXT,
+  difficulty     TEXT,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ssq_sector ON sector_scenario_questions(sector);
+
+CREATE TABLE IF NOT EXISTS skill_quiz_results (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL,
+  skill_name VARCHAR(255),
+  score      INTEGER NOT NULL,
+  total      INTEGER NOT NULL,
+  passed     BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_quiz_results_user ON skill_quiz_results(user_id);
 
 CREATE TABLE IF NOT EXISTS user_certifications (
   id              SERIAL PRIMARY KEY,

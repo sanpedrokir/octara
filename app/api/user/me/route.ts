@@ -14,7 +14,19 @@ export async function GET() {
     `;
     if (!rows.length) return Response.json({ data: null, error: 'User not found' }, { status: 404 });
 
-    return Response.json({ data: rows[0], error: null });
+    // Include career sector for quiz auto-detection
+    const careerRows = await sql`
+      SELECT COALESCE(i.name, jrc.sector) AS career_sector
+      FROM career_aspirations ca
+      LEFT JOIN industries i ON ca.industry_id = i.id
+      LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
+      WHERE ca.user_id = ${session.userId}
+      LIMIT 1
+    ` as Array<{ career_sector: string | null }>;
+
+    const career_sector = careerRows[0]?.career_sector ?? null;
+
+    return Response.json({ data: { ...rows[0], career_sector }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed';
     return Response.json({ data: null, error: msg }, { status: msg === 'Unauthorized' ? 401 : 500 });

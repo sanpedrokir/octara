@@ -2,8 +2,6 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import RecommendedCourses from '@/app/ui/RecommendedCourses';
-
 const SECTIONS = [
   {
     href: '/career',
@@ -40,6 +38,15 @@ const SECTIONS = [
     color: '#b45309',
     bg: '#fefce8',
     border: '#fde68a',
+  },
+  {
+    href: '/skill-quiz',
+    icon: '🧠',
+    label: 'Work Knowledge Quiz',
+    description: 'Test your work scenario knowledge and move up the Leaderboard!',
+    color: '#15803d',
+    bg: '#f0fdf4',
+    border: '#bbf7d0',
   },
   {
     href: '/profile',
@@ -370,9 +377,6 @@ export default async function DashboardPage() {
           </p>
         )}
       </div>
-
-      {/* ── RECOMMENDED COURSES ──────────────────────────────── */}
-      {hasCareer && <RecommendedCourses />}
 
     </div>
   );
