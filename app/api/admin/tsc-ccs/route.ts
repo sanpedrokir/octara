@@ -44,7 +44,8 @@ export async function GET(request: Request) {
       pool.query(
         `SELECT id, sector, track, job_role, skill_title, skill_type, proficiency_level, skill_code
          FROM job_role_tsc_ccs ${where}
-         ORDER BY track, job_role, skill_type, proficiency_level::int NULLS LAST
+         ORDER BY track, job_role, skill_type,
+           CASE WHEN proficiency_level ~ '^[0-9]+$' THEN proficiency_level::int ELSE 999 END
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, limit, offset]
       ),

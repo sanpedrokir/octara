@@ -1,6 +1,6 @@
 import { getCurrentUser } from '@/lib/auth';
 import { getPool } from '@/lib/db';
-import { normaliseHeader, parseTabularFile, parseXlsxSchemas } from '@/lib/file-upload-parse';
+import { normaliseHeader, parseTabularFile } from '@/lib/file-upload-parse';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -62,21 +62,14 @@ export async function POST(request: Request) {
     const ext = filename.toLowerCase().split('.').pop() ?? '';
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    let sheetRows: Record<string, string>[];
-    let sourceHeaders: string[];
-
-    if (ext === 'csv') {
-      const parsed = await parseTabularFile(buffer, ext, TSC_ALIASES);
-      sheetRows = parsed.rows;
-      sourceHeaders = parsed.sourceHeaders;
-    } else if (ext === 'xlsx') {
-      // Try to find the TSC/CCS sheet — it may be the only sheet or a named sheet
-      const schemas = await parseXlsxSchemas(buffer, { tscCcs: TSC_ALIASES });
-      sheetRows = schemas.tscCcs.rows;
-      sourceHeaders = schemas.tscCcs.sourceHeaders;
-    } else {
+    if (!['csv', 'xlsx'].includes(ext)) {
       return Response.json({ data: null, error: 'Please upload .xlsx or .csv (.xls is not supported — re-save as .xlsx)' }, { status: 400 });
     }
+
+    // parseTabularFile handles both CSV and XLSX — picks the sheet whose headers best match TSC_ALIASES
+    const parsed = await parseTabularFile(buffer, ext, TSC_ALIASES);
+    const sheetRows = parsed.rows;
+    const sourceHeaders = parsed.sourceHeaders;
 
     if (sheetRows.length === 0) {
       return Response.json({ data: null, error: 'File has no data rows' }, { status: 400 });
