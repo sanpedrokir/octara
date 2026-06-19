@@ -40,33 +40,33 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--background)' }}>
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="card w-full max-w-md p-8">
-          <div className="text-center mb-6">
+          {/* Country picker — top left, above logo */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>I am from</span>
+            <div
+              title="Singapore"
+              className="flex items-center justify-center rounded-full"
+              style={{ width: 32, height: 32, border: '2px solid var(--primary)', background: 'var(--primary-faint, rgba(99,102,241,0.08))', cursor: 'default', fontSize: '1.1rem' }}
+            >
+              🇸🇬
+            </div>
+            <button
+              type="button"
+              title="Thailand"
+              onClick={() => router.push('/th/login')}
+              className="flex items-center justify-center rounded-full transition-all"
+              style={{ width: 32, height: 32, border: '2px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}
+            >
+              🇹🇭
+            </button>
+          </div>
+
+          <div className="text-center mb-8">
             <div className="flex justify-center mb-3">
               <img src="/octara-logo.png" alt="Octara" style={{ height: '120px', width: 'auto' }} />
             </div>
             <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--foreground)' }}>Welcome back</h1>
             <p className="text-sm" style={{ color: 'var(--muted)' }}>Sign in to your Octara account</p>
-          </div>
-
-          {/* Country selector */}
-          <div className="mb-6">
-            <p className="text-xs font-semibold text-center mb-2 uppercase tracking-wide" style={{ color: 'var(--muted)' }}>Select your country</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-semibold"
-                style={{ border: '2px solid var(--primary)', background: 'var(--primary-faint, rgba(99,102,241,0.08))', color: 'var(--primary)', cursor: 'default' }}
-              >
-                <span style={{ fontSize: '1.4rem' }}>🇸🇬</span> Singapore
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push('/th/login')}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all"
-                style={{ border: '2px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
-              >
-                <span style={{ fontSize: '1.4rem' }}>🇹🇭</span> Thailand
-              </button>
-            </div>
           </div>
 
           {error && (
