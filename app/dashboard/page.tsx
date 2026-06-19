@@ -96,8 +96,8 @@ export default async function DashboardPage() {
   `;
   const courseStats = courseStatsRows[0] as { total: string; completed: string; in_progress: string } | undefined;
 
-  const profileRows = await sql`SELECT bio, location FROM profiles WHERE user_id = ${session.userId}`;
-  const profileData = profileRows[0] as { bio: string | null; location: string | null } | undefined;
+  const profileRows = await sql`SELECT bio, location, phone FROM profiles WHERE user_id = ${session.userId}`;
+  const profileData = profileRows[0] as { bio: string | null; location: string | null; phone: string | null } | undefined;
 
   let certCount = 0;
   let trainingCount = 0;
@@ -176,7 +176,9 @@ export default async function DashboardPage() {
     : progressScore < 75 ? 'var(--primary)'
     : 'var(--teal)';
 
-  const profileComplete = !!(profileData?.bio && profileData?.location);
+  // Profile is complete if the user has a name (set at registration) plus any one additional field,
+  // OR if any profile field has been saved — avoids false "incomplete" nags after sign-up.
+  const profileComplete = !!(user?.name && (profileData?.bio || profileData?.location || profileData?.phone || profileData));
   const hasCareer = !!career;
 
   const greeting = () => {
@@ -208,7 +210,7 @@ export default async function DashboardPage() {
               <div className="flex items-center gap-2 text-sm">
                 <span>⬜</span>
                 <Link href="/profile" className="font-medium no-underline" style={{ color: 'var(--primary)' }}>Complete your profile</Link>
-                <span style={{ color: 'var(--muted)' }}>– add bio and location</span>
+                <span style={{ color: 'var(--muted)' }}>– add basic profile details</span>
               </div>
             )}
             {!hasCareer && (

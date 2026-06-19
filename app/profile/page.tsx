@@ -9,6 +9,17 @@ import type { Education, WorkExperience } from '@/lib/types';
 
 type Tab = 'basic' | 'education' | 'experience';
 
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: CURRENT_YEAR - 1949 + 5 }, (_, i) => CURRENT_YEAR + 5 - i);
+
+function fmtMonth(val: string): string {
+  if (!val) return '';
+  const [y, m] = val.split('-');
+  if (!y || !m) return val;
+  const month = new Date(Number(y), Number(m) - 1).toLocaleString('default', { month: 'short' });
+  return `${month} ${y}`;
+}
+
 const SG_IHLS = [
   // Autonomous Universities
   'National University of Singapore (NUS)',
@@ -321,11 +332,17 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Start Year</label>
-                        <input className="input" type="number" value={eduForm.start_year} onChange={e => setEduForm(p => ({ ...p, start_year: e.target.value }))} />
+                        <select className="input" value={eduForm.start_year} onChange={e => setEduForm(p => ({ ...p, start_year: e.target.value }))}>
+                          <option value="">Select year…</option>
+                          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>End Year</label>
-                        <input className="input" type="number" value={eduForm.end_year} onChange={e => setEduForm(p => ({ ...p, end_year: e.target.value }))} disabled={eduForm.is_current} />
+                        <select className="input" value={eduForm.end_year} onChange={e => setEduForm(p => ({ ...p, end_year: e.target.value }))} disabled={eduForm.is_current}>
+                          <option value="">Select year…</option>
+                          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
                       </div>
                     </div>
                     <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--foreground)' }}>
@@ -427,11 +444,11 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>Start Date</label>
-                        <input className="input" placeholder="e.g. Jan 2022" value={expForm.start_date} onChange={e => setExpForm(p => ({ ...p, start_date: e.target.value }))} />
+                        <input className="input" type="month" value={expForm.start_date} onChange={e => setExpForm(p => ({ ...p, start_date: e.target.value }))} />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>End Date</label>
-                        <input className="input" placeholder="e.g. Dec 2024" value={expForm.end_date} onChange={e => setExpForm(p => ({ ...p, end_date: e.target.value }))} disabled={expForm.is_current} />
+                        <input className="input" type="month" value={expForm.end_date} onChange={e => setExpForm(p => ({ ...p, end_date: e.target.value }))} disabled={expForm.is_current} />
                       </div>
                     </div>
 
@@ -458,7 +475,7 @@ export default function ProfilePage() {
                           <p className="font-semibold" style={{ color: 'var(--foreground)' }}>{exp.title}</p>
                           <p className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{exp.company}</p>
                           <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                            {exp.start_date}{exp.end_date ? ` – ${exp.end_date}` : exp.is_current ? ' – Present' : ''}
+                            {fmtMonth(exp.start_date)}{exp.end_date ? ` – ${fmtMonth(exp.end_date)}` : exp.is_current ? ' – Present' : ''}
                           </p>
                           {exp.description && <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{exp.description}</p>}
                         </div>
