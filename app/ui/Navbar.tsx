@@ -19,7 +19,7 @@ export default function Navbar({ user }: NavbarProps) {
     router.refresh();
   }
 
-  const APP_ROUTES = ['/dashboard', '/career', '/skills-navigator', '/profile', '/my-courses', '/admin'];
+  const APP_ROUTES = ['/dashboard', '/career', '/profile', '/my-courses', '/admin'];
   const isAppRoute = APP_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
 
   const navLinks = user
@@ -27,7 +27,6 @@ export default function Navbar({ user }: NavbarProps) {
         { href: '/dashboard', label: 'Dashboard' },
         { href: '/career', label: 'Career' },
         { href: '/my-courses', label: 'My Courses' },
-        { href: '/skills-navigator', label: 'Skills Navigator' },
         { href: '/profile', label: 'Profile' },
         ...(user.role === 'admin' ? [{ href: '/admin', label: 'Admin' }] : []),
       ]

@@ -198,20 +198,6 @@ CREATE TABLE IF NOT EXISTS user_skills (
 );
 CREATE INDEX IF NOT EXISTS idx_user_skills_user ON user_skills(user_id);
 
-CREATE TABLE IF NOT EXISTS skill_assessments (
-  id              SERIAL PRIMARY KEY,
-  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  assessment_type VARCHAR(20) NOT NULL DEFAULT 'ai',
-  current_job_title VARCHAR(255),
-  target_role     VARCHAR(255),
-  target_industry VARCHAR(255),
-  skill_gaps      JSONB,
-  strengths       JSONB,
-  summary         TEXT,
-  ai_model_used   VARCHAR(50),
-  created_at      TIMESTAMP NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_skill_assessments_user ON skill_assessments(user_id);
 
 CREATE TABLE IF NOT EXISTS user_certifications (
   id              SERIAL PRIMARY KEY,
@@ -249,33 +235,6 @@ CREATE TABLE IF NOT EXISTS tracked_courses (
 );
 CREATE INDEX IF NOT EXISTS idx_tracked_courses_user ON tracked_courses(user_id);
 
-CREATE TABLE IF NOT EXISTS learning_roadmaps (
-  id                  SERIAL PRIMARY KEY,
-  user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title               VARCHAR(255),
-  duration_months     INTEGER NOT NULL DEFAULT 6,
-  roadmap_data        JSONB,
-  skill_gaps          JSONB,
-  status              VARCHAR(20) NOT NULL DEFAULT 'active',
-  progress_percentage SMALLINT NOT NULL DEFAULT 0,
-  created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_roadmaps_user ON learning_roadmaps(user_id);
-
-CREATE TABLE IF NOT EXISTS learning_milestones (
-  id           SERIAL PRIMARY KEY,
-  roadmap_id   INTEGER NOT NULL REFERENCES learning_roadmaps(id) ON DELETE CASCADE,
-  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  month_number SMALLINT NOT NULL,
-  title        VARCHAR(255) NOT NULL,
-  description  TEXT,
-  status       VARCHAR(20) NOT NULL DEFAULT 'pending',
-  target_date  DATE,
-  completed_at TIMESTAMP,
-  created_at   TIMESTAMP NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_milestones_roadmap ON learning_milestones(roadmap_id);
 
 CREATE TABLE IF NOT EXISTS employers (
   id           SERIAL PRIMARY KEY,
@@ -436,8 +395,6 @@ DELETE FROM career_aspirations
   );
 ALTER TABLE career_aspirations DROP COLUMN IF EXISTS target_timeline;
 ALTER TABLE tracked_courses ADD COLUMN IF NOT EXISTS skill_name VARCHAR(255);
-ALTER TABLE skill_assessments ADD COLUMN IF NOT EXISTS current_skills JSONB;
-ALTER TABLE learning_roadmaps ADD COLUMN IF NOT EXISTS courses_by_skill JSONB;
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

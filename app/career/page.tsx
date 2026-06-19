@@ -296,7 +296,7 @@ export default function CareerPage() {
       if (data) {
         setSaved(true);
         setCurrent(data);
-        setTimeout(() => router.push('/skills-navigator?fresh=1'), 800);
+        setTimeout(() => router.push('/gap-analysis'), 800);
       } else {
         setSaveError(error || 'Failed to save. Please try again.');
       }
@@ -333,7 +333,7 @@ export default function CareerPage() {
 
             {saved && (
               <div className="mb-5 p-4 rounded-xl text-sm flex items-center gap-2" style={{ background: '#f0fdf4', color: 'var(--success)', border: '1px solid #bbf7d0' }}>
-                <span>✅</span> Career goal saved! Taking you to Skills Navigator…
+                <span>✅</span> Career goal saved! Taking you to Gap Analysis…
               </div>
             )}
 
@@ -583,7 +583,7 @@ export default function CareerPage() {
                   className="btn-primary w-full justify-center"
                   style={{ opacity: saving ? 0.7 : 1 }}
                 >
-                  {saving ? 'Saving…' : saved ? '✅ Saved! Taking you to Skills Navigator…' : current ? 'Update Career Goal →' : 'Set Career Goal →'}
+                  {saving ? 'Saving…' : saved ? '✅ Saved! Taking you to Gap Analysis…' : current ? 'Update Career Goal →' : 'Set Career Goal →'}
                 </button>
               </div>
             )}

@@ -121,7 +121,7 @@ export default function MyCoursesPage() {
           <div className="text-center py-8">
             <span className="text-4xl block mb-3">📭</span>
             <p className="text-sm mb-1 font-medium" style={{ color: 'var(--foreground)' }}>No courses tracked yet</p>
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>Add courses from the recommended list below or via Skills Navigator</p>
+            <p className="text-xs" style={{ color: 'var(--muted)' }}>Add courses from the recommended list below or via Gap Analysis</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -313,8 +313,8 @@ export default function MyCoursesPage() {
       </div>}
 
       <div className="text-center">
-        <Link href="/skills-navigator" className="text-sm no-underline" style={{ color: 'var(--primary)' }}>
-          Run full skills gap analysis in Skills Navigator →
+        <Link href="/gap-analysis" className="text-sm no-underline" style={{ color: 'var(--primary)' }}>
+          View your Gap Analysis →
         </Link>
       </div>
     </div>

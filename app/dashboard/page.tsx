@@ -3,7 +3,6 @@ import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import RecommendedCourses from '@/app/ui/RecommendedCourses';
-import Leaderboard from '@/app/ui/Leaderboard';
 
 const SECTIONS = [
   {
@@ -43,15 +42,6 @@ const SECTIONS = [
     border: '#fde68a',
   },
   {
-    href: '/skill-quiz',
-    icon: '🧠',
-    label: 'Work Knowledge Quiz',
-    description: 'Test your work knowledge, move up the Leaderboard!',
-    color: '#15803d',
-    bg: '#f0fdf4',
-    border: '#bbf7d0',
-  },
-  {
     href: '/profile',
     icon: '👤',
     label: 'My Profile',
@@ -63,8 +53,7 @@ const SECTIONS = [
 ];
 
 const MUTED_SECTIONS = [
-  { href: '/skills-navigator', icon: '🧭', label: 'Skills Navigator', description: 'AI-powered personalised learning roadmap.' },
-  { href: '/my-courses',       icon: '📚', label: 'My Courses',        description: 'Track and manage your enrolled courses.' },
+  { href: '/my-courses', icon: '📚', label: 'My Courses', description: 'Track and manage your enrolled courses.' },
 ];
 
 export default async function DashboardPage() {
@@ -121,46 +110,22 @@ export default async function DashboardPage() {
     }
   } catch { /* first deploy */ }
 
-  const assessmentRows = await sql`
-    SELECT skill_gaps FROM skill_assessments
-    WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 1
+  // Competency profile stats
+  const competencyRows = await sql`
+    SELECT COUNT(*)::int AS total FROM user_competencies WHERE user_id = ${session.userId}
   `;
-  let rawSkillGaps = (assessmentRows[0]?.skill_gaps ?? null) as Array<{ skill: string; priority: string }> | null;
-  if (!rawSkillGaps || rawSkillGaps.length === 0) {
-    const roadmapRows = await sql`
-      SELECT skill_gaps FROM learning_roadmaps
-      WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 1
-    `;
-    rawSkillGaps = (roadmapRows[0]?.skill_gaps ?? null) as Array<{ skill: string; priority: string }> | null;
-  }
-  const skillGaps: Array<{ skill: string; priority: string }> = rawSkillGaps ?? [];
-  const totalGaps = skillGaps.length;
-  const hasAssessment = rawSkillGaps !== null && totalGaps > 0;
-
-  const trackedWithSkill = await sql`
-    SELECT skill_name, status FROM tracked_courses
-    WHERE user_id = ${session.userId} AND skill_name IS NOT NULL AND skill_name != ''
-  ` as Array<{ skill_name: string; status: string }>;
-
-  const gapNames = new Set(skillGaps.map(g => g.skill.toLowerCase()));
-  const coveredByCompleted = new Set(
-    trackedWithSkill.filter(c => c.status === 'completed' && gapNames.has(c.skill_name.toLowerCase())).map(c => c.skill_name.toLowerCase())
-  );
-  const coveredByInProgress = new Set(
-    trackedWithSkill.filter(c => c.status === 'in_progress' && gapNames.has(c.skill_name.toLowerCase())).map(c => c.skill_name.toLowerCase())
-  );
+  const competencyCount = (competencyRows[0] as { total: number } | undefined)?.total ?? 0;
+  const hasCompetencyProfile = competencyCount > 0;
 
   const totalTracked = Number(courseStats?.total ?? 0);
   const totalCompleted = Number(courseStats?.completed ?? 0);
 
+  // Progress score based on meaningful milestones
   let progressScore = 0;
-  if (career) progressScore += 8;
-  if (hasAssessment) progressScore += 7;
-  if (totalGaps > 0) {
-    progressScore += Math.round((coveredByCompleted.size / totalGaps) * 55);
-    progressScore += Math.round((coveredByInProgress.size / totalGaps) * 27);
-  }
-  if (totalTracked > 0) progressScore += Math.round((totalCompleted / totalTracked) * 30);
+  if (career) progressScore += 20;
+  if (hasCompetencyProfile) progressScore += 20;
+  if (totalCompleted > 0) progressScore += Math.min(40, Math.round((totalCompleted / Math.max(totalTracked, 1)) * 40));
+  if (certCount + trainingCount > 0) progressScore += 20;
   progressScore = Math.min(100, progressScore);
 
   const progressLabel =
@@ -177,11 +142,7 @@ export default async function DashboardPage() {
     : progressScore < 75 ? 'var(--primary)'
     : 'var(--teal)';
 
-  // Profile is complete if the user has a name (set at registration) plus any one additional field,
-  // OR if any profile field has been saved — avoids false "incomplete" nags after sign-up.
   const profileComplete = !!(user?.name && (profileData?.bio || profileData?.location || profileData?.phone || profileData));
-  // hasCareer = true as soon as any career_aspirations row exists for the user,
-  // regardless of whether the JOIN resolved names (avoids banner sticking after goal is saved).
   const hasCareer = careerRows.length > 0;
 
   const greeting = () => {
@@ -284,20 +245,22 @@ export default async function DashboardPage() {
       {/* ── COMING SOON ──────────────────────────────────────── */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest mb-3 px-1" style={{ color: 'var(--muted)' }}>
-          Coming soon
+          Also available
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {MUTED_SECTIONS.map(s => (
-            <div key={s.href} className="rounded-2xl p-5 flex items-center gap-4"
-              style={{ background: 'var(--muted-bg)', border: '1.5px solid var(--card-border)', opacity: 0.6 }}>
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: 'var(--background)' }}>
-                {s.icon}
+            <Link key={s.href} href={s.href} className="no-underline">
+              <div className="rounded-2xl p-5 flex items-center gap-4"
+                style={{ background: 'var(--muted-bg)', border: '1.5px solid var(--card-border)' }}>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: 'var(--background)' }}>
+                  {s.icon}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>{s.label}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>{s.label}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</p>
-              </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
@@ -335,25 +298,22 @@ export default async function DashboardPage() {
                 <span style={{ color: career ? 'var(--foreground)' : 'var(--muted)' }}>Career goal set</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
-                <span>{hasAssessment ? '✅' : '⬜'}</span>
-                <span style={{ color: hasAssessment ? 'var(--foreground)' : 'var(--muted)' }}>Skill gap analysis done</span>
+                <span>{hasCompetencyProfile ? '✅' : '⬜'}</span>
+                <span style={{ color: hasCompetencyProfile ? 'var(--foreground)' : 'var(--muted)' }}>Competency profile started</span>
               </div>
             </div>
           </div>
           <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
-            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Skill Gaps Covered</p>
-            {totalGaps > 0 ? (
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Competency Skills</p>
+            {hasCompetencyProfile ? (
               <>
-                <p className="text-lg font-bold" style={{ color: 'var(--primary)' }}>
-                  {coveredByCompleted.size + coveredByInProgress.size}
-                  <span className="text-xs font-normal ml-1" style={{ color: 'var(--muted)' }}>/ {totalGaps}</span>
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  {coveredByCompleted.size} completed · {coveredByInProgress.size} in progress
-                </p>
+                <p className="text-lg font-bold" style={{ color: 'var(--primary)' }}>{competencyCount}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>skills in your profile</p>
               </>
             ) : (
-              <p className="text-xs" style={{ color: 'var(--muted)' }}>Run skill analysis first</p>
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                <Link href="/competency" className="no-underline" style={{ color: 'var(--primary)' }}>Upload resume</Link> to start
+              </p>
             )}
           </div>
           <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
@@ -373,8 +333,8 @@ export default async function DashboardPage() {
         </div>
         {progressScore < 100 && (
           <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--card-border)' }}>
-            <Link href="/skills-navigator" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
-              {!hasAssessment ? '→ Run skill gap analysis to unlock full progress tracking' : '→ Go to Skills Navigator to continue your learning journey'}
+            <Link href="/gap-analysis" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
+              → View your Gap Analysis to see which skills to build next
             </Link>
           </div>
         )}
@@ -410,9 +370,6 @@ export default async function DashboardPage() {
           </p>
         )}
       </div>
-
-      {/* ── LEADERBOARD ──────────────────────────────────────── */}
-      <Leaderboard />
 
       {/* ── RECOMMENDED COURSES ──────────────────────────────── */}
       {hasCareer && <RecommendedCourses />}
