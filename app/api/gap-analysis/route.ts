@@ -103,26 +103,48 @@ export async function GET() {
     const assessMap     = new Map(assessments.map(a => [a.skill_title.toLowerCase(), a.score]));
     const completedSet  = new Set(completedCourses.map(c => c.skill_name.toLowerCase()));
 
+    function scoreToProficiency(score: number): string {
+      if (score >= 5) return 'expert';
+      if (score >= 4) return 'advanced';
+      if (score >= 3) return 'intermediate';
+      return 'basic';
+    }
+
     const rows = requiredSkills.map(req => {
-      const key         = req.skill_title.toLowerCase();
-      const userSkill   = userSkillMap.get(key);
-      const score       = assessMap.get(key) ?? null;
+      const key          = req.skill_title.toLowerCase();
+      const userSkill    = userSkillMap.get(key);
+      const score        = assessMap.get(key) ?? null;
       const courseEarned = completedSet.has(key);
-      const matched     = !!(userSkill || courseEarned);
+      // Self-assessment counts as evidence of competency
+      const selfRated    = score !== null && score >= 1;
+      const matched      = !!(userSkill || courseEarned || selfRated);
 
       let status: 'strong' | 'partial' | 'course_earned' | 'missing';
-      if (courseEarned && !userSkill) status = 'course_earned';
-      else if (matched && score !== null && score >= 3) status = 'strong';
-      else if (matched) status = 'partial';
-      else status = 'missing';
+      if (!matched) {
+        status = 'missing';
+      } else if (courseEarned && !userSkill && !selfRated) {
+        status = 'course_earned';
+      } else if (score !== null && score >= 3) {
+        status = 'strong';
+      } else if (userSkill) {
+        status = 'partial';
+      } else {
+        // selfRated with score 1-2
+        status = 'partial';
+      }
+
+      // Proficiency: prefer profile entry, else derive from self-assessment score
+      const derivedProficiency = !userSkill && selfRated && score !== null
+        ? scoreToProficiency(score)
+        : null;
 
       return {
-        skill_title:          req.skill_title,
-        skill_code:           req.skill_code,
-        required_level:       req.required_level,
-        user_proficiency:     userSkill?.proficiency_level ?? null,
-        source:               userSkill?.source ?? (courseEarned ? 'course' : null),
-        ssg_matched:          userSkill?.ssg_matched ?? false,
+        skill_title:           req.skill_title,
+        skill_code:            req.skill_code,
+        required_level:        req.required_level,
+        user_proficiency:      userSkill?.proficiency_level ?? derivedProficiency,
+        source:                userSkill?.source ?? (courseEarned ? 'course' : selfRated ? 'self_assessment' : null),
+        ssg_matched:           userSkill?.ssg_matched ?? false,
         self_assessment_score: score,
         matched,
         status,

@@ -397,7 +397,7 @@ export default function GapAnalysisPage() {
                             )}
                           </div>
                           <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                            {row.source === 'resume' ? '📄 from resume' : row.source === 'course' ? '🎓 course earned' : row.source === 'ssg' ? '🏛 SSG' : '✍️ self-added'}
+                            {row.source === 'resume' ? '📄 from resume' : row.source === 'course' ? '🎓 course earned' : row.source === 'ssg' ? '🏛 SSG' : row.source === 'self_assessment' ? '⭐ self-assessed' : '✍️ self-added'}
                           </span>
                         </>
                       ) : row.status === 'course_earned' ? (
