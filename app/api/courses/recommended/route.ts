@@ -54,15 +54,16 @@ export async function GET() {
     const session = await requireAuth();
     const sql = db();
 
-    // Fetch user's active career aspiration + job role skill keywords
+    // Fetch user's career aspiration — resolve from both job_roles (seeded) and job_role_catalog (SSG)
     const rows = await sql`
       SELECT
-        i.name  AS industry_name,
-        jr.name AS job_role_name,
+        COALESCE(i.name,  jrc.sector)   AS industry_name,
+        COALESCE(jr.name, jrc.job_role) AS job_role_name,
         jr.skill_keywords
       FROM career_aspirations ca
-      LEFT JOIN industries  i  ON ca.industry_id  = i.id
-      LEFT JOIN job_roles   jr ON ca.job_role_id  = jr.id
+      LEFT JOIN industries      i   ON ca.industry_id         = i.id
+      LEFT JOIN job_roles       jr  ON ca.job_role_id         = jr.id
+      LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
       WHERE ca.user_id = ${session.userId}
       ORDER BY ca.created_at DESC
       LIMIT 1
@@ -73,14 +74,34 @@ export async function GET() {
     }
 
     const { industry_name, job_role_name, skill_keywords } = rows[0] as {
-      industry_name: string;
-      job_role_name: string;
+      industry_name: string | null;
+      job_role_name: string | null;
       skill_keywords: string[] | null;
     };
 
-    const keywords: string[] = Array.isArray(skill_keywords) && skill_keywords.length > 0
-      ? skill_keywords.slice(0, 4)
-      : deriveSearchKeywords(job_role_name, industry_name);
+    if (!job_role_name && !industry_name) {
+      return Response.json({ data: null, error: 'No career goal set' }, { status: 404 });
+    }
+
+    // Prefer TSC/CCS skill titles from job_role_tsc_ccs for more targeted keywords
+    let keywords: string[] = [];
+    if (job_role_name) {
+      const tscRows = await sql`
+        SELECT DISTINCT skill_title
+        FROM job_role_tsc_ccs
+        WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${job_role_name}))
+        ORDER BY skill_title
+        LIMIT 6
+      ` as Array<{ skill_title: string }>;
+      keywords = tscRows.map(r => r.skill_title).slice(0, 4);
+    }
+
+    // Fall back to job_roles.skill_keywords or derive from role/industry name
+    if (keywords.length === 0) {
+      keywords = Array.isArray(skill_keywords) && skill_keywords.length > 0
+        ? skill_keywords.slice(0, 4)
+        : deriveSearchKeywords(job_role_name ?? '', industry_name ?? '');
+    }
 
     // Search SSG for top 4 skill keywords in parallel
     const results = await Promise.all(
