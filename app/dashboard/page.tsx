@@ -179,7 +179,9 @@ export default async function DashboardPage() {
   // Profile is complete if the user has a name (set at registration) plus any one additional field,
   // OR if any profile field has been saved — avoids false "incomplete" nags after sign-up.
   const profileComplete = !!(user?.name && (profileData?.bio || profileData?.location || profileData?.phone || profileData));
-  const hasCareer = !!career;
+  // hasCareer = true as soon as any career_aspirations row exists for the user,
+  // regardless of whether the JOIN resolved names (avoids banner sticking after goal is saved).
+  const hasCareer = careerRows.length > 0;
 
   const greeting = () => {
     const h = new Date().getHours();
