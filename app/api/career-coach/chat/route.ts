@@ -37,12 +37,15 @@ USER CONTEXT (if provided):
 
 Always acknowledge the user's situation before giving advice. If no career context is known, ask what they are currently doing and what their career goal is.`;
 
+type GeminiPart = { text: string };
+type GeminiContent = { role: 'user' | 'model'; parts: GeminiPart[] };
+
 export async function POST(request: Request) {
   try {
     const session = await requireAuth();
     const { message, history } = await request.json() as {
       message: string;
-      history: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
+      history: GeminiContent[];
     };
 
     if (!message?.trim()) {
@@ -54,7 +57,7 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'Career Coach is not configured yet.' }, { status: 503 });
     }
 
-    // Fetch user context to personalise the coach
+    // Fetch user context
     const sql = db();
     const rows = await sql`
       SELECT
@@ -95,27 +98,30 @@ export async function POST(request: Request) {
 
     const ai = new GoogleGenAI({ apiKey });
 
-    const chat = ai.chats.create({
+    // Build full conversation: prior history + current message
+    const contents: GeminiContent[] = [
+      ...(history ?? []),
+      { role: 'user', parts: [{ text: message }] },
+    ];
+
+    const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
+      contents,
       config: {
         systemInstruction: systemPrompt,
         maxOutputTokens: 1024,
         temperature: 0.7,
       },
-      history: (history ?? []).map(m => ({
-        role: m.role,
-        parts: m.parts,
-      })),
     });
 
-    const result = await chat.sendMessage({ message });
-    const reply = result.text ?? 'Sorry, I could not generate a response. Please try again.';
-
+    const reply = response.text ?? 'Sorry, I could not generate a response. Please try again.';
     return Response.json({ data: { reply }, error: null });
+
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
-    const status = raw.includes('429') || raw.includes('quota') ? 429
-                 : raw.includes('401') || raw.includes('API key') ? 401
+    console.error('[career-coach]', raw);
+    const status = raw.includes('429') || raw.toLowerCase().includes('quota') ? 429
+                 : raw.includes('401') || raw.toLowerCase().includes('api key') ? 401
                  : 500;
     const msg = status === 429 ? 'quota_exceeded'
               : status === 401 ? 'invalid_api_key'
