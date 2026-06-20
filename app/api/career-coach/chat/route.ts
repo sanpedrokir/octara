@@ -1,6 +1,5 @@
 import { requireAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { GoogleGenAI } from '@google/genai';
 
 const SYSTEM_PROMPT = `You are an expert Career Coach named "Cora" on the Octara platform — a career pathfinder and upskilling platform for students and working adults in Singapore.
 
@@ -37,15 +36,15 @@ USER CONTEXT (if provided):
 
 Always acknowledge the user's situation before giving advice. If no career context is known, ask what they are currently doing and what their career goal is.`;
 
-type GeminiPart = { text: string };
-type GeminiContent = { role: 'user' | 'model'; parts: GeminiPart[] };
+type Part = { text: string };
+type Content = { role: 'user' | 'model'; parts: Part[] };
 
 export async function POST(request: Request) {
   try {
     const session = await requireAuth();
     const { message, history } = await request.json() as {
       message: string;
-      history: GeminiContent[];
+      history: Content[];
     };
 
     if (!message?.trim()) {
@@ -60,31 +59,23 @@ export async function POST(request: Request) {
     // Fetch user context
     const sql = db();
     const rows = await sql`
-      SELECT
-        u.name,
-        i.name        AS industry_name,
-        jr.name       AS job_role_name,
-        jrc.job_role  AS catalog_role,
-        jrc.sector    AS catalog_sector
+      SELECT u.name,
+        i.name       AS industry_name,
+        jr.name      AS job_role_name,
+        jrc.job_role AS catalog_role,
+        jrc.sector   AS catalog_sector
       FROM users u
-      LEFT JOIN career_aspirations ca   ON ca.user_id = u.id
-      LEFT JOIN industries i            ON ca.industry_id = i.id
-      LEFT JOIN job_roles jr            ON ca.job_role_id = jr.id
-      LEFT JOIN job_role_catalog jrc    ON ca.catalog_job_role_id = jrc.id
+      LEFT JOIN career_aspirations ca  ON ca.user_id = u.id
+      LEFT JOIN industries i           ON ca.industry_id = i.id
+      LEFT JOIN job_roles jr           ON ca.job_role_id = jr.id
+      LEFT JOIN job_role_catalog jrc   ON ca.catalog_job_role_id = jrc.id
       WHERE u.id = ${session.userId}
       LIMIT 1
-    ` as Array<{
-      name: string;
-      industry_name: string | null;
-      job_role_name: string | null;
-      catalog_role: string | null;
-      catalog_sector: string | null;
-    }>;
+    ` as Array<{ name: string; industry_name: string | null; job_role_name: string | null; catalog_role: string | null; catalog_sector: string | null }>;
 
     const user = rows[0];
     const jobRole = user?.catalog_role || user?.job_role_name || null;
     const industry = user?.catalog_sector || user?.industry_name || null;
-
     const userContext = user
       ? [
           `User's name: ${user.name}`,
@@ -96,36 +87,44 @@ export async function POST(request: Request) {
 
     const systemPrompt = SYSTEM_PROMPT.replace('{{USER_CONTEXT}}', userContext);
 
-    const ai = new GoogleGenAI({ apiKey });
-
-    // Build full conversation: prior history + current message
-    const contents: GeminiContent[] = [
+    // Call Gemini REST API directly — no SDK dependency
+    const contents: Content[] = [
       ...(history ?? []),
       { role: 'user', parts: [{ text: message }] },
     ];
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents,
-      config: {
-        systemInstruction: systemPrompt,
-        maxOutputTokens: 1024,
-        temperature: 0.7,
-      },
-    });
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+        }),
+      }
+    );
 
-    const reply = response.text ?? 'Sorry, I could not generate a response. Please try again.';
+    if (!geminiRes.ok) {
+      const errBody = await geminiRes.text();
+      console.error('[career-coach] Gemini API error:', geminiRes.status, errBody);
+      if (geminiRes.status === 429) return Response.json({ data: null, error: 'quota_exceeded' }, { status: 429 });
+      if (geminiRes.status === 400) return Response.json({ data: null, error: 'invalid_api_key' }, { status: 401 });
+      return Response.json({ data: null, error: 'gemini_error' }, { status: 500 });
+    }
+
+    const geminiData = await geminiRes.json() as {
+      candidates?: Array<{ content: { parts: Array<{ text: string }> } }>;
+    };
+
+    const reply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+      ?? 'Sorry, I could not generate a response. Please try again.';
+
     return Response.json({ data: { reply }, error: null });
 
   } catch (err) {
-    const raw = err instanceof Error ? err.message : String(err);
-    console.error('[career-coach]', raw);
-    const status = raw.includes('429') || raw.toLowerCase().includes('quota') ? 429
-                 : raw.includes('401') || raw.toLowerCase().includes('api key') ? 401
-                 : 500;
-    const msg = status === 429 ? 'quota_exceeded'
-              : status === 401 ? 'invalid_api_key'
-              : 'server_error';
-    return Response.json({ data: null, error: msg }, { status });
+    console.error('[career-coach]', err instanceof Error ? err.message : err);
+    return Response.json({ data: null, error: 'server_error' }, { status: 500 });
   }
 }
