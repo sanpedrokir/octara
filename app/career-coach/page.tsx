@@ -67,7 +67,7 @@ export default function CareerCoachPage() {
       } else if (res.status === 401 || error === 'invalid_api_key') {
         reply = 'The Career Coach API key is invalid. Please contact the administrator.';
       } else {
-        reply = `Error (${res.status}): ${typeof error === 'string' ? error : JSON.stringify(error)}`;
+        reply = 'Sorry, something went wrong. Please try again.';
       }
       setMessages(prev => [...prev, { role: 'model', text: reply }]);
     } catch {

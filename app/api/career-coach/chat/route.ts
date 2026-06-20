@@ -1,5 +1,6 @@
 import { requireAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import OpenAI from 'openai';
 
 const SYSTEM_PROMPT = `You are an expert Career Coach named "Cora" on the Octara platform — a career pathfinder and upskilling platform for students and working adults in Singapore.
 
@@ -36,22 +37,19 @@ USER CONTEXT (if provided):
 
 Always acknowledge the user's situation before giving advice. If no career context is known, ask what they are currently doing and what their career goal is.`;
 
-type Part = { text: string };
-type Content = { role: 'user' | 'model'; parts: Part[] };
-
 export async function POST(request: Request) {
   try {
     const session = await requireAuth();
     const { message, history } = await request.json() as {
       message: string;
-      history: Content[];
+      history: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
     };
 
     if (!message?.trim()) {
       return Response.json({ data: null, error: 'Message is required' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return Response.json({ data: null, error: 'Career Coach is not configured yet.' }, { status: 503 });
     }
@@ -87,47 +85,31 @@ export async function POST(request: Request) {
 
     const systemPrompt = SYSTEM_PROMPT.replace('{{USER_CONTEXT}}', userContext);
 
-    // Call Gemini REST API directly — no SDK dependency
-    const contents: Content[] = [
-      ...(history ?? []),
-      { role: 'user', parts: [{ text: message }] },
+    // Convert Gemini-format history to OpenAI format
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...(history ?? []).map(m => ({
+        role: m.role === 'model' ? 'assistant' as const : 'user' as const,
+        content: m.parts.map(p => p.text).join(''),
+      })),
+      { role: 'user', content: message },
     ];
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents,
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
-        }),
-      }
-    );
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      max_tokens: 1024,
+      temperature: 0.7,
+    });
 
-    if (!geminiRes.ok) {
-      const errBody = await geminiRes.text();
-      console.error('[career-coach] Gemini API error:', geminiRes.status, errBody);
-      // Return actual error so client can display it for debugging
-      return Response.json({ data: null, error: `${geminiRes.status}: ${errBody.slice(0, 400)}` }, { status: 500 });
-    }
-
-    const geminiData = await geminiRes.json() as {
-      candidates?: Array<{ content: { parts: Array<{ text: string }> } }>;
-    };
-
-    const reply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
-      ?? 'Sorry, I could not generate a response. Please try again.';
-
+    const reply = completion.choices[0]?.message?.content ?? 'Sorry, I could not generate a response. Please try again.';
     return Response.json({ data: { reply }, error: null });
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[career-coach]', msg);
-    return Response.json({ data: null, error: msg }, { status: 500 });
+    const status = msg.includes('429') ? 429 : msg.includes('401') ? 401 : 500;
+    return Response.json({ data: null, error: msg }, { status });
   }
 }
