@@ -124,7 +124,8 @@ export async function POST(request: Request) {
     return Response.json({ data: { reply }, error: null });
 
   } catch (err) {
-    console.error('[career-coach]', err instanceof Error ? err.message : err);
-    return Response.json({ data: null, error: 'server_error' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[career-coach]', msg);
+    return Response.json({ data: null, error: msg }, { status: 500 });
   }
 }
