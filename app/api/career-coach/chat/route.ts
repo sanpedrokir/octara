@@ -94,10 +94,13 @@ export async function POST(request: Request) {
     ];
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
           contents,
@@ -109,9 +112,8 @@ export async function POST(request: Request) {
     if (!geminiRes.ok) {
       const errBody = await geminiRes.text();
       console.error('[career-coach] Gemini API error:', geminiRes.status, errBody);
-      if (geminiRes.status === 429) return Response.json({ data: null, error: 'quota_exceeded' }, { status: 429 });
-      if (geminiRes.status === 400) return Response.json({ data: null, error: 'invalid_api_key' }, { status: 401 });
-      return Response.json({ data: null, error: 'gemini_error' }, { status: 500 });
+      // Return actual error so client can display it for debugging
+      return Response.json({ data: null, error: `${geminiRes.status}: ${errBody.slice(0, 400)}` }, { status: 500 });
     }
 
     const geminiData = await geminiRes.json() as {
