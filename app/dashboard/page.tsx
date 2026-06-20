@@ -5,15 +5,6 @@ import Link from 'next/link';
 import QuizLeaderboard from '@/app/ui/QuizLeaderboard';
 const SECTIONS = [
   {
-    href: '/career',
-    icon: '🎯',
-    label: 'Career Goal',
-    description: 'Set your target industry and job role.',
-    color: '#6366f1',
-    bg: '#eef2ff',
-    border: '#c7d2fe',
-  },
-  {
     href: '/career-coach',
     icon: '🎓',
     label: 'Career Coach',
@@ -21,6 +12,15 @@ const SECTIONS = [
     color: '#7c3aed',
     bg: '#f5f3ff',
     border: '#ddd6fe',
+  },
+  {
+    href: '/career',
+    icon: '🎯',
+    label: 'Career Goal',
+    description: 'Set your target industry and job role.',
+    color: '#6366f1',
+    bg: '#eef2ff',
+    border: '#c7d2fe',
   },
   {
     href: '/competency',

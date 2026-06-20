@@ -6,8 +6,8 @@ import { useState, useEffect } from 'react';
 
 const navItems = [
   { href: '/dashboard',        label: 'Overview',              icon: '📊' },
-  { href: '/career',           label: 'Career Goal',           icon: '🎯' },
   { href: '/career-coach',     label: 'Career Coach',          icon: '🎓' },
+  { href: '/career',           label: 'Career Goal',           icon: '🎯' },
   { href: '/competency',       label: 'Competency Profile',    icon: '🧩' },
   { href: '/gap-analysis',     label: 'Gap Analysis',          icon: '📊' },
   { href: '/certifications',   label: 'My Credentials',        icon: '🏆' },
