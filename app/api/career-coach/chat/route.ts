@@ -113,7 +113,13 @@ export async function POST(request: Request) {
 
     return Response.json({ data: { reply }, error: null });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed';
-    return Response.json({ data: null, error: msg }, { status: 500 });
+    const raw = err instanceof Error ? err.message : String(err);
+    const status = raw.includes('429') || raw.includes('quota') ? 429
+                 : raw.includes('401') || raw.includes('API key') ? 401
+                 : 500;
+    const msg = status === 429 ? 'quota_exceeded'
+              : status === 401 ? 'invalid_api_key'
+              : 'server_error';
+    return Response.json({ data: null, error: msg }, { status });
   }
 }

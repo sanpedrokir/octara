@@ -57,7 +57,18 @@ export default function CareerCoachPage() {
         body: JSON.stringify({ message: trimmed, history }),
       });
       const { data, error } = await res.json();
-      const reply = data?.reply ?? error ?? 'Sorry, something went wrong. Please try again.';
+      let reply: string;
+      if (data?.reply) {
+        reply = data.reply;
+      } else if (res.status === 503) {
+        reply = 'The Career Coach is not configured yet. Please contact the administrator.';
+      } else if (res.status === 429 || error === 'quota_exceeded') {
+        reply = 'I\'m currently at capacity. Please try again in a moment.';
+      } else if (res.status === 401 || error === 'invalid_api_key') {
+        reply = 'The Career Coach API key is invalid. Please contact the administrator.';
+      } else {
+        reply = 'Sorry, something went wrong. Please try again.';
+      }
       setMessages(prev => [...prev, { role: 'model', text: reply }]);
     } catch {
       setMessages(prev => [...prev, { role: 'model', text: 'Connection error. Please try again.' }]);
