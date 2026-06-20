@@ -14,6 +14,15 @@ const SECTIONS = [
     border: '#c7d2fe',
   },
   {
+    href: '/career-coach',
+    icon: '🎓',
+    label: 'Career Coach',
+    description: 'Chat with Cora, your AI career advisor, for personalised guidance.',
+    color: '#7c3aed',
+    bg: '#f5f3ff',
+    border: '#ddd6fe',
+  },
+  {
     href: '/competency',
     icon: '🧩',
     label: 'Competency Profile',
