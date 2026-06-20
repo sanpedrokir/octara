@@ -95,15 +95,27 @@ export async function POST(request: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      systemInstruction: systemPrompt,
+      model: 'gemini-pro',
       generationConfig: {
         maxOutputTokens: 1024,
         temperature: 0.7,
       },
     });
 
-    const chat = model.startChat({ history: history ?? [] });
+    // gemini-pro doesn't support systemInstruction — prime via a hidden first exchange
+    const primedHistory = [
+      {
+        role: 'user' as const,
+        parts: [{ text: `[SYSTEM INSTRUCTIONS — follow these strictly for the entire conversation]\n\n${systemPrompt}\n\nConfirm you understand.` }],
+      },
+      {
+        role: 'model' as const,
+        parts: [{ text: "Understood! I'm Cora, your AI Career Coach on Octara. I'll only answer career-related questions — career planning, job search, skill development, workplace challenges, and more. I'll politely decline anything off-topic. How can I help with your career today?" }],
+      },
+      ...(history ?? []),
+    ];
+
+    const chat = model.startChat({ history: primedHistory });
     const result = await chat.sendMessage(message);
     const reply = result.response.text();
 
