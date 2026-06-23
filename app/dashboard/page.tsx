@@ -158,6 +158,13 @@ export default async function DashboardPage() {
           WHERE user_id = ${session.userId}
             AND LOWER(TRIM(skill_title)) IN (SELECT skill FROM required)
         ),
+        matched_assessment AS (
+          SELECT DISTINCT LOWER(TRIM(skill_title)) AS skill
+          FROM competency_assessments
+          WHERE user_id = ${session.userId}
+            AND score >= 1
+            AND LOWER(TRIM(skill_title)) IN (SELECT skill FROM required)
+        ),
         matched_course AS (
           SELECT DISTINCT LOWER(TRIM(skill_name)) AS skill
           FROM tracked_courses
@@ -168,8 +175,8 @@ export default async function DashboardPage() {
         ),
         all_matched AS (
           SELECT skill FROM matched_competency
-          UNION
-          SELECT skill FROM matched_course
+          UNION SELECT skill FROM matched_assessment
+          UNION SELECT skill FROM matched_course
         )
         SELECT
           (SELECT COUNT(*) FROM required)::int    AS required_count,
