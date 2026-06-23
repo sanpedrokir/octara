@@ -120,8 +120,10 @@ export async function GET() {
       const score        = assessMap.get(key) ?? null;
       const courseEarned = completedSet.has(key);
       // Self-assessment counts as evidence of competency
-      const selfRated    = score !== null && score >= 1;
-      const matched      = !!(userSkill || courseEarned || selfRated);
+      // Score 1 = "No knowledge" — explicitly missing; score 2+ counts as evidence
+      const noKnowledge  = score === 1;
+      const selfRated    = score !== null && score >= 2;
+      const matched      = !noKnowledge && !!(userSkill || courseEarned || selfRated);
 
       let status: 'strong' | 'partial' | 'course_earned' | 'missing';
       if (!matched) {
@@ -133,7 +135,7 @@ export async function GET() {
       } else if (userSkill) {
         status = 'partial';
       } else {
-        // selfRated with score 1-2
+        // selfRated with score 2
         status = 'partial';
       }
 

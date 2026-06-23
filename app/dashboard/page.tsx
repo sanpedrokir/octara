@@ -162,7 +162,7 @@ export default async function DashboardPage() {
           SELECT DISTINCT LOWER(TRIM(skill_title)) AS skill
           FROM competency_assessments
           WHERE user_id = ${session.userId}
-            AND score >= 1
+            AND score >= 2
             AND LOWER(TRIM(skill_title)) IN (SELECT skill FROM required)
         ),
         matched_course AS (
