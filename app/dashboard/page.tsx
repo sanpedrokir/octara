@@ -92,26 +92,22 @@ export default async function DashboardPage() {
   const careerRows = await sql`
     SELECT
       i.name    AS industry_name,
-      jr.name   AS job_role_name,
-      COALESCE(i.name, jrc.sector) AS career_sector
+      COALESCE(jr.name, jrc.job_role) AS job_role_name,
+      COALESCE(i.name, jrc.sector)    AS career_sector,
+      COALESCE(jr.name, jrc.job_role) AS role_name,
+      COALESCE(i.name, jrc.sector)    AS sector_name
     FROM career_aspirations ca
-    LEFT JOIN industries      i   ON ca.industry_id        = i.id
-    LEFT JOIN job_roles       jr  ON ca.job_role_id        = jr.id
+    LEFT JOIN industries       i   ON ca.industry_id         = i.id
+    LEFT JOIN job_roles        jr  ON ca.job_role_id         = jr.id
     LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
     WHERE ca.user_id = ${session.userId}
   `;
-  const careerRaw = careerRows[0] as { industry_name: string | null; job_role_name: string | null; career_sector: string | null } | undefined;
-  const career = (careerRaw?.industry_name && careerRaw?.job_role_name) ? careerRaw as { industry_name: string; job_role_name: string; career_sector: string | null } : undefined;
+  const careerRaw = careerRows[0] as { industry_name: string | null; job_role_name: string | null; career_sector: string | null; role_name: string | null; sector_name: string | null } | undefined;
+  const career = (careerRaw?.industry_name && careerRaw?.job_role_name) ? careerRaw as { industry_name: string; job_role_name: string; career_sector: string | null; role_name: string | null; sector_name: string | null } : undefined;
   const careerSector = careerRaw?.career_sector ?? '';
+  const careerRoleName   = careerRaw?.role_name ?? '';
+  const careerSectorName = careerRaw?.sector_name ?? '';
 
-  const courseStatsRows = await sql`
-    SELECT
-      COUNT(*) as total,
-      COUNT(*) FILTER (WHERE status = 'completed') as completed,
-      COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
-    FROM tracked_courses WHERE user_id = ${session.userId}
-  `;
-  const courseStats = courseStatsRows[0] as { total: string; completed: string; in_progress: string } | undefined;
 
   const profileRows = await sql`SELECT bio, location, phone FROM profiles WHERE user_id = ${session.userId}`;
   const profileData = profileRows[0] as { bio: string | null; location: string | null; phone: string | null } | undefined;
@@ -144,23 +140,50 @@ export default async function DashboardPage() {
   const competencyCount = (competencyRows[0] as { total: number } | undefined)?.total ?? 0;
   const hasCompetencyProfile = competencyCount > 0;
 
-  const totalTracked = Number(courseStats?.total ?? 0);
-  const totalCompleted = Number(courseStats?.completed ?? 0);
+  // Gap analysis matched/required counts for progress %
+  let gapRequired = 0;
+  let gapMatched = 0;
+  if (careerRoleName && careerSectorName && hasCompetencyProfile) {
+    try {
+      const gapRows = await sql`
+        WITH required AS (
+          SELECT DISTINCT LOWER(TRIM(skill_title)) AS skill
+          FROM job_role_tsc_ccs
+          WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${careerRoleName}))
+            AND (sector = ${careerSectorName} OR sector = 'Unknown' OR sector IS NULL)
+        ),
+        matched AS (
+          SELECT DISTINCT LOWER(TRIM(skill_title)) AS skill
+          FROM user_competencies
+          WHERE user_id = ${session.userId}
+            AND LOWER(TRIM(skill_title)) IN (SELECT skill FROM required)
+        )
+        SELECT
+          (SELECT COUNT(*) FROM required)::int AS required_count,
+          (SELECT COUNT(*) FROM matched)::int  AS matched_count
+      `;
+      const gapRow = gapRows[0] as { required_count: number; matched_count: number } | undefined;
+      gapRequired = gapRow?.required_count ?? 0;
+      gapMatched  = gapRow?.matched_count  ?? 0;
+    } catch { /* table may not exist */ }
+  }
 
-  // Progress score based on meaningful milestones
+  // Progress score: matched skills / required skills (from gap analysis)
   let progressScore = 0;
-  if (career) progressScore += 20;
-  if (hasCompetencyProfile) progressScore += 20;
-  if (totalCompleted > 0) progressScore += Math.min(40, Math.round((totalCompleted / Math.max(totalTracked, 1)) * 40));
-  if (certCount + trainingCount > 0) progressScore += 20;
+  if (gapRequired > 0) {
+    progressScore = Math.round((gapMatched / gapRequired) * 100);
+  } else if (hasCompetencyProfile) {
+    progressScore = 10; // has profile but no gap data yet
+  }
   progressScore = Math.min(100, progressScore);
 
   const progressLabel =
-    progressScore === 0 ? 'Not started'
-    : progressScore < 25 ? 'Just getting started'
-    : progressScore < 50 ? 'Building momentum'
-    : progressScore < 75 ? 'Making great progress'
-    : progressScore < 100 ? 'Almost there!'
+    progressScore === 0  ? 'Not started'
+    : progressScore < 20 ? 'Just getting started'
+    : progressScore < 40 ? 'Building momentum'
+    : progressScore < 60 ? 'Making great progress'
+    : progressScore < 80 ? 'Almost there!'
+    : progressScore < 100 ? 'Strong performance!'
     : 'Goal achieved!';
 
   const progressColor =
@@ -321,17 +344,21 @@ export default async function DashboardPage() {
             )}
           </div>
           <div className="rounded-xl p-3" style={{ background: 'var(--muted-bg)' }}>
-            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Courses Completed</p>
-            {totalTracked > 0 ? (
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Skills Matched</p>
+            {gapRequired > 0 ? (
               <>
                 <p className="text-lg font-bold" style={{ color: 'var(--teal)' }}>
-                  {totalCompleted}
-                  <span className="text-xs font-normal ml-1" style={{ color: 'var(--muted)' }}>/ {totalTracked}</span>
+                  {gapMatched}
+                  <span className="text-xs font-normal ml-1" style={{ color: 'var(--muted)' }}>/ {gapRequired} required</span>
                 </p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{totalTracked - totalCompleted} still in progress</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{gapRequired - gapMatched} still to close</p>
               </>
             ) : (
-              <p className="text-xs" style={{ color: 'var(--muted)' }}>No courses tracked yet</p>
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                {hasCompetencyProfile
+                  ? <Link href="/gap-analysis" className="no-underline" style={{ color: 'var(--primary)' }}>View gap analysis</Link>
+                  : 'Upload resume to see gaps'}
+              </p>
             )}
           </div>
         </div>

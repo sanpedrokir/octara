@@ -413,6 +413,26 @@ export default function GapAnalysisPage() {
         ))}
       </div>
 
+      {/* ── Skills match progress bar ────────────────────────────────────── */}
+      {summary.total > 0 && (() => {
+        const pct = Math.round((summary.matched / summary.total) * 100);
+        const barColor = pct < 30 ? '#ef4444' : pct < 60 ? '#f97316' : pct < 80 ? '#eab308' : '#22c55e';
+        return (
+          <div className="card p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>Skills Match Progress</span>
+              <span className="text-sm font-bold" style={{ color: barColor }}>{pct}% ({summary.matched}/{summary.total})</span>
+            </div>
+            <div className="w-full rounded-full h-3" style={{ background: 'var(--muted-bg)' }}>
+              <div className="h-3 rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
+            </div>
+            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+              {summary.missing} skill{summary.missing !== 1 ? 's' : ''} to close · complete courses below to improve your match
+            </p>
+          </div>
+        );
+      })()}
+
       {/* ── No SSG data ─────────────────────────────────────────────────── */}
       {gapData.required.length === 0 && (
         <div className="card p-8 text-center space-y-3">
