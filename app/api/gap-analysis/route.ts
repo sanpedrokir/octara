@@ -88,6 +88,10 @@ export async function GET() {
       FROM user_competencies WHERE user_id = ${session.userId}
     ` as Array<{ skill_title: string; proficiency_level: string; ssg_matched: boolean; source: string }>;
 
+    if (userSkills.length === 0) {
+      return Response.json({ data: null, error: 'NO_COMPETENCY_PROFILE' }, { status: 404 });
+    }
+
     // Self-assessments
     const assessments = await sql`
       SELECT skill_title, score FROM competency_assessments WHERE user_id = ${session.userId}

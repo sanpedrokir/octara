@@ -155,6 +155,7 @@ export default function GapAnalysisPage() {
     const { data, error: e } = await res.json();
     if (e === 'NO_CAREER_GOAL') setError('NO_CAREER_GOAL');
     else if (e === 'NO_SECTOR') setError('NO_SECTOR');
+    else if (e === 'NO_COMPETENCY_PROFILE') setError('NO_COMPETENCY_PROFILE');
     else if (e) setError(e);
     else setGapData(data);
     setLoading(false);
@@ -356,6 +357,19 @@ export default function GapAnalysisPage() {
           Gap analysis requires a career aspiration to compare against the SSG Skills Framework.
         </p>
         <Link href="/career" className="btn-primary inline-block">Go to Career Goal →</Link>
+      </div>
+    );
+  }
+
+  if (error === 'NO_COMPETENCY_PROFILE') {
+    return (
+      <div className="max-w-lg mx-auto mt-16 text-center space-y-4">
+        <p className="text-4xl">📄</p>
+        <h2 className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>Upload your resume first</h2>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          You haven&apos;t uploaded your resume yet. Upload it in Competency Profile first so we can analyse your skill gaps.
+        </p>
+        <Link href="/competency" className="btn-primary inline-block">Go to Competency Profile →</Link>
       </div>
     );
   }
