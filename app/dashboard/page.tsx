@@ -103,7 +103,7 @@ export default async function DashboardPage() {
     WHERE ca.user_id = ${session.userId}
   `;
   const careerRaw = careerRows[0] as { industry_name: string | null; job_role_name: string | null; career_sector: string | null; role_name: string | null; sector_name: string | null } | undefined;
-  const career = (careerRaw?.industry_name && careerRaw?.job_role_name) ? careerRaw as { industry_name: string; job_role_name: string; career_sector: string | null; role_name: string | null; sector_name: string | null } : undefined;
+  const career = (careerRaw?.career_sector && careerRaw?.job_role_name) ? careerRaw as { industry_name: string | null; job_role_name: string; career_sector: string; role_name: string | null; sector_name: string | null } : undefined;
   const careerSector = careerRaw?.career_sector ?? '';
   const careerRoleName   = careerRaw?.role_name ?? '';
   const careerSectorName = careerRaw?.sector_name ?? '';
@@ -152,15 +152,28 @@ export default async function DashboardPage() {
           WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${careerRoleName}))
             AND (sector = ${careerSectorName} OR sector = 'Unknown' OR sector IS NULL)
         ),
-        matched AS (
+        matched_competency AS (
           SELECT DISTINCT LOWER(TRIM(skill_title)) AS skill
           FROM user_competencies
           WHERE user_id = ${session.userId}
             AND LOWER(TRIM(skill_title)) IN (SELECT skill FROM required)
+        ),
+        matched_course AS (
+          SELECT DISTINCT LOWER(TRIM(skill_name)) AS skill
+          FROM tracked_courses
+          WHERE user_id = ${session.userId}
+            AND status = 'completed'
+            AND skill_name IS NOT NULL
+            AND LOWER(TRIM(skill_name)) IN (SELECT skill FROM required)
+        ),
+        all_matched AS (
+          SELECT skill FROM matched_competency
+          UNION
+          SELECT skill FROM matched_course
         )
         SELECT
-          (SELECT COUNT(*) FROM required)::int AS required_count,
-          (SELECT COUNT(*) FROM matched)::int  AS matched_count
+          (SELECT COUNT(*) FROM required)::int    AS required_count,
+          (SELECT COUNT(*) FROM all_matched)::int AS matched_count
       `;
       const gapRow = gapRows[0] as { required_count: number; matched_count: number } | undefined;
       gapRequired = gapRow?.required_count ?? 0;
@@ -305,7 +318,7 @@ export default async function DashboardPage() {
           <div>
             <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>📈 Career Readiness Progress</h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-              {career ? `Towards ${career.job_role_name} · ${career.industry_name}` : 'Set a career goal to track your progress'}
+              {career ? `Towards ${career.job_role_name} · ${career.career_sector}` : 'Set a career goal to track your progress'}
             </p>
           </div>
           <div className="text-right shrink-0">
