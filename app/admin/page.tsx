@@ -608,6 +608,10 @@ export default function AdminPage() {
           {/* ── Section: Non-SSG Data ───────────────────────────────────── */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Non-SSG Data (Custom)</p>
+            <div className="card p-4 mb-4 text-sm space-y-1" style={{ background: 'var(--muted-bg)', color: 'var(--muted)' }}>
+              <p><strong style={{ color: 'var(--foreground)' }}>Non-SSG Data</strong> = custom sectors and job roles you add manually, for anything <em>not</em> in the Singapore government&apos;s database. For example, if you wanted to add a niche industry or a job role that SSG doesn&apos;t cover, you&apos;d add it here manually instead of syncing it.</p>
+              <p>In practice, if you&apos;re fully relying on SSG sync + the Job Role Catalog upload, you probably never need this section at all. It&apos;s a fallback for manual custom data.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="card p-5 space-y-3">
                 <div className="flex items-center gap-3">
