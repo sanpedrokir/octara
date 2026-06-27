@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Industry, JobRole } from '@/lib/types';
 
-type Tab = 'overview' | 'industries' | 'job-roles' | 'catalog' | 'skills-mapping' | 'tsc-ccs';
+type Tab = 'overview' | 'industries' | 'job-roles' | 'catalog' | 'skills-mapping' | 'tsc-ccs' | 'esco';
 
 type CatalogRow = {
   id: number;
@@ -84,6 +84,24 @@ export default function AdminPage() {
   const [mappingSearch, setMappingSearch] = useState('');
   const [mappingPage, setMappingPage] = useState(0);
   const MAPPING_PAGE_SIZE = 50;
+
+  // ESCO tab state
+  type EscoOccRow   = { id: number; isco_group: string; sub_group: string | null; occupation_title: string; occupation_description: string | null; esco_uri: string | null };
+  type EscoSkillRow = { id: number; isco_group: string; occupation_title: string; skill_title: string; skill_type: string | null; esco_skill_uri: string | null };
+  type EscoUpload   = { filename: string | null; occ_count: number; skill_count: number; skipped_count: number; created_at: string };
+  const [escoFile, setEscoFile]             = useState<File | null>(null);
+  const [escoUploading, setEscoUploading]   = useState(false);
+  const [escoView, setEscoView]             = useState<'occupations' | 'skills'>('occupations');
+  const [escoOccRows, setEscoOccRows]       = useState<EscoOccRow[]>([]);
+  const [escoSkillRows, setEscoSkillRows]   = useState<EscoSkillRow[]>([]);
+  const [escoTotal, setEscoTotal]           = useState(0);
+  const [escoGroups, setEscoGroups]         = useState<string[]>([]);
+  const [escoLastUpload, setEscoLastUpload] = useState<EscoUpload | null>(null);
+  const [escoStats, setEscoStats]           = useState<{ occupations: number; skills: number } | null>(null);
+  const [escoGroupFilter, setEscoGroupFilter] = useState('');
+  const [escoSearch, setEscoSearch]         = useState('');
+  const [escoPage, setEscoPage]             = useState(0);
+  const ESCO_PAGE_SIZE = 50;
 
   // TSC/CCS tab state
   type TscCcsRow = { id: number; sector: string; track: string | null; job_role: string; skill_title: string; skill_type: string | null; proficiency_level: string | null; skill_code: string | null };
@@ -324,6 +342,56 @@ export default function AdminPage() {
     }
   }
 
+  const loadEsco = useCallback(async () => {
+    const params = new URLSearchParams({ limit: String(ESCO_PAGE_SIZE), offset: String(escoPage * ESCO_PAGE_SIZE), view: escoView });
+    if (escoGroupFilter) params.set('group', escoGroupFilter);
+    if (escoSearch) params.set('q', escoSearch);
+    const res = await fetch(`/api/admin/esco?${params}`);
+    const { data } = await res.json();
+    if (data) {
+      setEscoOccRows(escoView === 'occupations' ? data.rows : []);
+      setEscoSkillRows(escoView === 'skills' ? data.rows : []);
+      setEscoTotal(data.total);
+      setEscoGroups(data.groups);
+      setEscoLastUpload(data.lastUpload);
+      setEscoStats(data.stats);
+    }
+  }, [escoPage, escoView, escoGroupFilter, escoSearch]);
+
+  useEffect(() => { if (tab === 'esco') loadEsco(); }, [tab, loadEsco]);
+
+  async function uploadEsco(e: React.FormEvent) {
+    e.preventDefault();
+    if (!escoFile) return;
+    if (!confirm('This will REPLACE all existing ESCO data with the contents of this file. Continue?')) return;
+    setEscoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', escoFile);
+      const res = await fetch('/api/admin/esco/upload', { method: 'POST', body: formData });
+      const { data, error } = await res.json();
+      if (error) showMsg(error, 'error');
+      else {
+        showMsg(data.message, 'success');
+        setEscoFile(null);
+        setEscoPage(0);
+        loadEsco();
+      }
+    } catch (err) {
+      showMsg('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
+    } finally {
+      setEscoUploading(false);
+    }
+  }
+
+  async function clearEsco() {
+    if (!confirm('Delete ALL ESCO data? This cannot be undone.')) return;
+    const res = await fetch('/api/admin/esco/clear', { method: 'DELETE' });
+    const { data, error } = await res.json();
+    showMsg(error || data?.message || 'Cleared', error ? 'error' : 'success');
+    if (!error) loadEsco();
+  }
+
   const [syncSuccess, setSyncSuccess] = useState(false);
   type SkillEntry = { status: number; ok: boolean; snippet: string; error?: string };
   const [ssgDiag, setSsgDiag] = useState<{ hasCredentials: boolean; hasToken: boolean; tokenStatus: number; tokenError?: string; skillResults: Record<string, SkillEntry> } | null>(null);
@@ -365,12 +433,13 @@ export default function AdminPage() {
   }
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'overview', label: 'Overview', icon: '⚙️' },
-    { id: 'catalog', label: 'Job Role Catalog (SSG XLS Upload)', icon: '📁' },
-    { id: 'tsc-ccs', label: 'TSC/CCS Job Role Mapping', icon: '🏷️' },
-    { id: 'skills-mapping', label: 'Jobs & Skills Mapping (SSG XLS Upload)', icon: '🧩' },
-    { id: 'industries', label: 'Sectors (Non SSG)', icon: '🏭' },
-    { id: 'job-roles', label: 'Job Roles (Non SSG)', icon: '👔' },
+    { id: 'overview',       label: 'Overview',                        icon: '⚙️' },
+    { id: 'catalog',        label: 'Job Role Catalog (SSG)',          icon: '📁' },
+    { id: 'tsc-ccs',        label: 'TSC/CCS Job Role Mapping',        icon: '🏷️' },
+    { id: 'skills-mapping', label: 'Jobs & Skills Mapping (SSG)',     icon: '🧩' },
+    { id: 'esco',           label: 'ESCO (EU) Job Data',              icon: '🇪🇺' },
+    { id: 'industries',     label: 'Sectors (Non SSG)',               icon: '🏭' },
+    { id: 'job-roles',      label: 'Job Roles (Non SSG)',             icon: '👔' },
   ];
 
   return (
@@ -920,6 +989,178 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── ESCO TAB ──────────────────────────────────────────────────────── */}
+      {tab === 'esco' && (
+        <div className="space-y-6">
+
+          {/* Info banner */}
+          <div className="card p-5 space-y-2" style={{ border: '2px solid #003399', background: '#E8F0FE' }}>
+            <h3 className="font-semibold" style={{ color: '#003399' }}>🇪🇺 ESCO (EU) Job Framework</h3>
+            <p className="text-sm" style={{ color: '#1e3a8a' }}>
+              ESCO is the European multilingual classification of Skills, Competences and Occupations — the EU equivalent of SSG.
+              Download free ESCO data as CSV from <strong>esco.ec.europa.eu/en/use-esco/download</strong>, then fill in the template and upload below.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {['ISCO Groups → Sectors', 'Sub-Groups → Tracks', 'Occupations → Job Roles', 'Skills / Knowledge / Competences'].map(tag => (
+                <span key={tag} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#c7d2fe', color: '#1e40af' }}>{tag}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats row */}
+          {escoStats && (escoStats.occupations > 0 || escoStats.skills > 0) && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Occupations', value: escoStats.occupations, color: '#1d4ed8' },
+                { label: 'Skills / Competences', value: escoStats.skills, color: '#15803d' },
+                { label: 'ISCO Groups', value: escoGroups.length, color: '#7c3aed' },
+              ].map(s => (
+                <div key={s.label} className="card p-4 text-center">
+                  <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload card */}
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>Upload ESCO Data</h3>
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>XLSX with two sheets (Occupations + Skills) or single-sheet CSV. Replaces all existing ESCO data.</p>
+              </div>
+              <a
+                href="/api/admin/esco/template"
+                download
+                className="btn-secondary text-sm flex items-center gap-1.5"
+              >
+                ⬇ Download Template
+              </a>
+            </div>
+
+            <form onSubmit={uploadEsco} className="flex flex-wrap gap-3 items-end">
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                onChange={e => setEscoFile(e.target.files?.[0] ?? null)}
+                className="input text-sm flex-1"
+              />
+              <button
+                type="submit"
+                disabled={!escoFile || escoUploading}
+                className="btn-primary text-sm"
+                style={{ opacity: (!escoFile || escoUploading) ? 0.6 : 1 }}
+              >
+                {escoUploading ? 'Uploading…' : '⬆ Upload'}
+              </button>
+            </form>
+
+            {escoLastUpload && (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                Last upload: <strong>{escoLastUpload.filename || 'file'}</strong> — {escoLastUpload.occ_count} occupations, {escoLastUpload.skill_count} skills
+                {escoLastUpload.skipped_count > 0 && `, ${escoLastUpload.skipped_count} skipped`} — {timeAgo(escoLastUpload.created_at)}
+              </p>
+            )}
+
+            {(escoStats?.occupations ?? 0) > 0 && (
+              <div className="pt-2 border-t" style={{ borderColor: 'var(--card-border)' }}>
+                <button onClick={clearEsco} className="text-xs font-medium" style={{ color: 'var(--danger)' }}>
+                  🗑 Clear all ESCO data
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Browse */}
+          {(escoStats?.occupations ?? 0) > 0 && (
+            <div className="card p-5 space-y-4">
+              <div className="flex flex-wrap gap-3 items-center justify-between">
+                <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--muted-bg)' }}>
+                  {(['occupations', 'skills'] as const).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => { setEscoView(v); setEscoPage(0); }}
+                      className="px-3 py-1.5 rounded-md text-sm font-medium transition-all capitalize"
+                      style={{
+                        background: escoView === v ? 'var(--card)' : 'transparent',
+                        color: escoView === v ? 'var(--primary)' : 'var(--muted)',
+                      }}
+                    >
+                      {v} {escoView === v && `(${escoTotal})`}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    className="input text-sm"
+                    value={escoGroupFilter}
+                    onChange={e => { setEscoGroupFilter(e.target.value); setEscoPage(0); }}
+                  >
+                    <option value="">— All ISCO groups —</option>
+                    {escoGroups.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  <input
+                    className="input text-sm"
+                    placeholder={escoView === 'occupations' ? 'Search occupation…' : 'Search skill or occupation…'}
+                    value={escoSearch}
+                    onChange={e => { setEscoSearch(e.target.value); setEscoPage(0); }}
+                  />
+                </div>
+              </div>
+
+              {/* Occupation rows */}
+              {escoView === 'occupations' && (
+                <div className="space-y-2">
+                  {escoOccRows.map(row => (
+                    <div key={row.id} className="card p-4">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="badge badge-blue">{row.isco_group}</span>
+                        {row.sub_group && <span className="badge" style={{ background: 'var(--muted-bg)', color: 'var(--muted)' }}>{row.sub_group}</span>}
+                      </div>
+                      <p className="font-medium" style={{ color: 'var(--foreground)' }}>{row.occupation_title}</p>
+                      {row.occupation_description && <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{row.occupation_description.slice(0, 200)}{row.occupation_description.length > 200 ? '…' : ''}</p>}
+                      {row.esco_uri && <p className="text-xs mt-1" style={{ color: '#6366f1' }}>{row.esco_uri}</p>}
+                    </div>
+                  ))}
+                  {escoOccRows.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--muted)' }}>No occupations match.</p>}
+                </div>
+              )}
+
+              {/* Skill rows */}
+              {escoView === 'skills' && (
+                <div className="space-y-2">
+                  {escoSkillRows.map(row => (
+                    <div key={row.id} className="card p-4">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="badge badge-blue">{row.isco_group}</span>
+                        <span className="badge" style={{ background: 'var(--muted-bg)', color: 'var(--muted)' }}>{row.occupation_title}</span>
+                        {row.skill_type && (
+                          <span className="badge" style={{ background: row.skill_type === 'knowledge' ? '#fef3c7' : row.skill_type === 'skill' ? '#dcfce7' : '#f5f3ff', color: row.skill_type === 'knowledge' ? '#92400e' : row.skill_type === 'skill' ? '#15803d' : '#6d28d9' }}>
+                            {row.skill_type}
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-medium" style={{ color: 'var(--foreground)' }}>{row.skill_title}</p>
+                      {row.esco_skill_uri && <p className="text-xs mt-1" style={{ color: '#6366f1' }}>{row.esco_skill_uri}</p>}
+                    </div>
+                  ))}
+                  {escoSkillRows.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--muted)' }}>No skills match.</p>}
+                </div>
+              )}
+
+              {escoTotal > ESCO_PAGE_SIZE && (
+                <div className="flex items-center justify-between text-sm">
+                  <button onClick={() => setEscoPage(p => Math.max(0, p - 1))} disabled={escoPage === 0} className="btn-secondary text-sm" style={{ opacity: escoPage === 0 ? 0.5 : 1 }}>← Previous</button>
+                  <span style={{ color: 'var(--muted)' }}>Page {escoPage + 1} of {Math.ceil(escoTotal / ESCO_PAGE_SIZE)}</span>
+                  <button onClick={() => setEscoPage(p => p + 1)} disabled={(escoPage + 1) * ESCO_PAGE_SIZE >= escoTotal} className="btn-secondary text-sm" style={{ opacity: (escoPage + 1) * ESCO_PAGE_SIZE >= escoTotal ? 0.5 : 1 }}>Next →</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
