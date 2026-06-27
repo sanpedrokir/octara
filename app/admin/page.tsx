@@ -91,6 +91,7 @@ export default function AdminPage() {
   type EscoUpload   = { filename: string | null; occ_count: number; skill_count: number; skipped_count: number; created_at: string };
   const [escoFile, setEscoFile]             = useState<File | null>(null);
   const [escoUploading, setEscoUploading]   = useState(false);
+  const [escoFetching, setEscoFetching]     = useState<'occupations' | 'skills' | 'all' | null>(null);
   const [escoView, setEscoView]             = useState<'occupations' | 'skills'>('occupations');
   const [escoOccRows, setEscoOccRows]       = useState<EscoOccRow[]>([]);
   const [escoSkillRows, setEscoSkillRows]   = useState<EscoSkillRow[]>([]);
@@ -392,6 +393,27 @@ export default function AdminPage() {
     if (!error) loadEsco();
   }
 
+  async function fetchEsco(mode: 'occupations' | 'skills' | 'all') {
+    const labels: Record<string, string> = { occupations: 'occupations', skills: 'skills & competences', all: 'occupations + skills' };
+    if (!confirm(`This will fetch all ESCO ${labels[mode]} from the EU API and replace existing data. This may take up to 60 seconds. Continue?`)) return;
+    setEscoFetching(mode);
+    showMsg(`Fetching ESCO ${labels[mode]} from esco.ec.europa.eu… please wait.`, 'success');
+    try {
+      const res = await fetch('/api/admin/esco/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      const { data, error } = await res.json();
+      if (error) showMsg(error, 'error');
+      else { showMsg(data.message, 'success'); loadEsco(); }
+    } catch (err) {
+      showMsg('Fetch failed: ' + (err instanceof Error ? err.message : 'Network error'), 'error');
+    } finally {
+      setEscoFetching(null);
+    }
+  }
+
   const [syncSuccess, setSyncSuccess] = useState(false);
   type SkillEntry = { status: number; ok: boolean; snippet: string; error?: string };
   const [ssgDiag, setSsgDiag] = useState<{ hasCredentials: boolean; hasToken: boolean; tokenStatus: number; tokenError?: string; skillResults: Record<string, SkillEntry> } | null>(null);
@@ -574,10 +596,10 @@ export default function AdminPage() {
                 )}
 
                 <div className="flex flex-wrap gap-2">
-                  <a href="/api/admin/esco/template" download className="btn-secondary text-sm">⬇ Download Template</a>
-                  <button onClick={() => setTab('esco')} className="btn-primary text-sm" style={{ background: '#003399', borderColor: '#003399' }}>
-                    Manage ESCO Data →
+                  <button onClick={() => fetchEsco('occupations')} disabled={!!escoFetching} className="btn-primary text-sm" style={{ background: '#003399', borderColor: '#003399', opacity: escoFetching ? 0.6 : 1 }}>
+                    {escoFetching ? '⏳ Fetching…' : '🌐 Auto-Import from ESCO'}
                   </button>
+                  <button onClick={() => setTab('esco')} className="btn-secondary text-sm">Manage →</button>
                 </div>
 
                 <p className="text-xs" style={{ color: 'var(--muted)' }}>
@@ -1072,20 +1094,43 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Upload card */}
+          {/* Auto-Import card */}
+          <div className="card p-5 space-y-4" style={{ border: '2px solid #003399', background: '#f0f4ff' }}>
+            <div>
+              <h3 className="font-semibold" style={{ color: '#003399' }}>🌐 Auto-Import from ESCO API</h3>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                Fetches directly from <strong>esco.ec.europa.eu</strong> — no file download needed. Takes up to 60 seconds. Data is public and free.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {([
+                { mode: 'occupations' as const, label: '👔 Import Occupations', desc: '~3,000 job roles grouped by ISCO category' },
+                { mode: 'skills' as const,      label: '🧩 Import Skills',      desc: '~14,000 skills & competences' },
+                { mode: 'all' as const,         label: '⬇ Import All',          desc: 'Occupations + Skills in one go (~60s)' },
+              ]).map(({ mode, label, desc }) => (
+                <div key={mode} className="rounded-xl p-4 space-y-2" style={{ background: 'white', border: '1px solid #c7d2fe' }}>
+                  <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>{desc}</p>
+                  <button
+                    onClick={() => fetchEsco(mode)}
+                    disabled={!!escoFetching}
+                    className="btn-primary text-sm w-full"
+                    style={{ background: '#003399', borderColor: '#003399', opacity: escoFetching ? 0.6 : 1 }}
+                  >
+                    {escoFetching === mode ? '⏳ Fetching…' : label}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Manual Upload card */}
           <div className="card p-5 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>Upload ESCO Data</h3>
-                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>XLSX with two sheets (Occupations + Skills) or single-sheet CSV. Replaces all existing ESCO data.</p>
+                <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>📁 Manual Upload (Excel / CSV)</h3>
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Alternative: fill the template with your own ESCO data and upload. XLSX (2 sheets) or single-sheet CSV.</p>
               </div>
-              <a
-                href="/api/admin/esco/template"
-                download
-                className="btn-secondary text-sm flex items-center gap-1.5"
-              >
-                ⬇ Download Template
-              </a>
+              <a href="/api/admin/esco/template" download className="btn-secondary text-sm">⬇ Download Template</a>
             </div>
 
             <form onSubmit={uploadEsco} className="flex flex-wrap gap-3 items-end">
@@ -1107,7 +1152,7 @@ export default function AdminPage() {
 
             {escoLastUpload && (
               <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                Last upload: <strong>{escoLastUpload.filename || 'file'}</strong> — {escoLastUpload.occ_count} occupations, {escoLastUpload.skill_count} skills
+                Last import: <strong>{escoLastUpload.filename || 'ESCO API'}</strong> — {escoLastUpload.occ_count} occupations, {escoLastUpload.skill_count} skills
                 {escoLastUpload.skipped_count > 0 && `, ${escoLastUpload.skipped_count} skipped`} — {timeAgo(escoLastUpload.created_at)}
               </p>
             )}
