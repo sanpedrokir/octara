@@ -397,7 +397,9 @@ export default function AdminPage() {
     const labels: Record<string, string> = { occupations: 'occupations', skills: 'skills & competences', all: 'occupations + skills' };
     if (!confirm(`This will fetch all ESCO ${labels[mode]} from the EU API and replace existing data. This may take up to 60 seconds. Continue?`)) return;
     setEscoFetching(mode);
-    showMsg(`Fetching ESCO ${labels[mode]} from esco.ec.europa.eu… please wait.`, 'success');
+    // Keep message persistent (no auto-dismiss) while fetch is in progress
+    setMessage(`⏳ Fetching ESCO ${labels[mode]} from esco.ec.europa.eu… this may take up to 60 seconds, please wait.`);
+    setMsgType('success');
     try {
       const res = await fetch('/api/admin/esco/fetch', {
         method: 'POST',
@@ -406,7 +408,7 @@ export default function AdminPage() {
       });
       const { data, error } = await res.json();
       if (error) showMsg(error, 'error');
-      else { showMsg(data.message, 'success'); loadEsco(); }
+      else { showMsg(`✅ ${data.message}`, 'success'); loadEsco(); }
     } catch (err) {
       showMsg('Fetch failed: ' + (err instanceof Error ? err.message : 'Network error'), 'error');
     } finally {
@@ -454,16 +456,6 @@ export default function AdminPage() {
     }
   }
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'overview',       label: 'Overview',                        icon: '⚙️' },
-    { id: 'catalog',        label: 'Job Role Catalog (SSG)',          icon: '📁' },
-    { id: 'tsc-ccs',        label: 'TSC/CCS Job Role Mapping',        icon: '🏷️' },
-    { id: 'skills-mapping', label: 'Jobs & Skills Mapping (SSG)',     icon: '🧩' },
-    { id: 'esco',           label: 'ESCO (EU) Job Data',              icon: '🇪🇺' },
-    { id: 'industries',     label: 'Sectors (Non SSG)',               icon: '🏭' },
-    { id: 'job-roles',      label: 'Job Roles (Non SSG)',             icon: '👔' },
-  ];
-
   return (
     <div>
       <div className="mb-6">
@@ -477,23 +469,16 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: 'var(--muted-bg)' }}>
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className="flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-medium transition-all"
-            style={{
-              background: tab === t.id ? 'var(--card)' : 'transparent',
-              color: tab === t.id ? 'var(--primary)' : 'var(--muted)',
-              boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}
-          >
-            <span>{t.icon}</span> {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Back to Overview — shown on all non-overview tabs */}
+      {tab !== 'overview' && (
+        <button
+          onClick={() => setTab('overview')}
+          className="flex items-center gap-1.5 mb-6 text-sm font-medium"
+          style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          ← Admin Panel
+        </button>
+      )}
 
       {/* Overview Tab */}
       {tab === 'overview' && (
@@ -616,6 +601,33 @@ export default function AdminPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Section: Non-SSG Data ───────────────────────────────────── */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Non-SSG Data (Custom)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="card p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🏭</span>
+                  <div>
+                    <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>Sectors</h4>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>Add or remove custom industry sectors not from SSG.</p>
+                  </div>
+                </div>
+                <button onClick={() => setTab('industries')} className="btn-secondary text-sm w-full">Manage Sectors →</button>
+              </div>
+              <div className="card p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">👔</span>
+                  <div>
+                    <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>Job Roles</h4>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>Add or remove custom job roles linked to your sectors.</p>
+                  </div>
+                </div>
+                <button onClick={() => setTab('job-roles')} className="btn-secondary text-sm w-full">Manage Job Roles →</button>
               </div>
             </div>
           </div>
