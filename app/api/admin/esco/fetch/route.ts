@@ -4,7 +4,7 @@ import { getPool } from '@/lib/db';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const ESCO_API = 'https://esco.ec.europa.eu/api';
+const ESCO_API = 'https://ec.europa.eu/esco/api';
 const PAGE_SIZE = 100;
 
 // ISCO-08 major group labels (first digit of ISCO code)

@@ -653,18 +653,6 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Seed */}
-              <div className="card p-5 space-y-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: '#f0fdf4' }}>🌱</div>
-                <div>
-                  <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>Seed Data</h4>
-                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Populate sectors and job roles from local seed data — use only if not syncing from SSG.</p>
-                </div>
-                <button onClick={seedData} disabled={loading} className="btn-secondary text-sm w-full">
-                  {loading ? 'Seeding…' : '🌱 Seed Sectors & Roles'}
-                </button>
-              </div>
-
               {/* Quiz Questions */}
               <div className="card p-5 space-y-3" style={{ border: '1.5px solid #ddd6fe' }}>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: '#f5f3ff' }}>🧠</div>
