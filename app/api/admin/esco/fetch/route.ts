@@ -28,13 +28,15 @@ type EscoResult = {
   iscoGroup?: { code?: string; preferredLabel?: string };
 };
 
+const ESCO_HEADERS = {
+  Accept: 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'User-Agent': 'Mozilla/5.0 (compatible; EduSoraX/1.0; +https://edusorax.com)',
+};
+
 async function fetchPage(offset: number): Promise<{ results: EscoResult[]; total: number }> {
   const url = `${ESCO_API}/search?type=occupation&language=en&limit=${PAGE_SIZE}&offset=${offset}`;
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    next: { revalidate: 0 } as any,
-  });
+  const res = await fetch(url, { headers: ESCO_HEADERS, cache: 'no-store' });
   if (!res.ok) throw new Error(`ESCO API returned ${res.status} — ${await res.text().then(t => t.slice(0, 200))}`);
   const json = await res.json();
   return {
@@ -45,7 +47,7 @@ async function fetchPage(offset: number): Promise<{ results: EscoResult[]; total
 
 async function fetchSkillPage(offset: number): Promise<{ results: EscoResult[]; total: number }> {
   const url = `${ESCO_API}/search?type=skill&language=en&limit=${PAGE_SIZE}&offset=${offset}&skillType=skill%2Fcompetence`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  const res = await fetch(url, { headers: ESCO_HEADERS, cache: 'no-store' });
   if (!res.ok) throw new Error(`ESCO skills API returned ${res.status}`);
   const json = await res.json();
   return {
@@ -56,7 +58,7 @@ async function fetchSkillPage(offset: number): Promise<{ results: EscoResult[]; 
 
 async function fetchKnowledgePage(offset: number): Promise<{ results: EscoResult[]; total: number }> {
   const url = `${ESCO_API}/search?type=skill&language=en&limit=${PAGE_SIZE}&offset=${offset}&skillType=knowledge`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  const res = await fetch(url, { headers: ESCO_HEADERS, cache: 'no-store' });
   if (!res.ok) throw new Error(`ESCO knowledge API returned ${res.status}`);
   const json = await res.json();
   return {
@@ -244,7 +246,8 @@ export async function POST(request: Request) {
       client.release();
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Fetch failed';
-    return Response.json({ data: null, error: msg }, { status: 500 });
+    const e = err as Error & { code?: string; cause?: { message?: string; code?: string } };
+    const detail = [e.message, e.code, e.cause?.message, e.cause?.code].filter(Boolean).join(' | ');
+    return Response.json({ data: null, error: detail || 'Fetch failed' }, { status: 500 });
   }
 }
