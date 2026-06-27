@@ -475,127 +475,173 @@ export default function AdminPage() {
 
       {/* Overview Tab */}
       {tab === 'overview' && (
-        <div className="space-y-6">
-          <div className="card p-5 space-y-4" style={{ border: '2px solid var(--primary)', background: 'var(--primary-light)' }}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="font-semibold" style={{ color: 'var(--primary)' }}>🔄 Sync from SSG Skills Framework API</h3>
-                <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-                  Replace seeded sectors and job roles with live data directly from the SkillsFuture Skills Framework API.
-                  Existing entries are updated; new ones are added. Your career aspirations are preserved.
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  {['SubSectors → Sectors', 'Occupations → Job Roles', 'Live from SSG API'].map(tag => (
-                    <span key={tag} className="px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,120,212,0.1)', color: 'var(--primary)' }}>{tag}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <div className="space-y-8">
 
-            {syncSuccess && lastSync && (
-              <div className="p-4 rounded-lg" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)' }}>
-                <p className="font-semibold text-sm" style={{ color: 'var(--success)' }}>✅ Live sync successful — data is from SSG Skills Framework API</p>
-                <div className="flex flex-wrap gap-4 mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-                  <span>📊 <strong>{lastSync.meta.totalIndustries}</strong> sectors in database</span>
-                  <span>👔 <strong>{lastSync.meta.totalRoles}</strong> job roles in database</span>
-                  <span>🕒 Just now</span>
-                </div>
-              </div>
-            )}
+          {/* ── Section: Data Frameworks ─────────────────────────────────── */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Data Frameworks</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-            {!syncSuccess && lastSync ? (
-              <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg text-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
-                <span className="font-medium">✅ Last synced from SSG — {timeAgo(lastSync.at)}</span>
-                <span style={{ color: 'var(--muted)' }}>·</span>
-                <span style={{ color: 'var(--muted)' }}>{lastSync.meta.totalIndustries} sectors</span>
-                <span style={{ color: 'var(--muted)' }}>·</span>
-                <span style={{ color: 'var(--muted)' }}>{lastSync.meta.totalRoles} job roles</span>
-                {lastSync.meta.errors && (
-                  <>
-                    <span style={{ color: 'var(--muted)' }}>·</span>
-                    <span style={{ color: 'var(--warning)' }}>{lastSync.meta.errors.length} skipped</span>
-                  </>
+              {/* SSG Card */}
+              <div className="card p-5 space-y-4" style={{ border: '2px solid #0078d4', background: '#f0f7ff' }}>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🇸🇬</span>
+                  <div>
+                    <h3 className="font-bold" style={{ color: '#0078d4' }}>SSG Skills Framework</h3>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>Singapore — SkillsFuture</p>
+                  </div>
+                </div>
+
+                {/* Sync status */}
+                {(syncSuccess || lastSync) && (
+                  <div className="rounded-lg px-3 py-2 text-sm" style={{ background: syncSuccess ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
+                    ✅ {syncSuccess ? 'Just synced' : `Last synced ${timeAgo(lastSync!.at)}`}
+                    {lastSync && <span style={{ color: 'var(--muted)' }}> · {lastSync.meta.totalIndustries} sectors · {lastSync.meta.totalRoles} job roles</span>}
+                  </div>
                 )}
-              </div>
-            ) : !syncSuccess ? (
-              <div className="p-3 rounded-lg text-sm" style={{ background: 'rgba(234,179,8,0.1)', color: 'var(--warning)' }}>
-                ⚠️ Never synced — using seeded data. Click the button below to pull live SSG data.
-              </div>
-            ) : null}
+                {!syncSuccess && !lastSync && (
+                  <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(234,179,8,0.1)', color: 'var(--warning)' }}>
+                    ⚠️ Never synced — click Sync to pull live data
+                  </div>
+                )}
 
-            <div className="flex flex-wrap gap-3">
-              <button onClick={syncSsg} disabled={loading} className="btn-primary">
-                {loading ? '⏳ Syncing from SSG…' : '🔄 Sync Sectors & Job Roles from SSG'}
-              </button>
-              <button onClick={testSsgConnection} disabled={loading} className="btn-secondary text-sm">
-                🔍 Test SSG Connection
-              </button>
-            </div>
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>
-              Tip: run this once a day. Courses are already fetched live from SSG on every search — no sync needed for courses.
-            </p>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={syncSsg} disabled={loading} className="btn-primary text-sm">
+                    {loading ? '⏳ Syncing…' : '🔄 Sync Now'}
+                  </button>
+                  <button onClick={testSsgConnection} disabled={loading} className="btn-secondary text-sm">
+                    🔍 Test Connection
+                  </button>
+                  <button onClick={() => setTab('catalog')} className="btn-secondary text-sm">Manage Data →</button>
+                </div>
 
-            {ssgDiag && (
-              <div className="mt-2 p-3 rounded-lg text-xs font-mono space-y-2" style={{ background: 'var(--muted-bg)', color: 'var(--foreground)' }}>
-                <p className="font-semibold text-sm font-sans">SSG Connection Diagnostic</p>
-                <p style={{ color: ssgDiag.hasCredentials ? 'var(--muted)' : 'var(--danger)' }}>
-                  Credentials: {ssgDiag.hasCredentials ? '✅ present in .env.local' : '❌ missing from .env.local'}
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                  Syncs SubSectors → Sectors and Occupations → Job Roles. Courses are fetched live per search — no sync needed.
                 </p>
-                <p style={{ color: ssgDiag.hasToken ? 'var(--success)' : 'var(--danger)' }}>
-                  OAuth token (public-api.ssg-wsg.sg): {ssgDiag.hasToken
-                    ? `✅ obtained (HTTP ${ssgDiag.tokenStatus})`
-                    : `❌ failed (HTTP ${ssgDiag.tokenStatus}) — ${ssgDiag.tokenError ?? 'unknown'}`}
-                </p>
-                {Object.keys(ssgDiag.skillResults).length > 0 && (
-                  <>
-                    <p className="font-sans font-semibold mt-1" style={{ color: 'var(--muted)' }}>API endpoints:</p>
+
+                {ssgDiag && (
+                  <div className="p-3 rounded-lg text-xs font-mono space-y-1.5" style={{ background: 'var(--muted-bg)', color: 'var(--foreground)' }}>
+                    <p className="font-semibold text-sm font-sans">Connection Diagnostic</p>
+                    <p style={{ color: ssgDiag.hasCredentials ? 'var(--muted)' : 'var(--danger)' }}>
+                      Credentials: {ssgDiag.hasCredentials ? '✅ present' : '❌ missing from .env.local'}
+                    </p>
+                    <p style={{ color: ssgDiag.hasToken ? 'var(--success)' : 'var(--danger)' }}>
+                      OAuth token: {ssgDiag.hasToken ? `✅ OK (HTTP ${ssgDiag.tokenStatus})` : `❌ failed (HTTP ${ssgDiag.tokenStatus}) — ${ssgDiag.tokenError ?? 'unknown'}`}
+                    </p>
                     {Object.entries(ssgDiag.skillResults).map(([path, r]) => (
                       <div key={path} className="flex items-start gap-2 flex-wrap">
                         <span style={{ color: r.ok ? 'var(--success)' : 'var(--danger)' }}>{r.ok ? '✅' : '❌'}</span>
-                        <span className="shrink-0" style={{ color: 'var(--muted)' }}>{r.status || '---'}</span>
+                        <span style={{ color: 'var(--muted)' }}>{r.status || '---'}</span>
                         <span className="break-all" style={{ color: 'var(--muted)' }}>{path}</span>
-                        {r.error && <span className="break-all" style={{ color: 'var(--danger)' }}>— {r.error}</span>}
-                        {r.ok && r.snippet && <span className="break-all opacity-60 font-sans">{r.snippet.slice(0, 80)}</span>}
+                        {r.error && <span style={{ color: 'var(--danger)' }}>— {r.error}</span>}
                       </div>
                     ))}
-                  </>
+                  </div>
+                )}
+
+                {/* SSG sub-tabs quick links */}
+                <div className="pt-1 border-t grid grid-cols-3 gap-2" style={{ borderColor: '#bfdbfe' }}>
+                  {[
+                    { label: 'Job Role Catalog', id: 'catalog' as Tab },
+                    { label: 'TSC/CCS Mapping', id: 'tsc-ccs' as Tab },
+                    { label: 'Skills Mapping', id: 'skills-mapping' as Tab },
+                  ].map(l => (
+                    <button key={l.id} onClick={() => setTab(l.id)} className="text-xs px-2 py-2 rounded-lg text-center transition-colors" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ESCO Card */}
+              <div className="card p-5 space-y-4" style={{ border: '2px solid #003399', background: '#E8F0FE' }}>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🇪🇺</span>
+                  <div>
+                    <h3 className="font-bold" style={{ color: '#003399' }}>ESCO Framework</h3>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>European Union — ILO / EU Commission</p>
+                  </div>
+                </div>
+
+                {escoStats && (escoStats.occupations > 0 || escoStats.skills > 0) ? (
+                  <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
+                    ✅ Data loaded · {escoStats.occupations} occupations · {escoStats.skills} skills
+                  </div>
+                ) : (
+                  <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(234,179,8,0.1)', color: 'var(--warning)' }}>
+                    ⚠️ No ESCO data yet — download the template and upload
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <a href="/api/admin/esco/template" download className="btn-secondary text-sm">⬇ Download Template</a>
+                  <button onClick={() => setTab('esco')} className="btn-primary text-sm" style={{ background: '#003399', borderColor: '#003399' }}>
+                    Manage ESCO Data →
+                  </button>
+                </div>
+
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                  Upload occupations and skills from the ESCO CSV download (esco.ec.europa.eu). Stored separately from SSG data.
+                </p>
+
+                {escoStats && (escoStats.occupations > 0) && (
+                  <div className="pt-1 border-t grid grid-cols-2 gap-2" style={{ borderColor: '#c7d2fe' }}>
+                    {[
+                      { label: `${escoStats.occupations} Occupations`, color: '#1d4ed8', bg: '#dbeafe' },
+                      { label: `${escoStats.skills} Skills`, color: '#15803d', bg: '#dcfce7' },
+                    ].map(s => (
+                      <div key={s.label} className="text-xs px-3 py-2 rounded-lg text-center font-semibold" style={{ background: s.bg, color: s.color }}>{s.label}</div>
+                    ))}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-
-          <div className="card p-5 space-y-4">
-            <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>🗄️ Database Management</h3>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>Run this once during initial setup of the platform, or after a schema change.</p>
-            <button onClick={initDb} disabled={loading} className="btn-secondary">
-              {loading ? 'Running…' : '📋 Initialise Database Schema'}
-            </button>
-          </div>
-
-          <div className="card p-5 space-y-4">
-            <h3 className="font-semibold" style={{ color: 'var(--foreground)' }}>🌱 Seed Sectors & Job Roles (Non SSG)</h3>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>Populates sectors and job roles from the local seed data — use this only if you don&apos;t want to sync from the live SSG API above.</p>
-            <button onClick={seedData} disabled={loading} className="btn-primary">
-              {loading ? 'Seeding…' : '🌱 Seed Sectors & Job Roles'}
-            </button>
-          </div>
-
-          <div className="card p-5 space-y-4" style={{ border: '2px solid #7c3aed', background: '#f5f3ff' }}>
-            <div>
-              <h3 className="font-semibold" style={{ color: '#7c3aed' }}>🧠 Sector Scenario Questions</h3>
-              <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-                Generate 1,000 AI-powered corporate scenario questions per sector — multiple choice with explanations.
-                Done once per sector and stored permanently. Use for assessments, quizzes and readiness tests.
-              </p>
             </div>
-            <a
-              href="/admin/sector-questions"
-              className="inline-block btn-primary no-underline text-sm"
-              style={{ background: '#7c3aed', borderColor: '#7c3aed' }}
-            >
-              Go to Sector Questions Generator →
-            </a>
           </div>
+
+          {/* ── Section: System Tools ────────────────────────────────────── */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>System Tools</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+              {/* Database */}
+              <div className="card p-5 space-y-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: '#f1f5f9' }}>🗄️</div>
+                <div>
+                  <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>Database Schema</h4>
+                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Run once during setup or after a schema change to initialise all tables.</p>
+                </div>
+                <button onClick={initDb} disabled={loading} className="btn-secondary text-sm w-full">
+                  {loading ? 'Running…' : '📋 Initialise Schema'}
+                </button>
+              </div>
+
+              {/* Seed */}
+              <div className="card p-5 space-y-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: '#f0fdf4' }}>🌱</div>
+                <div>
+                  <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>Seed Data</h4>
+                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Populate sectors and job roles from local seed data — use only if not syncing from SSG.</p>
+                </div>
+                <button onClick={seedData} disabled={loading} className="btn-secondary text-sm w-full">
+                  {loading ? 'Seeding…' : '🌱 Seed Sectors & Roles'}
+                </button>
+              </div>
+
+              {/* Quiz Questions */}
+              <div className="card p-5 space-y-3" style={{ border: '1.5px solid #ddd6fe' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: '#f5f3ff' }}>🧠</div>
+                <div>
+                  <h4 className="font-semibold" style={{ color: '#7c3aed' }}>Quiz Questions</h4>
+                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Generate 1,000 AI-powered scenario questions per sector. Done once and stored permanently.</p>
+                </div>
+                <a href="/admin/sector-questions" className="btn-primary text-sm w-full text-center no-underline block" style={{ background: '#7c3aed', borderColor: '#7c3aed' }}>
+                  Open Generator →
+                </a>
+              </div>
+
+            </div>
+          </div>
+
         </div>
       )}
 
