@@ -225,7 +225,7 @@ export default function RegisterPage() {
                 required
               >
                 <option value="">Select your country…</option>
-                <option value="SG">🇸🇬 Singapore</option>
+                <option value="SG">Singapore</option>
                 <option disabled>──────────────</option>
                 {COUNTRIES.filter(c => c.code !== 'SG').map(c => (
                   <option key={c.code} value={c.code}>{c.name}</option>
