@@ -15,6 +15,7 @@ type CatalogRole = {
   job_role: string;
   job_role_description: string | null;
   performance_expectation: string | null;
+  esco_uri?: string | null;
 };
 
 type CwfEntry = { critical_work_function: string; key_tasks: string[] };
@@ -151,6 +152,7 @@ function SkillTable({ rows, emptyText }: { rows: SkillEntry[]; emptyText: string
 export default function CareerPage() {
   const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState<CareerAspiration | null>(null);
+  const [userCountry, setUserCountry] = useState('SG');
 
   const [sectors, setSectors] = useState<string[]>([]);
   const [selectedSector, setSelectedSector] = useState('');
@@ -181,21 +183,35 @@ export default function CareerPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [sectorsRes, careerRes] = await Promise.all([
+
+    const [meRes, sectorsResSG, careerRes] = await Promise.all([
+      fetch('/api/user/me'),
       fetch('/api/job-role-catalog/sectors'),
       fetch('/api/career'),
     ]);
-    const [sectorsJson, careerJson] = await Promise.all([sectorsRes.json(), careerRes.json()]);
+    const [meJson, sectorsSGJson, careerJson] = await Promise.all([
+      meRes.json(), sectorsResSG.json(), careerRes.json(),
+    ]);
 
-    if (sectorsJson.data) setSectors(sectorsJson.data);
+    const country: string = meJson.data?.country ?? 'SG';
+    setUserCountry(country);
+    const isSG = country === 'SG';
+    const apiBase = isSG ? '/api/job-role-catalog' : '/api/esco-catalog';
+
+    // For non-SG users fetch ESCO sectors separately
+    let sectorsData: string[] = sectorsSGJson.data ?? [];
+    if (!isSG) {
+      const escoSectorsRes = await fetch('/api/esco-catalog/sectors');
+      const escoSectorsJson = await escoSectorsRes.json();
+      sectorsData = escoSectorsJson.data ?? [];
+    }
+    setSectors(sectorsData);
 
     if (careerJson.data) {
       const career: CareerAspiration = careerJson.data;
       setCurrent(career);
       setNotes('');
 
-      // Pre-populate the search form from the saved career goal so the
-      // job roles list is visible when the user returns to this page.
       const sectorName = career.industry_name;
       if (sectorName) {
         const savedTrack = career.catalog_track ?? '';
@@ -203,16 +219,14 @@ export default function CareerPage() {
         if (savedTrack) rolesParams.set('tracks', savedTrack);
 
         const [tracksRes, rolesRes] = await Promise.all([
-          fetch(`/api/job-role-catalog/tracks?sector=${encodeURIComponent(sectorName)}`),
-          fetch(`/api/job-role-catalog/roles?${rolesParams}`),
+          fetch(`${apiBase}/tracks?sector=${encodeURIComponent(sectorName)}`),
+          fetch(`${apiBase}/roles?${rolesParams}`),
         ]);
         const [tracksJson, rolesJson] = await Promise.all([tracksRes.json(), rolesRes.json()]);
 
         const fetchedTracks: string[] = tracksJson.data ?? [];
         const fetchedRoles: CatalogRole[] = rolesJson.data?.rows ?? [];
 
-        // Suppress the selectedSector useEffect so it does not reset
-        // the tracks / selectedTracks we are about to set.
         suppressSectorEffect.current = true;
         setSelectedSector(sectorName);
         setTracks(fetchedTracks);
@@ -230,12 +244,16 @@ export default function CareerPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const apiBase = userCountry === 'SG' ? '/api/job-role-catalog' : '/api/esco-catalog';
+
   useEffect(() => {
     if (!selectedRole) { setCwf([]); setTsc([]); setCcs([]); return; }
     setDetailsLoading(true);
+    const isSG = userCountry === 'SG';
     const params = new URLSearchParams({ sector: selectedRole.sector, job_role: selectedRole.job_role });
-    if (selectedRole.track) params.set('track', selectedRole.track);
-    fetch(`/api/job-role-catalog/details?${params}`)
+    if (isSG && selectedRole.track) params.set('track', selectedRole.track);
+    if (!isSG && selectedRole.esco_uri) params.set('esco_uri', selectedRole.esco_uri);
+    fetch(`${apiBase}/details?${params}`)
       .then(r => r.json())
       .then(({ data }) => {
         setCwf(data?.cwf ?? []);
@@ -243,7 +261,7 @@ export default function CareerPage() {
         setCcs(data?.ccs ?? []);
       })
       .finally(() => setDetailsLoading(false));
-  }, [selectedRole]);
+  }, [selectedRole, userCountry, apiBase]);
 
   useEffect(() => {
     if (suppressSectorEffect.current) {
@@ -253,10 +271,10 @@ export default function CareerPage() {
     setSelectedTracks([]);
     setTracks([]);
     if (!selectedSector) return;
-    fetch(`/api/job-role-catalog/tracks?sector=${encodeURIComponent(selectedSector)}`)
+    fetch(`${apiBase}/tracks?sector=${encodeURIComponent(selectedSector)}`)
       .then(r => r.json())
       .then(json => { if (json.data) setTracks(json.data); });
-  }, [selectedSector]);
+  }, [selectedSector, apiBase]);
 
   async function handleSearch() {
     if (!selectedSector) return;
@@ -266,7 +284,7 @@ export default function CareerPage() {
     setPage(0);
     const params = new URLSearchParams({ sector: selectedSector, limit: '500' });
     if (selectedTracks.length > 0) params.set('tracks', selectedTracks.join(','));
-    const res = await fetch(`/api/job-role-catalog/roles?${params}`);
+    const res = await fetch(`${apiBase}/roles?${params}`);
     const { data } = await res.json();
     setResults(data?.rows ?? []);
     setSearching(false);
@@ -287,10 +305,13 @@ export default function CareerPage() {
     setSaving(true);
     setSaveError('');
     try {
+      const body = userCountry === 'SG'
+        ? { catalog_job_role_id: selectedRole.id, notes }
+        : { esco_occupation_id: selectedRole.id, notes };
       const res = await fetch('/api/career', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ catalog_job_role_id: selectedRole.id, notes }),
+        body: JSON.stringify(body),
       });
       const { data, error } = await res.json();
       if (data) {
@@ -550,17 +571,21 @@ export default function CareerPage() {
 
                 {!detailsLoading && (
                   <div>
-                    <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>TSC (Technical Skills and Competencies)</h4>
+                    <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
+                      {userCountry === 'SG' ? 'TSC (Technical Skills and Competencies)' : 'Essential Skills'}
+                    </h4>
                     <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {tsc.length} skill(s).</p>
-                    <SkillTable rows={tsc} emptyText="This job role does not have any associated TSC (Technical Skills and Competencies)" />
+                    <SkillTable rows={tsc} emptyText="No skills found for this occupation." />
                   </div>
                 )}
 
                 {!detailsLoading && (
                   <div>
-                    <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>CCS (Critical Core Skills)</h4>
+                    <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
+                      {userCountry === 'SG' ? 'CCS (Critical Core Skills)' : 'Optional Skills'}
+                    </h4>
                     <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {ccs.length} skill(s).</p>
-                    <SkillTable rows={ccs} emptyText="This job role does not have any associated CCS (Critical Core Skills)" />
+                    <SkillTable rows={ccs} emptyText="No optional skills found for this occupation." />
                   </div>
                 )}
 
