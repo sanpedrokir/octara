@@ -141,7 +141,7 @@ export default function AdminPage() {
     } catch { /* non-fatal */ }
   }, []);
 
-  useEffect(() => { loadIndustries(); loadLastSync(); }, [loadIndustries, loadLastSync]);
+  useEffect(() => { loadIndustries(); loadLastSync(); loadEsco(); }, [loadIndustries, loadLastSync, loadEsco]);
 
   useEffect(() => {
     if (!selectedIndustry) { setJobRoles([]); return; }
@@ -465,6 +465,8 @@ export default function AdminPage() {
         }
       }
 
+      // Update stats immediately without waiting for DB roundtrip
+      setEscoStats({ occupations: occupations.length, skills: skills.length });
       showMsg(`✅ Imported ${occupations.length} occupations and ${skills.length} skills.`, 'success');
       loadEsco();
 
