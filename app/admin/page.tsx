@@ -414,6 +414,8 @@ export default function AdminPage() {
         const total: number = Number(first.total ?? first.numberOfResults ?? 0);
         const all = [...(first._embedded?.results ?? [])];
         const pages = Math.min(Math.ceil(total / PAGE), 150);
+        console.log(`[ESCO] ${label}: total=${total} items=${all.length} pages=${pages} keys=${Object.keys(first).join(',')}`);
+
         for (let p = 1; p < pages; p++) {
           setMessage(`⏳ Fetching ${label}… ${Math.min(p * PAGE, total)} / ${total}`);
           await new Promise(r => setTimeout(r, 120));
