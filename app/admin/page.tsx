@@ -465,8 +465,6 @@ export default function AdminPage() {
         }
       }
 
-      // Update stats immediately without waiting for DB roundtrip
-      setEscoStats({ occupations: occupations.length, skills: skills.length });
       showMsg(`✅ Imported ${occupations.length} occupations and ${skills.length} skills.`, 'success');
       loadEsco();
 
