@@ -416,7 +416,8 @@ export default function AdminPage() {
         let total = 0;
         let page = 0;
         while (nextUrl && page < 200) {
-          const res = await fetch(nextUrl);
+          const currentUrl: string = nextUrl;
+          const res = await fetch(currentUrl);
           if (!res.ok) break;
           const json = await res.json();
           if (page === 0) total = Number(json.total ?? 0);
