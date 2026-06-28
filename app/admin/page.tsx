@@ -408,23 +408,28 @@ export default function AdminPage() {
       type OccItem   = { title: string; description?: string | null; uri?: string | null; iscoCode?: string | null; iscoLabel?: string | null };
       type SkillItem = { title: string; uri?: string | null };
 
-      // ── Helper: fetch all pages of an ESCO search URL ──────────────────
-      async function fetchAllPages(url: string, label: string): Promise<{ preferredLabel: string; uri: string; description?: string; iscoGroup?: { code?: string; preferredLabel?: string } }[]> {
-        const first = await fetch(`${url}&limit=${PAGE}&offset=0`).then(r => r.json());
-        const total: number = Number(first.total ?? first.numberOfResults ?? 0);
-        const all = [...(first._embedded?.results ?? [])];
-        const pages = Math.min(Math.ceil(total / PAGE), 150);
-        console.log(`[ESCO] ${label}: total=${total} items=${all.length} pages=${pages} keys=${Object.keys(first).join(',')}`);
-
-        for (let p = 1; p < pages; p++) {
-          setMessage(`⏳ Fetching ${label}… ${Math.min(p * PAGE, total)} / ${total}`);
-          await new Promise(r => setTimeout(r, 120));
-          try {
-            const res = await fetch(`${url}&limit=${PAGE}&offset=${p * PAGE}`);
-            if (!res.ok) continue;
-            const json = await res.json();
-            all.push(...(json._embedded?.results ?? []));
-          } catch { /* skip page, continue */ }
+      // ── Helper: fetch all pages via HAL _links.next ───────────────────
+      type EscoItem = { preferredLabel: string; uri: string; description?: string; iscoGroup?: { code?: string; preferredLabel?: string } };
+      async function fetchAllPages(url: string, label: string): Promise<EscoItem[]> {
+        const all: EscoItem[] = [];
+        let nextUrl: string | null = `${url}&limit=${PAGE}&offset=0`;
+        let total = 0;
+        let page = 0;
+        while (nextUrl && page < 200) {
+          const res = await fetch(nextUrl);
+          if (!res.ok) break;
+          const json = await res.json();
+          if (page === 0) total = Number(json.total ?? 0);
+          const results: EscoItem[] = json._embedded?.results ?? [];
+          all.push(...results);
+          page++;
+          // Follow HAL next link; fall back to offset if no next link
+          const halNext: string | undefined = json._links?.next?.href;
+          nextUrl = halNext ?? (results.length === PAGE ? `${url}&limit=${PAGE}&offset=${page * PAGE}` : null);
+          if (nextUrl) {
+            setMessage(`⏳ Fetching ${label}… ${all.length} / ${total}`);
+            await new Promise(r => setTimeout(r, 120));
+          }
         }
         return all;
       }
