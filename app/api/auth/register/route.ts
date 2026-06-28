@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { signToken, setSessionCookie } from '@/lib/auth';
+import { isValidCountryCode } from '@/lib/countries';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(2) DEFAULT 'SG'`;
 
     // ── Update country on newly created user ──────────────────────
-    const resolvedCountry = (country === 'TH' ? 'TH' : 'SG');
+    const resolvedCountry = (country && isValidCountryCode(country)) ? country.toUpperCase() : 'SG';
     await sql`UPDATE users SET country = ${resolvedCountry} WHERE id = ${user.id}`;
 
     // ── Ensure extra profile columns exist ───────────────────────

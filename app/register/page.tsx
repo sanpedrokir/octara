@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '../ui/Navbar';
+import { COUNTRIES } from '@/lib/countries';
 
 type UserType = 'student' | 'working_adult' | 'other' | '';
 
@@ -62,6 +63,7 @@ export default function RegisterPage() {
   const [title, setTitle] = useState('');
   const [otherDetails, setOtherDetails] = useState('');
 
+  const [country, setCountry] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -83,6 +85,7 @@ export default function RegisterPage() {
     setError('');
 
     if (!firstName.trim() || !lastName.trim()) { setError('First and last name are required'); return; }
+    if (!country) { setError('Please select your country'); return; }
     if (!userType) { setError('Please select what best describes you'); return; }
 
     if (userType === 'student') {
@@ -108,6 +111,7 @@ export default function RegisterPage() {
           lastName: lastName.trim(),
           email: email.trim(),
           password,
+          country,
           userType,
           institution: institution === 'Other' ? institutionOther.trim() : institution,
           level,
@@ -206,6 +210,27 @@ export default function RegisterPage() {
                 required
                 autoComplete="email"
               />
+            </div>
+
+            {/* Country */}
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                Country <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <select
+                className="input"
+                value={country}
+                onChange={e => setCountry(e.target.value)}
+                style={{ appearance: 'auto' }}
+                required
+              >
+                <option value="">Select your country…</option>
+                <option value="SG">🇸🇬 Singapore</option>
+                <option disabled>──────────────</option>
+                {COUNTRIES.filter(c => c.code !== 'SG').map(c => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* User Type */}
