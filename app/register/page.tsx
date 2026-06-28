@@ -273,46 +273,52 @@ export default function RegisterPage() {
                   <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
                     Institution Name <span style={{ color: 'var(--danger)' }}>*</span>
                   </label>
-                  <select
-                    className="input"
-                    value={institution}
-                    onChange={e => setInstitution(e.target.value)}
-                    style={{ appearance: 'auto' }}
-                  >
-                    <option value="">Select institution…</option>
-                    <optgroup label="Universities">
-                      {IHLS.slice(0, 7).map(s => <option key={s} value={s}>{s}</option>)}
-                    </optgroup>
-                    <optgroup label="Polytechnics">
-                      {IHLS.slice(7, 12).map(s => <option key={s} value={s}>{s}</option>)}
-                    </optgroup>
-                    <optgroup label="ITE">
-                      {IHLS.slice(12, 15).map(s => <option key={s} value={s}>{s}</option>)}
-                    </optgroup>
-                    <optgroup label="Arts Institutions">
-                      {IHLS.slice(15, 17).map(s => <option key={s} value={s}>{s}</option>)}
-                    </optgroup>
-                    <optgroup label="Private Education">
-                      {IHLS.slice(17, 20).map(s => <option key={s} value={s}>{s}</option>)}
-                    </optgroup>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                {institution === 'Other' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
-                      Institution Name <span style={{ color: 'var(--danger)' }}>*</span>
-                    </label>
+                  {country === 'SG' ? (
+                    <>
+                      <select
+                        className="input"
+                        value={institution}
+                        onChange={e => setInstitution(e.target.value)}
+                        style={{ appearance: 'auto' }}
+                      >
+                        <option value="">Select institution…</option>
+                        <optgroup label="Universities">
+                          {IHLS.slice(0, 7).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="Polytechnics">
+                          {IHLS.slice(7, 12).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="ITE">
+                          {IHLS.slice(12, 15).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="Arts Institutions">
+                          {IHLS.slice(15, 17).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <optgroup label="Private Education">
+                          {IHLS.slice(17, 20).map(s => <option key={s} value={s}>{s}</option>)}
+                        </optgroup>
+                        <option value="Other">Other</option>
+                      </select>
+                      {institution === 'Other' && (
+                        <input
+                          type="text"
+                          className="input mt-3"
+                          placeholder="Enter your institution name"
+                          value={institutionOther}
+                          onChange={e => setInstitutionOther(e.target.value)}
+                        />
+                      )}
+                    </>
+                  ) : (
                     <input
                       type="text"
                       className="input"
                       placeholder="Enter your institution name"
-                      value={institutionOther}
-                      onChange={e => setInstitutionOther(e.target.value)}
+                      value={institution}
+                      onChange={e => setInstitution(e.target.value)}
                     />
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
