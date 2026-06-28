@@ -577,7 +577,7 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(234,179,8,0.1)', color: 'var(--warning)' }}>
-                    ⚠️ No ESCO data yet — download the template and upload
+                    ⚠️ No ESCO data yet — click Auto-Import to fetch from the EU API
                   </div>
                 )}
 
