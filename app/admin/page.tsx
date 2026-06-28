@@ -639,11 +639,11 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {escoStats && (escoStats.occupations > 0 || escoStats.skills > 0) ? (
+                {!escoFetching && escoStats && (escoStats.occupations > 0 || escoStats.skills > 0) ? (
                   <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
                     ✅ Data loaded · {escoStats.occupations} occupations · {escoStats.skills} skills
                   </div>
-                ) : (
+                ) : escoFetching ? null : (
                   <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(234,179,8,0.1)', color: 'var(--warning)' }}>
                     ⚠️ No ESCO data yet — click Auto-Import to fetch from the EU API
                   </div>
@@ -660,7 +660,7 @@ export default function AdminPage() {
                   Upload occupations and skills from the ESCO CSV download (esco.ec.europa.eu). Stored separately from SSG data.
                 </p>
 
-                {escoStats && (escoStats.occupations > 0) && (
+                {!escoFetching && escoStats && (escoStats.occupations > 0) && (
                   <div className="pt-1 border-t grid grid-cols-2 gap-2" style={{ borderColor: '#c7d2fe' }}>
                     {[
                       { label: `${escoStats.occupations} Occupations`, color: '#1d4ed8', bg: '#dbeafe' },
