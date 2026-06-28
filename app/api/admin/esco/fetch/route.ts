@@ -2,7 +2,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getPool } from '@/lib/db';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const ESCO_API = 'https://ec.europa.eu/esco/api';
 const PAGE_SIZE = 100;
@@ -46,7 +46,7 @@ async function fetchPage(offset: number): Promise<{ results: EscoResult[]; total
 }
 
 async function fetchSkillPage(offset: number): Promise<{ results: EscoResult[]; total: number }> {
-  const url = `${ESCO_API}/search?type=skill&language=en&limit=${PAGE_SIZE}&offset=${offset}&skillType=skill%2Fcompetence`;
+  const url = `${ESCO_API}/search?type=skill&language=en&limit=${PAGE_SIZE}&offset=${offset}`;
   const res = await fetch(url, { headers: ESCO_HEADERS, cache: 'no-store' });
   if (!res.ok) throw new Error(`ESCO skills API returned ${res.status}`);
   const json = await res.json();
@@ -56,15 +56,24 @@ async function fetchSkillPage(offset: number): Promise<{ results: EscoResult[]; 
   };
 }
 
-async function fetchKnowledgePage(offset: number): Promise<{ results: EscoResult[]; total: number }> {
-  const url = `${ESCO_API}/search?type=skill&language=en&limit=${PAGE_SIZE}&offset=${offset}&skillType=knowledge`;
-  const res = await fetch(url, { headers: ESCO_HEADERS, cache: 'no-store' });
-  if (!res.ok) throw new Error(`ESCO knowledge API returned ${res.status}`);
-  const json = await res.json();
-  return {
-    results: (json._embedded?.results ?? []) as EscoResult[],
-    total:   Number(json.total ?? 0),
-  };
+// Fetch all pages of a given endpoint serially (one at a time) to avoid rate limiting.
+// Failed pages are skipped so a partial result is still committed.
+async function fetchAllSerial(
+  fetchFn: (offset: number) => Promise<{ results: EscoResult[]; total: number }>,
+  maxPages: number,
+  delayMs: number
+): Promise<EscoResult[]> {
+  const first = await fetchFn(0);
+  const all: EscoResult[] = [...first.results];
+  const pages = Math.min(Math.ceil(first.total / PAGE_SIZE), maxPages);
+  for (let p = 1; p < pages; p++) {
+    await new Promise(r => setTimeout(r, delayMs));
+    try {
+      const { results } = await fetchFn(p * PAGE_SIZE);
+      all.push(...results);
+    } catch { /* skip page, continue */ }
+  }
+  return all;
 }
 
 async function ensureEscoTables(client: { query: (sql: string) => Promise<unknown> }) {
@@ -118,38 +127,25 @@ export async function POST(request: Request) {
       let occCount = 0;
       let skillCount = 0;
 
-      // ── Fetch occupations ───────────────────────────────────────────────
+      // ── Fetch occupations (serial, 250 ms between pages) ───────────────
       if (mode === 'occupations' || mode === 'all') {
         await client.query('TRUNCATE esco_job_catalog RESTART IDENTITY');
 
-        const first = await fetchPage(0);
-        const total = first.total;
-        const allOcc: EscoResult[] = [...first.results];
-
-        // Fetch remaining pages in true batches of 3 (lazy creation — avoids firing all at once)
-        const pages = Math.min(Math.ceil(total / PAGE_SIZE), 50);
-        for (let b = 1; b < pages; b += 3) {
-          const batch = await Promise.all(
-            Array.from({ length: Math.min(3, pages - b) }, (_, i) => fetchPage((b + i) * PAGE_SIZE))
-          );
-          for (const p of batch) allOcc.push(...p.results);
-          await new Promise(r => setTimeout(r, 100)); // brief pause between batches
-        }
+        const allOcc = await fetchAllSerial(fetchPage, 50, 250); // up to 5 000
 
         if (allOcc.length > 0) {
-          const isco_groups: (string | null)[]  = [];
-          const sub_groups: (string | null)[]   = [];
-          const titles: string[]                 = [];
-          const descs: (string | null)[]         = [];
-          const uris: (string | null)[]          = [];
+          const isco_groups: (string | null)[] = [];
+          const sub_groups:  (string | null)[] = [];
+          const titles:      string[]           = [];
+          const descs:       (string | null)[]  = [];
+          const uris:        (string | null)[]  = [];
 
           for (const r of allOcc) {
-            const iscoCode = r.iscoGroup?.code ?? '';
-            const majorKey = iscoCode.charAt(0);
+            const iscoCode  = r.iscoGroup?.code ?? '';
+            const majorKey  = iscoCode.charAt(0);
             const iscoGroup = ISCO_MAJOR[majorKey] ?? r.iscoGroup?.preferredLabel ?? 'Other';
-            const subGroup  = r.iscoGroup?.preferredLabel ?? null;
             isco_groups.push(iscoGroup);
-            sub_groups.push(subGroup);
+            sub_groups.push(r.iscoGroup?.preferredLabel ?? null);
             titles.push(r.preferredLabel || 'Unknown');
             descs.push(r.description ? String(r.description).slice(0, 1000) : null);
             uris.push(r.uri || null);
@@ -164,45 +160,21 @@ export async function POST(request: Request) {
         }
       }
 
-      // ── Fetch skills & competences ──────────────────────────────────────
+      // ── Fetch skills (serial, 250 ms between pages) ─────────────────────
       if (mode === 'skills' || mode === 'all') {
-        // Ensure standalone skills table exists (created above)
         await client.query('TRUNCATE esco_standalone_skills RESTART IDENTITY');
 
-        const allSkills: (EscoResult & { skillType: string })[] = [];
-
-        // Fetch skill/competence type
-        const firstSk = await fetchSkillPage(0);
-        const totalSk = firstSk.total;
-        const skPages  = Math.min(Math.ceil(totalSk / PAGE_SIZE), 100);
-        allSkills.push(...firstSk.results.map(r => ({ ...r, skillType: 'skill/competence' })));
-        for (let b = 0; b < skPages - 1; b += 5) {
-          const batch = await Promise.all(
-            Array.from({ length: Math.min(5, skPages - 1 - b) }, (_, i) => fetchSkillPage((b + i + 1) * PAGE_SIZE))
-          );
-          for (const p of batch) allSkills.push(...p.results.map(r => ({ ...r, skillType: 'skill/competence' })));
-        }
-
-        // Fetch knowledge type
-        const firstKn = await fetchKnowledgePage(0);
-        const totalKn = firstKn.total;
-        const knPages  = Math.min(Math.ceil(totalKn / PAGE_SIZE), 100);
-        allSkills.push(...firstKn.results.map(r => ({ ...r, skillType: 'knowledge' })));
-        for (let b = 0; b < knPages - 1; b += 5) {
-          const batch = await Promise.all(
-            Array.from({ length: Math.min(5, knPages - 1 - b) }, (_, i) => fetchKnowledgePage((b + i + 1) * PAGE_SIZE))
-          );
-          for (const p of batch) allSkills.push(...p.results.map(r => ({ ...r, skillType: 'knowledge' })));
-        }
+        // Fetch all skills in one pass (no skillType filter — avoids duplicate knowledge/competence overlap)
+        const allSkills = await fetchAllSerial(fetchSkillPage, 150, 250); // up to 15 000
 
         if (allSkills.length > 0) {
           const stitles: string[]         = [];
-          const stypes: (string | null)[] = [];
-          const sdescs: (string | null)[] = [];
-          const suris: (string | null)[]  = [];
+          const stypes:  (string | null)[] = [];
+          const sdescs:  (string | null)[] = [];
+          const suris:   (string | null)[] = [];
           for (const s of allSkills) {
             stitles.push(s.preferredLabel || 'Unknown');
-            stypes.push(s.skillType);
+            stypes.push('skill');
             sdescs.push(s.description ? String(s.description).slice(0, 500) : null);
             suris.push(s.uri || null);
           }
