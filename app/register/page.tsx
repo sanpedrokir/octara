@@ -74,6 +74,12 @@ export default function RegisterPage() {
     setCompany(''); setTitle(''); setOtherDetails('');
   }
 
+  function handleCountryChange(code: string) {
+    setCountry(code);
+    // Reset institution when switching countries — SG/non-SG show different inputs
+    setInstitution(''); setInstitutionOther('');
+  }
+
   function validatePassword(pw: string): string | null {
     if (pw.length < 8) return 'Password must be at least 8 characters';
     if (!/[A-Z]/.test(pw)) return 'Password must contain at least one uppercase letter';
@@ -220,7 +226,7 @@ export default function RegisterPage() {
               <select
                 className="input"
                 value={country}
-                onChange={e => setCountry(e.target.value)}
+                onChange={e => handleCountryChange(e.target.value)}
                 style={{ appearance: 'auto' }}
                 required
               >
