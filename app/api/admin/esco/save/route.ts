@@ -58,9 +58,10 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'Admin access required' }, { status: 403 });
     }
 
-    const body = await request.json() as { occupations?: OccInput[]; skills?: SkillInput[] };
+    const body = await request.json() as { occupations?: OccInput[]; skills?: SkillInput[]; append?: boolean };
     const occupations: OccInput[]   = body.occupations ?? [];
     const skills:      SkillInput[] = body.skills      ?? [];
+    const append = body.append ?? false; // if true, INSERT without TRUNCATE (for skills chunks)
 
     const pool   = getPool();
     const client = await pool.connect();
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
       }
 
       if (skills.length > 0) {
-        await client.query('TRUNCATE esco_standalone_skills RESTART IDENTITY');
+        if (!append) await client.query('TRUNCATE esco_standalone_skills RESTART IDENTITY');
         const stitles: string[]         = [];
         const suris:   (string | null)[] = [];
         for (const s of skills) {

@@ -428,34 +428,45 @@ export default function AdminPage() {
       let occupations: OccItem[]   = [];
       let skills:      SkillItem[] = [];
 
+      // ── Helper: save a chunk to server ─────────────────────────────────
+      async function saveChunk(payload: { occupations?: OccItem[]; skills?: SkillItem[]; append?: boolean }) {
+        const r = await fetch('/api/admin/esco/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const { error } = await r.json();
+        if (error) throw new Error(error);
+      }
+
       if (mode === 'occupations' || mode === 'all') {
         setMessage('⏳ Fetching ESCO occupations from EU API…');
         const raw = await fetchAllPages(`${ESCO}/search?type=occupation&language=en`, 'occupations');
+        // Skip descriptions — too large; only send title + identifiers
         occupations = raw.map(r => ({
-          title:      r.preferredLabel,
-          description: r.description ? String(r.description).slice(0, 1000) : null,
-          uri:        r.uri,
-          iscoCode:   r.iscoGroup?.code ?? null,
-          iscoLabel:  r.iscoGroup?.preferredLabel ?? null,
+          title:     r.preferredLabel,
+          uri:       r.uri,
+          iscoCode:  r.iscoGroup?.code ?? null,
+          iscoLabel: r.iscoGroup?.preferredLabel ?? null,
         }));
-        setMessage(`⏳ Got ${occupations.length} occupations. ${mode === 'all' ? 'Now fetching skills…' : 'Saving…'}`);
+        setMessage(`⏳ Got ${occupations.length} occupations. Saving…`);
+        await saveChunk({ occupations });
+        setMessage(`⏳ Saved ${occupations.length} occupations.${mode === 'all' ? ' Now fetching skills…' : ''}`);
       }
 
       if (mode === 'skills' || mode === 'all') {
         const raw = await fetchAllPages(`${ESCO}/search?type=skill&language=en`, 'skills');
         skills = raw.map(r => ({ title: r.preferredLabel, uri: r.uri }));
-        setMessage(`⏳ Got ${skills.length} skills. Saving to database…`);
+        // Send skills in chunks of 5 000 to stay well under Vercel's body limit
+        const CHUNK = 5000;
+        for (let i = 0; i < skills.length; i += CHUNK) {
+          setMessage(`⏳ Saving skills… ${Math.min(i + CHUNK, skills.length)} / ${skills.length}`);
+          await saveChunk({ skills: skills.slice(i, i + CHUNK), append: i > 0 });
+        }
       }
 
-      // ── Save to server (just DB writes, no external fetch) ──────────────
-      const res = await fetch('/api/admin/esco/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ occupations, skills }),
-      });
-      const { data, error } = await res.json();
-      if (error) showMsg(error, 'error');
-      else { showMsg(`✅ ${data.message}`, 'success'); loadEsco(); }
+      showMsg(`✅ Imported ${occupations.length} occupations and ${skills.length} skills.`, 'success');
+      loadEsco();
 
     } catch (err) {
       showMsg('Import failed: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
