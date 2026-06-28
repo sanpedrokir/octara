@@ -411,16 +411,18 @@ export default function AdminPage() {
       // ── Helper: fetch all pages of an ESCO search URL ──────────────────
       async function fetchAllPages(url: string, label: string): Promise<{ preferredLabel: string; uri: string; description?: string; iscoGroup?: { code?: string; preferredLabel?: string } }[]> {
         const first = await fetch(`${url}&limit=${PAGE}&offset=0`).then(r => r.json());
-        const total: number = first.total ?? 0;
+        const total: number = Number(first.total ?? first.numberOfResults ?? 0);
         const all = [...(first._embedded?.results ?? [])];
         const pages = Math.min(Math.ceil(total / PAGE), 150);
         for (let p = 1; p < pages; p++) {
           setMessage(`⏳ Fetching ${label}… ${Math.min(p * PAGE, total)} / ${total}`);
-          await new Promise(r => setTimeout(r, 80));
-          const res = await fetch(`${url}&limit=${PAGE}&offset=${p * PAGE}`);
-          if (!res.ok) continue;
-          const json = await res.json();
-          all.push(...(json._embedded?.results ?? []));
+          await new Promise(r => setTimeout(r, 120));
+          try {
+            const res = await fetch(`${url}&limit=${PAGE}&offset=${p * PAGE}`);
+            if (!res.ok) continue;
+            const json = await res.json();
+            all.push(...(json._embedded?.results ?? []));
+          } catch { /* skip page, continue */ }
         }
         return all;
       }
