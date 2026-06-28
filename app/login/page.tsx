@@ -40,32 +40,6 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--background)' }}>
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="card w-full max-w-md p-8">
-          {/* Country picker — top left, above logo */}
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>I am from</span>
-            <div className="flex flex-col items-center gap-0.5">
-              <div
-                title="Singapore"
-                className="flex items-center justify-center rounded-lg"
-                style={{ width: 36, height: 28, border: '2px solid var(--primary)', background: 'var(--primary-faint, rgba(99,102,241,0.08))', cursor: 'default', fontSize: '1.05rem' }}
-              >
-                🇸🇬
-              </div>
-              <span className="text-xs font-semibold" style={{ color: 'var(--primary)', fontSize: '0.65rem' }}>SG</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <button
-                type="button"
-                title="Thailand"
-                onClick={() => router.push('/th/login')}
-                className="flex items-center justify-center rounded-lg transition-all"
-                style={{ width: 36, height: 28, border: '2px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '1.05rem' }}
-              >
-                🇹🇭
-              </button>
-              <span className="text-xs" style={{ color: 'var(--muted)', fontSize: '0.65rem' }}>TH</span>
-            </div>
-          </div>
 
           <div className="text-center mb-8">
             <div className="flex justify-center mb-3">
