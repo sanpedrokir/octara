@@ -40,8 +40,12 @@ export async function GET(request: Request) {
       // Stats
       const statRows = await client.query(
         `SELECT
-           (SELECT COUNT(*)::int FROM esco_job_catalog)   AS occupations,
-           (SELECT COUNT(*)::int FROM esco_skills_mapping) AS skills`
+           (SELECT COUNT(*)::int FROM esco_job_catalog) AS occupations,
+           COALESCE((SELECT COUNT(*)::int FROM esco_skills_mapping), 0)
+           + CASE WHEN to_regclass('esco_standalone_skills') IS NOT NULL
+                  THEN (SELECT COUNT(*)::int FROM esco_standalone_skills)
+                  ELSE 0
+             END AS skills`
       );
       const stats = statRows.rows[0] as { occupations: number; skills: number };
 

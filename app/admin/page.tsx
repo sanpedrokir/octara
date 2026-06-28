@@ -394,11 +394,12 @@ export default function AdminPage() {
   }
 
   async function fetchEsco(mode: 'occupations' | 'skills' | 'all') {
-    const labels: Record<string, string> = { occupations: 'occupations', skills: 'skills & competences', all: 'occupations + skills' };
-    if (!confirm(`This will fetch all ESCO ${labels[mode]} from the EU API and replace existing data. This may take up to 60 seconds. Continue?`)) return;
+    const labels: Record<string, string> = { occupations: 'occupations', skills: 'skills & competences', all: 'occupations + skills & competences' };
+    const timeEst = mode === 'all' ? '2–3 minutes' : '60 seconds';
+    if (!confirm(`This will fetch all ESCO ${labels[mode]} from the EU API and replace existing data. This may take up to ${timeEst}. Continue?`)) return;
     setEscoFetching(mode);
     // Keep message persistent (no auto-dismiss) while fetch is in progress
-    setMessage(`⏳ Fetching ESCO ${labels[mode]} from esco.ec.europa.eu… this may take up to 60 seconds, please wait.`);
+    setMessage(`⏳ Fetching ESCO ${labels[mode]} from esco.ec.europa.eu… this may take up to ${timeEst}, please wait.`);
     setMsgType('success');
     try {
       const res = await fetch('/api/admin/esco/fetch', {
@@ -581,7 +582,7 @@ export default function AdminPage() {
                 )}
 
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => fetchEsco('occupations')} disabled={!!escoFetching} className="btn-primary text-sm" style={{ background: '#003399', borderColor: '#003399', opacity: escoFetching ? 0.6 : 1 }}>
+                  <button onClick={() => fetchEsco('all')} disabled={!!escoFetching} className="btn-primary text-sm" style={{ background: '#003399', borderColor: '#003399', opacity: escoFetching ? 0.6 : 1 }}>
                     {escoFetching ? '⏳ Fetching…' : '🌐 Auto-Import from ESCO'}
                   </button>
                   <button onClick={() => setTab('esco')} className="btn-secondary text-sm">Manage →</button>
