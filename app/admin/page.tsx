@@ -393,25 +393,72 @@ export default function AdminPage() {
     if (!error) loadEsco();
   }
 
+  // Fetch ESCO data directly from the browser (avoids EU API rate-limiting Vercel's server IPs)
   async function fetchEsco(mode: 'occupations' | 'skills' | 'all') {
-    const labels: Record<string, string> = { occupations: 'occupations', skills: 'skills & competences', all: 'occupations + skills & competences' };
-    const timeEst = mode === 'all' ? '2–3 minutes' : '60 seconds';
-    if (!confirm(`This will fetch all ESCO ${labels[mode]} from the EU API and replace existing data. This may take up to ${timeEst}. Continue?`)) return;
+    const labels: Record<string, string> = { occupations: 'occupations', skills: 'skills & competences', all: 'occupations + skills' };
+    if (!confirm(`This will fetch all ESCO ${labels[mode]} from the EU API and replace existing data. This may take 1–3 minutes. Continue?`)) return;
+
+    const ESCO = 'https://ec.europa.eu/esco/api';
+    const PAGE = 100;
+
     setEscoFetching(mode);
-    // Keep message persistent (no auto-dismiss) while fetch is in progress
-    setMessage(`⏳ Fetching ESCO ${labels[mode]} from esco.ec.europa.eu… this may take up to ${timeEst}, please wait.`);
     setMsgType('success');
+
     try {
-      const res = await fetch('/api/admin/esco/fetch', {
+      type OccItem   = { title: string; description?: string | null; uri?: string | null; iscoCode?: string | null; iscoLabel?: string | null };
+      type SkillItem = { title: string; uri?: string | null };
+
+      // ── Helper: fetch all pages of an ESCO search URL ──────────────────
+      async function fetchAllPages(url: string, label: string): Promise<{ preferredLabel: string; uri: string; description?: string; iscoGroup?: { code?: string; preferredLabel?: string } }[]> {
+        const first = await fetch(`${url}&limit=${PAGE}&offset=0`).then(r => r.json());
+        const total: number = first.total ?? 0;
+        const all = [...(first._embedded?.results ?? [])];
+        const pages = Math.min(Math.ceil(total / PAGE), 150);
+        for (let p = 1; p < pages; p++) {
+          setMessage(`⏳ Fetching ${label}… ${Math.min(p * PAGE, total)} / ${total}`);
+          await new Promise(r => setTimeout(r, 80));
+          const res = await fetch(`${url}&limit=${PAGE}&offset=${p * PAGE}`);
+          if (!res.ok) continue;
+          const json = await res.json();
+          all.push(...(json._embedded?.results ?? []));
+        }
+        return all;
+      }
+
+      let occupations: OccItem[]   = [];
+      let skills:      SkillItem[] = [];
+
+      if (mode === 'occupations' || mode === 'all') {
+        setMessage('⏳ Fetching ESCO occupations from EU API…');
+        const raw = await fetchAllPages(`${ESCO}/search?type=occupation&language=en`, 'occupations');
+        occupations = raw.map(r => ({
+          title:      r.preferredLabel,
+          description: r.description ? String(r.description).slice(0, 1000) : null,
+          uri:        r.uri,
+          iscoCode:   r.iscoGroup?.code ?? null,
+          iscoLabel:  r.iscoGroup?.preferredLabel ?? null,
+        }));
+        setMessage(`⏳ Got ${occupations.length} occupations. ${mode === 'all' ? 'Now fetching skills…' : 'Saving…'}`);
+      }
+
+      if (mode === 'skills' || mode === 'all') {
+        const raw = await fetchAllPages(`${ESCO}/search?type=skill&language=en`, 'skills');
+        skills = raw.map(r => ({ title: r.preferredLabel, uri: r.uri }));
+        setMessage(`⏳ Got ${skills.length} skills. Saving to database…`);
+      }
+
+      // ── Save to server (just DB writes, no external fetch) ──────────────
+      const res = await fetch('/api/admin/esco/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({ occupations, skills }),
       });
       const { data, error } = await res.json();
       if (error) showMsg(error, 'error');
       else { showMsg(`✅ ${data.message}`, 'success'); loadEsco(); }
+
     } catch (err) {
-      showMsg('Fetch failed: ' + (err instanceof Error ? err.message : 'Network error'), 'error');
+      showMsg('Import failed: ' + (err instanceof Error ? err.message : 'Unknown error'), 'error');
     } finally {
       setEscoFetching(null);
     }
