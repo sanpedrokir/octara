@@ -141,7 +141,7 @@ export default function AdminPage() {
     } catch { /* non-fatal */ }
   }, []);
 
-  useEffect(() => { loadIndustries(); loadLastSync(); loadEsco(); }, [loadIndustries, loadLastSync, loadEsco]);
+  useEffect(() => { loadIndustries(); loadLastSync(); }, [loadIndustries, loadLastSync]);
 
   useEffect(() => {
     if (!selectedIndustry) { setJobRoles([]); return; }
@@ -359,7 +359,7 @@ export default function AdminPage() {
     }
   }, [escoPage, escoView, escoGroupFilter, escoSearch]);
 
-  useEffect(() => { if (tab === 'esco') loadEsco(); }, [tab, loadEsco]);
+  useEffect(() => { if (tab === 'overview' || tab === 'esco') loadEsco(); }, [tab, loadEsco]);
 
   async function uploadEsco(e: React.FormEvent) {
     e.preventDefault();
