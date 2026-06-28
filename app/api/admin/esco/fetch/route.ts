@@ -126,16 +126,14 @@ export async function POST(request: Request) {
         const total = first.total;
         const allOcc: EscoResult[] = [...first.results];
 
-        // Fetch remaining pages (up to 50 pages = 5000 occupations — ESCO has ~3000)
+        // Fetch remaining pages in true batches of 3 (lazy creation — avoids firing all at once)
         const pages = Math.min(Math.ceil(total / PAGE_SIZE), 50);
-        const pagePromises: Promise<{ results: EscoResult[]; total: number }>[] = [];
-        for (let i = 1; i < pages; i++) {
-          pagePromises.push(fetchPage(i * PAGE_SIZE));
-        }
-        // Batch in groups of 5 to avoid overwhelming the ESCO API
-        for (let b = 0; b < pagePromises.length; b += 5) {
-          const batch = await Promise.all(pagePromises.slice(b, b + 5));
+        for (let b = 1; b < pages; b += 3) {
+          const batch = await Promise.all(
+            Array.from({ length: Math.min(3, pages - b) }, (_, i) => fetchPage((b + i) * PAGE_SIZE))
+          );
           for (const p of batch) allOcc.push(...p.results);
+          await new Promise(r => setTimeout(r, 100)); // brief pause between batches
         }
 
         if (allOcc.length > 0) {
