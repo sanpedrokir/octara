@@ -31,6 +31,7 @@ interface GapData {
   career: { sector: string; role: string };
   required: CompetencyRow[];
   summary: GapSummary;
+  is_esco: boolean;
 }
 
 interface SsgCourse {
@@ -212,7 +213,7 @@ export default function GapAnalysisPage() {
     const res = await fetch('/api/gap-analysis/recommend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ missingSkills: missing, sector: gapData.career.sector, role: gapData.career.role }),
+      body: JSON.stringify({ missingSkills: missing, sector: gapData.career.sector, role: gapData.career.role, isEsco: gapData.is_esco }),
     });
     const { data, error: e } = await res.json();
     if (e) {
@@ -292,7 +293,8 @@ export default function GapAnalysisPage() {
   const rowCount  = Math.max(ssgPaged.length, moocPaged.length);
 
   const missingCount = gapData?.required.filter(r => r.status === 'missing').length ?? 0;
-  const anyTracked = ssgCourses.some(c => c._status) || moocCourses.some(c => c._status);
+  const anyTracked   = ssgCourses.some(c => c._status) || moocCourses.some(c => c._status);
+  const isEsco       = gapData?.is_esco ?? false;
 
   // ── Shared course card action buttons ─────────────────────────────────
   function CourseActions({ course }: { course: SsgCourse | MoocCourse }) {
@@ -394,7 +396,7 @@ export default function GapAnalysisPage() {
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>Competency Gap Analysis</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          {career.role ? `${career.role} · ` : ''}{career.sector} · SSG Skills Framework
+          {career.role ? `${career.role} · ` : ''}{career.sector} · {isEsco ? 'ESCO Skills Framework' : 'SSG Skills Framework'}
         </p>
       </div>
 
@@ -437,7 +439,9 @@ export default function GapAnalysisPage() {
       {gapData.required.length === 0 && (
         <div className="card p-8 text-center space-y-3">
           <p className="text-3xl">🔍</p>
-          <p className="font-medium" style={{ color: 'var(--foreground)' }}>No SSG skills found for "{career.sector}"</p>
+          <p className="font-medium" style={{ color: 'var(--foreground)' }}>
+            {isEsco ? `No ESCO skills found for "${career.role || career.sector}"` : `No SSG skills found for "${career.sector}"`}
+          </p>
           <p className="text-sm" style={{ color: 'var(--muted)' }}>
             Upload your resume to build your competency profile manually.
           </p>
@@ -647,11 +651,13 @@ export default function GapAnalysisPage() {
               <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>📚 Course Recommendations</h2>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                 {missingCount > 0
-                  ? `SSG courses, YouTube videos and MOOCs to bridge ${missingCount} missing competencies`
+                  ? isEsco
+                    ? `YouTube videos and MOOCs to bridge ${missingCount} missing competencies`
+                    : `SSG courses, YouTube videos and MOOCs to bridge ${missingCount} missing competencies`
                   : 'All competencies matched — great job!'}
               </p>
             </div>
-            {missingCount > 0 && ssgCourses.length === 0 && (
+            {missingCount > 0 && ssgCourses.length === 0 && moocCourses.length === 0 && (
               <button
                 onClick={recommendCourses}
                 disabled={loadingCourses}
@@ -675,17 +681,21 @@ export default function GapAnalysisPage() {
             <div className="card p-6 flex items-center gap-3">
               <LoadingSpinner label="" />
               <span className="text-sm" style={{ color: 'var(--muted)' }}>
-                Fetching SSG courses, YouTube videos and MOOC recommendations…
+                {isEsco
+                  ? 'Fetching YouTube videos and MOOC recommendations…'
+                  : 'Fetching SSG courses, YouTube videos and MOOC recommendations…'}
               </span>
             </div>
           )}
 
           {/* Empty state */}
-          {ssgCourses.length === 0 && !loadingCourses && missingCount > 0 && (
+          {ssgCourses.length === 0 && moocCourses.length === 0 && !loadingCourses && missingCount > 0 && (
             <div className="card p-8 text-center space-y-2">
               <p className="text-3xl">🤖</p>
               <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                Click &ldquo;Generate Recommendations&rdquo; to get SSG courses, YouTube videos and MOOC recommendations. Once generated, they are saved automatically.
+                {isEsco
+                  ? 'Click "Generate Recommendations" to get YouTube videos and MOOC recommendations. Once generated, they are saved automatically.'
+                  : 'Click "Generate Recommendations" to get SSG courses, YouTube videos and MOOC recommendations. Once generated, they are saved automatically.'}
               </p>
             </div>
           )}
@@ -697,118 +707,180 @@ export default function GapAnalysisPage() {
             </div>
           )}
 
-          {/* ── 3-Column Course Table: SSG | YouTube | MOOC ──────────────── */}
+          {/* ── Course Table: 2-col (ESCO) or 3-col (SSG) ───────────────── */}
           {(ssgCourses.length > 0 || moocCourses.length > 0) && (
             <div className="card overflow-hidden">
               {/* Column headers */}
-              <div className="hidden md:grid grid-cols-3 border-b text-xs font-semibold uppercase tracking-wide" style={{ borderColor: 'var(--card-border)', background: 'var(--muted-bg)' }}>
-                <div className="px-4 py-3 border-r" style={{ borderColor: 'var(--card-border)', color: '#7c3aed' }}>🏛 SSG Courses</div>
-                <div className="px-4 py-3 border-r" style={{ borderColor: 'var(--card-border)', color: '#dc2626' }}>▶ YouTube Study Video</div>
-                <div className="px-4 py-3" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</div>
-              </div>
+              {isEsco ? (
+                <div className="hidden md:grid grid-cols-2 border-b text-xs font-semibold uppercase tracking-wide" style={{ borderColor: 'var(--card-border)', background: 'var(--muted-bg)' }}>
+                  <div className="px-4 py-3 border-r" style={{ borderColor: 'var(--card-border)', color: '#dc2626' }}>▶ YouTube Study Video</div>
+                  <div className="px-4 py-3" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</div>
+                </div>
+              ) : (
+                <div className="hidden md:grid grid-cols-3 border-b text-xs font-semibold uppercase tracking-wide" style={{ borderColor: 'var(--card-border)', background: 'var(--muted-bg)' }}>
+                  <div className="px-4 py-3 border-r" style={{ borderColor: 'var(--card-border)', color: '#7c3aed' }}>🏛 SSG Courses</div>
+                  <div className="px-4 py-3 border-r" style={{ borderColor: 'var(--card-border)', color: '#dc2626' }}>▶ YouTube Study Video</div>
+                  <div className="px-4 py-3" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</div>
+                </div>
+              )}
 
               {/* Rows */}
-              {Array.from({ length: rowCount }).map((_, i) => {
-                const ssg  = ssgPaged[i];
-                const yt   = ssg ? youtubeMap[ssg.title] : undefined;
-                const mooc = moocPaged[i];
-
-                return (
-                  <div
-                    key={i}
-                    className="grid grid-cols-1 md:grid-cols-3 border-b"
-                    style={{ borderColor: 'var(--card-border)' }}
-                  >
-                    {/* ── SSG Column ── */}
-                    <div className="p-4 border-b md:border-b-0 md:border-r space-y-2" style={{ borderColor: 'var(--card-border)', background: ssg?._status === 'completed' ? '#f0fdf4' : 'white' }}>
-                      {/* Mobile label */}
-                      <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#7c3aed' }}>🏛 SSG Course</p>
-                      {ssg ? (
-                        <>
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                              <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#f5f3ff', color: '#7c3aed' }}>SSG</span>
-                              {ssg._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+              {isEsco ? (
+                // ── ESCO: 2-column (YouTube keyed to MOOC | MOOC) ──────────
+                Array.from({ length: moocPaged.length }).map((_, i) => {
+                  const mooc = moocPaged[i];
+                  const yt   = mooc ? youtubeMap[mooc.title] : undefined;
+                  return (
+                    <div key={i} className="grid grid-cols-1 md:grid-cols-2 border-b" style={{ borderColor: 'var(--card-border)' }}>
+                      {/* YouTube */}
+                      <div className="p-4 border-b md:border-b-0 md:border-r" style={{ borderColor: 'var(--card-border)', background: '#fef9f9' }}>
+                        <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#dc2626' }}>▶ YouTube</p>
+                        {yt ? (
+                          <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer" className="flex gap-3 items-start no-underline group">
+                            <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 88, height: 50, background: '#dc2626' }}>
+                              {yt.thumbnailUrl ? (
+                                <img src={yt.thumbnailUrl} alt={yt.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white text-lg">▶</div>
+                              )}
                             </div>
-                            <a href={ssg.url} target="_blank" rel="noopener noreferrer"
-                              className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
-                              {ssg.title}
-                            </a>
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{ssg.provider}</p>
-                            <p className="text-xs mt-1" style={{ color: '#475569' }}>{ssg.description}</p>
-                            {ssg.skills_covered?.length > 0 && (
-                              <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
-                                {ssg.skills_covered[0]}
-                              </span>
-                            )}
-                          </div>
-                          <CourseActions course={ssg} />
-                        </>
-                      ) : (
-                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
-                      )}
-                    </div>
-
-                    {/* ── YouTube Column ── */}
-                    <div className="p-4 border-b md:border-b-0 md:border-r" style={{ borderColor: 'var(--card-border)', background: '#fef9f9' }}>
-                      {/* Mobile label */}
-                      <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#dc2626' }}>▶ YouTube</p>
-                      {yt ? (
-                        <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer" className="flex gap-3 items-start no-underline group">
-                          <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 88, height: 50, background: '#dc2626' }}>
-                            {yt.thumbnailUrl ? (
-                              <img src={yt.thumbnailUrl} alt={yt.title} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white text-lg">▶</div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium leading-snug group-hover:underline line-clamp-3" style={{ color: 'var(--foreground)' }}>
-                              {yt.videoId ? yt.title : `Search: ${yt.title}`}
-                            </p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                              {yt.channelTitle}{!yt.videoId && ' · YouTube search'}
-                            </p>
-                          </div>
-                        </a>
-                      ) : ssg ? (
-                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>No video found</p>
-                      ) : (
-                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
-                      )}
-                    </div>
-
-                    {/* ── MOOC Column ── */}
-                    <div className="p-4 space-y-2" style={{ background: mooc?._status === 'completed' ? '#f0fdf4' : 'white' }}>
-                      {/* Mobile label */}
-                      <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</p>
-                      {mooc ? (
-                        <>
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                              <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb' }}>Coursera</span>
-                              {mooc._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium leading-snug group-hover:underline line-clamp-3" style={{ color: 'var(--foreground)' }}>
+                                {yt.videoId ? yt.title : `Search: ${yt.title}`}
+                              </p>
+                              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                                {yt.channelTitle}{!yt.videoId && ' · YouTube search'}
+                              </p>
                             </div>
-                            <a href={mooc.url} target="_blank" rel="noopener noreferrer"
-                              className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
-                              {mooc.title}
-                            </a>
-                            <p className="text-xs mt-1 line-clamp-2" style={{ color: '#475569', lineHeight: 1.5 }}>{mooc.description}</p>
-                            {mooc.skills_covered?.length > 0 && (
-                              <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
-                                {mooc.skills_covered[0]}
-                              </span>
-                            )}
-                          </div>
-                          <CourseActions course={mooc} />
-                        </>
-                      ) : (
-                        <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
-                      )}
+                          </a>
+                        ) : (
+                          <p className="text-xs italic" style={{ color: 'var(--muted)' }}>No video found</p>
+                        )}
+                      </div>
+                      {/* MOOC */}
+                      <div className="p-4 space-y-2" style={{ background: mooc?._status === 'completed' ? '#f0fdf4' : 'white' }}>
+                        <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</p>
+                        {mooc ? (
+                          <>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb' }}>Coursera</span>
+                                {mooc._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                              </div>
+                              <a href={mooc.url} target="_blank" rel="noopener noreferrer"
+                                className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
+                                {mooc.title}
+                              </a>
+                              <p className="text-xs mt-1 line-clamp-2" style={{ color: '#475569', lineHeight: 1.5 }}>{mooc.description}</p>
+                              {mooc.skills_covered?.length > 0 && (
+                                <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                  {mooc.skills_covered[0]}
+                                </span>
+                              )}
+                            </div>
+                            <CourseActions course={mooc} />
+                          </>
+                        ) : (
+                          <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                // ── SSG: 3-column (SSG | YouTube | MOOC) ──────────────────
+                Array.from({ length: rowCount }).map((_, i) => {
+                  const ssg  = ssgPaged[i];
+                  const yt   = ssg ? youtubeMap[ssg.title] : undefined;
+                  const mooc = moocPaged[i];
+                  return (
+                    <div key={i} className="grid grid-cols-1 md:grid-cols-3 border-b" style={{ borderColor: 'var(--card-border)' }}>
+                      {/* SSG */}
+                      <div className="p-4 border-b md:border-b-0 md:border-r space-y-2" style={{ borderColor: 'var(--card-border)', background: ssg?._status === 'completed' ? '#f0fdf4' : 'white' }}>
+                        <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#7c3aed' }}>🏛 SSG Course</p>
+                        {ssg ? (
+                          <>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#f5f3ff', color: '#7c3aed' }}>SSG</span>
+                                {ssg._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                              </div>
+                              <a href={ssg.url} target="_blank" rel="noopener noreferrer"
+                                className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
+                                {ssg.title}
+                              </a>
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{ssg.provider}</p>
+                              <p className="text-xs mt-1" style={{ color: '#475569' }}>{ssg.description}</p>
+                              {ssg.skills_covered?.length > 0 && (
+                                <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                  {ssg.skills_covered[0]}
+                                </span>
+                              )}
+                            </div>
+                            <CourseActions course={ssg} />
+                          </>
+                        ) : (
+                          <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
+                        )}
+                      </div>
+                      {/* YouTube */}
+                      <div className="p-4 border-b md:border-b-0 md:border-r" style={{ borderColor: 'var(--card-border)', background: '#fef9f9' }}>
+                        <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#dc2626' }}>▶ YouTube</p>
+                        {yt ? (
+                          <a href={yt.watchUrl} target="_blank" rel="noopener noreferrer" className="flex gap-3 items-start no-underline group">
+                            <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 88, height: 50, background: '#dc2626' }}>
+                              {yt.thumbnailUrl ? (
+                                <img src={yt.thumbnailUrl} alt={yt.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white text-lg">▶</div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium leading-snug group-hover:underline line-clamp-3" style={{ color: 'var(--foreground)' }}>
+                                {yt.videoId ? yt.title : `Search: ${yt.title}`}
+                              </p>
+                              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                                {yt.channelTitle}{!yt.videoId && ' · YouTube search'}
+                              </p>
+                            </div>
+                          </a>
+                        ) : ssg ? (
+                          <p className="text-xs italic" style={{ color: 'var(--muted)' }}>No video found</p>
+                        ) : (
+                          <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
+                        )}
+                      </div>
+                      {/* MOOC */}
+                      <div className="p-4 space-y-2" style={{ background: mooc?._status === 'completed' ? '#f0fdf4' : 'white' }}>
+                        <p className="md:hidden text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#2563eb' }}>🎓 MOOC / Coursera</p>
+                        {mooc ? (
+                          <>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb' }}>Coursera</span>
+                                {mooc._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
+                              </div>
+                              <a href={mooc.url} target="_blank" rel="noopener noreferrer"
+                                className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
+                                {mooc.title}
+                              </a>
+                              <p className="text-xs mt-1 line-clamp-2" style={{ color: '#475569', lineHeight: 1.5 }}>{mooc.description}</p>
+                              {mooc.skills_covered?.length > 0 && (
+                                <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                  {mooc.skills_covered[0]}
+                                </span>
+                              )}
+                            </div>
+                            <CourseActions course={mooc} />
+                          </>
+                        ) : (
+                          <p className="text-xs italic" style={{ color: 'var(--muted)' }}>—</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
 
               {/* Pagination */}
               {combinedTotal > PAGE_SIZE && (

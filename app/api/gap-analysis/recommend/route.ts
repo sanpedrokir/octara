@@ -195,14 +195,38 @@ export async function POST(request: Request) {
     await ensureTable();
     const sql = db();
 
-    const body = await request.json() as { missingSkills: string[]; sector: string; role: string };
-    const { missingSkills, sector = '', role = '' } = body;
+    const body = await request.json() as { missingSkills: string[]; sector: string; role: string; isEsco?: boolean };
+    const { missingSkills, sector = '', role = '', isEsco = false } = body;
 
     if (!missingSkills?.length) {
       return Response.json({ data: { courses: [], youtube: {}, mooc: [] }, error: null });
     }
 
-    // ── 1. SSG courses (parallel per skill) ────────────────────────────────
+    const moocQueries = [role.trim(), sector.trim(), ...missingSkills.slice(0, 3)].filter(Boolean);
+    const youtube: Record<string, YouTubeVideo> = {};
+
+    if (isEsco) {
+      // ── ESCO path: no SSG courses; YouTube keyed to MOOC titles ──────────
+      const mooc = await fetchCourseraCourses(moocQueries, sector, role, missingSkills);
+      const ytList = await Promise.all(mooc.slice(0, 8).map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? '')));
+      for (const v of ytList) youtube[v.courseTitle] = v;
+
+      await sql`
+        INSERT INTO course_recommendations (user_id, courses, youtube, mooc, sector, role)
+        VALUES (${session.userId}, ${JSON.stringify([])}, ${JSON.stringify(youtube)}, ${JSON.stringify(mooc)}, ${sector}, ${role})
+        ON CONFLICT (user_id)
+        DO UPDATE SET
+          courses    = EXCLUDED.courses,
+          youtube    = EXCLUDED.youtube,
+          mooc       = EXCLUDED.mooc,
+          sector     = EXCLUDED.sector,
+          role       = EXCLUDED.role,
+          created_at = NOW()
+      `;
+      return Response.json({ data: { courses: [], youtube, mooc }, error: null });
+    }
+
+    // ── SSG path (SG users) ────────────────────────────────────────────────
     const skillsToSearch = missingSkills.slice(0, 8);
     const ssgResults = await Promise.all(skillsToSearch.map(s => searchCoursesWithSource(s)));
 
@@ -238,19 +262,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 2. YouTube + MOOC in parallel ──────────────────────────────────────
-    const moocQueries = [role.trim(), sector.trim(), ...missingSkills.slice(0, 3)].filter(Boolean);
-
     const [youtubeList, mooc] = await Promise.all([
       Promise.all(courses.map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? ''))),
       fetchCourseraCourses(moocQueries, sector, role, missingSkills),
     ]);
-
-    // Convert youtube list to map keyed by course title for easy lookup
-    const youtube: Record<string, YouTubeVideo> = {};
     for (const v of youtubeList) youtube[v.courseTitle] = v;
 
-    // ── 3. Save to DB (upsert — replace previous recommendations) ──────────
     await sql`
       INSERT INTO course_recommendations (user_id, courses, youtube, mooc, sector, role)
       VALUES (${session.userId}, ${JSON.stringify(courses)}, ${JSON.stringify(youtube)}, ${JSON.stringify(mooc)}, ${sector}, ${role})

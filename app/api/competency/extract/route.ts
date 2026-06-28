@@ -9,15 +9,21 @@ export async function POST(request: Request) {
 
     const contentType = request.headers.get('content-type') ?? '';
     let resumeText = '';
+    let linkedInText = '';
+    let resumeFilename: string | null = null;
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       const file = formData.get('file') as File | null;
       const text = formData.get('text') as string | null;
+      const liText = formData.get('linkedInText') as string | null;
+      linkedInText = liText?.trim() ?? '';
 
       if (text?.trim()) {
         resumeText = text.trim();
+        resumeFilename = 'pasted text';
       } else if (file) {
+        resumeFilename = file.name;
         if (file.name.endsWith('.pdf')) {
           // Import the lib directly to skip the debug-mode test-file load in index.js
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,13 +33,22 @@ export async function POST(request: Request) {
           const parsed = await pdfParse(buffer);
           resumeText = parsed.text;
         } else {
-          // .txt or other text-based files
           resumeText = await file.text();
         }
       }
     } else {
-      const body = await request.json() as { text?: string };
+      const body = await request.json() as { text?: string; linkedInText?: string };
       resumeText = body.text?.trim() ?? '';
+      linkedInText = body.linkedInText?.trim() ?? '';
+      if (resumeText) resumeFilename = 'pasted text';
+    }
+
+    // Append LinkedIn text if provided
+    if (linkedInText) {
+      resumeText = resumeText
+        ? `${resumeText}\n\n--- LinkedIn Profile ---\n${linkedInText}`
+        : `LinkedIn Profile:\n${linkedInText}`;
+      if (!resumeFilename) resumeFilename = 'LinkedIn profile';
     }
 
     if (!resumeText) {
@@ -123,6 +138,12 @@ Return JSON:
       )
     `;
     await sql`DELETE FROM user_competencies WHERE user_id = ${session.userId} AND source = 'resume'`;
+    // Save resume metadata so the UI can show the previously uploaded file
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_filename TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_uploaded_at TIMESTAMPTZ`;
+    if (resumeFilename) {
+      await sql`UPDATE users SET resume_filename = ${resumeFilename}, resume_uploaded_at = NOW() WHERE id = ${session.userId}`;
+    }
 
     for (const c of competencies) {
       const ssgMatch = ssgMatches[c.skill]?.[0] ?? null;
