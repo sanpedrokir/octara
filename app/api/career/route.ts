@@ -73,16 +73,16 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'Sector and job role are required' }, { status: 400 });
     }
 
-    const sql = db();
     const [row] = await sql`
-      INSERT INTO career_aspirations (user_id, industry_id, job_role_id, catalog_job_role_id, notes, updated_at)
-      VALUES (${session.userId}, ${industry_id}, ${job_role_id}, NULL, ${notes || null}, NOW())
+      INSERT INTO career_aspirations (user_id, industry_id, job_role_id, catalog_job_role_id, esco_occupation_id, notes, updated_at)
+      VALUES (${session.userId}, ${industry_id}, ${job_role_id}, NULL, NULL, ${notes || null}, NOW())
       ON CONFLICT (user_id) DO UPDATE SET
-        industry_id = EXCLUDED.industry_id,
-        job_role_id = EXCLUDED.job_role_id,
+        industry_id         = EXCLUDED.industry_id,
+        job_role_id         = EXCLUDED.job_role_id,
         catalog_job_role_id = NULL,
-        notes = EXCLUDED.notes,
-        updated_at = NOW()
+        esco_occupation_id  = NULL,
+        notes               = EXCLUDED.notes,
+        updated_at          = NOW()
       RETURNING *
     `;
     return Response.json({ data: row, error: null });
