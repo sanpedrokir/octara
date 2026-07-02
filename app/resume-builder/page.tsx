@@ -19,6 +19,7 @@ export default function ResumeBuilderPage() {
   const [error, setError]       = useState('');
   const [resume, setResume]     = useState<ResumeData | null>(null);
   const [copied, setCopied]     = useState(false);
+  const [showText, setShowText] = useState(false);
 
   async function generate() {
     setLoading(true);
@@ -59,9 +60,23 @@ export default function ResumeBuilderPage() {
   }
 
   async function copyToClipboard() {
-    await navigator.clipboard.writeText(buildPlainText());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const text = buildPlainText();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback: create a temporary textarea and use execCommand
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* ignore */ }
+      document.body.removeChild(el);
+    }
   }
 
   return (
@@ -106,10 +121,27 @@ export default function ResumeBuilderPage() {
             <button onClick={copyToClipboard} className="btn-primary text-sm px-5">
               {copied ? '✓ Copied!' : '📋 Copy as Plain Text'}
             </button>
+            <button onClick={() => setShowText(v => !v)} className="btn-secondary text-sm px-5">
+              {showText ? 'Hide Text' : '📄 View as Text'}
+            </button>
             <button onClick={generate} disabled={loading} className="btn-secondary text-sm px-5" style={{ opacity: loading ? 0.6 : 1 }}>
               {loading ? '⏳ Regenerating…' : '🔄 Regenerate'}
             </button>
           </div>
+
+          {showText && (
+            <div className="space-y-2">
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>Select all text below and copy (Ctrl+A then Ctrl+C):</p>
+              <textarea
+                readOnly
+                value={buildPlainText()}
+                rows={20}
+                className="w-full rounded-xl p-3 text-xs font-mono border"
+                style={{ border: '1.5px solid var(--card-border)', color: 'var(--foreground)', background: '#f8faff', resize: 'vertical' }}
+                onClick={e => (e.target as HTMLTextAreaElement).select()}
+              />
+            </div>
+          )}
 
           {/* Resume card */}
           <div className="card p-6 space-y-6" style={{ fontFamily: 'Georgia, serif' }}>
