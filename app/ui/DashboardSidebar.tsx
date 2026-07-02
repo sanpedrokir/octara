@@ -14,7 +14,6 @@ const navItems = [
   { href: '/profile',            label: 'My Profile',            icon: '👤' },
   { href: '/resume-builder',     label: 'Resume Builder',        icon: '📄' },
   { href: '/linkedin-scorer',    label: 'LinkedIn Scorer',       icon: '🔗' },
-  { href: '/job-tracker',        label: 'Job Tracker',           icon: '📌' },
   { href: '/salary-benchmark',   label: 'Salary Benchmark',      icon: '💰' },
 ];
 
