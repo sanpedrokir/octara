@@ -139,7 +139,6 @@ function SkillTable({ rows, emptyText }: { rows: SkillEntry[]; emptyText: string
           <tr style={{ borderBottom: '1px solid var(--card-border)', background: 'var(--muted-bg)' }}>
             <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Skill Title</th>
             <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Proficiency Level</th>
-            <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Code</th>
           </tr>
         </thead>
         <tbody>
@@ -147,7 +146,6 @@ function SkillTable({ rows, emptyText }: { rows: SkillEntry[]; emptyText: string
             <tr key={i} style={{ borderBottom: '1px solid var(--card-border)' }}>
               <td className="py-2 px-3 font-medium" style={{ color: 'var(--primary)' }}>{row.skill_title}</td>
               <td className="py-2 px-3" style={{ color: 'var(--muted)' }}>{row.proficiency_level ? `Level ${row.proficiency_level}` : '—'}</td>
-              <td className="py-2 px-3" style={{ color: 'var(--muted)' }}>{row.skill_code}</td>
             </tr>
           ))}
         </tbody>
@@ -628,7 +626,6 @@ export default function CareerPage() {
                                     <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>
                                       {badge.label}
                                     </span>
-                                    <span className="text-xs" style={{ color: 'var(--muted)' }}>{skill.frequency}/{marketJobCount}</span>
                                   </div>
                                 </div>
                               );
