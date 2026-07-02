@@ -1,9 +1,12 @@
 import { requireAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
 import OpenAI from 'openai';
 
 export const maxDuration = 30;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const CACHE_TTL_DAYS = 7;
 
 interface McfJob {
   title?: string;
@@ -18,6 +21,21 @@ interface McfResponse {
   results?: McfJob[];
 }
 
+async function ensureCacheTable() {
+  const sql = db();
+  await sql`
+    CREATE TABLE IF NOT EXISTS market_skills_cache (
+      id               SERIAL PRIMARY KEY,
+      job_role         TEXT NOT NULL UNIQUE,
+      skills           JSONB NOT NULL DEFAULT '[]',
+      job_count        INTEGER NOT NULL DEFAULT 0,
+      total_listings   INTEGER NOT NULL DEFAULT 0,
+      sample_companies JSONB NOT NULL DEFAULT '[]',
+      fetched_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+}
+
 export async function POST(request: Request) {
   try {
     await requireAuth();
@@ -27,7 +45,37 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'Job title is required' }, { status: 400 });
     }
 
-    // 1. Search MyCareersFuture for live job listings
+    const sql = db();
+    await ensureCacheTable();
+
+    // 1. Return cached result if fresh (< CACHE_TTL_DAYS old)
+    const cached = await sql`
+      SELECT skills, job_count, total_listings, sample_companies, fetched_at
+      FROM market_skills_cache
+      WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${jobTitle}))
+        AND fetched_at > NOW() - INTERVAL '7 days'
+    ` as Array<{
+      skills: object;
+      job_count: number;
+      total_listings: number;
+      sample_companies: object;
+      fetched_at: string;
+    }>;
+
+    if (cached.length > 0) {
+      return Response.json({
+        data: {
+          skills:          cached[0].skills,
+          jobCount:        cached[0].job_count,
+          totalListings:   cached[0].total_listings,
+          sampleCompanies: cached[0].sample_companies,
+          cached:          true,
+        },
+        error: null,
+      });
+    }
+
+    // 2. Fetch live listings from MyCareersFuture
     const mcfUrl = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(jobTitle.trim())}&limit=10`;
     let jobs: McfJob[] = [];
     let totalListings = 0;
@@ -40,34 +88,27 @@ export async function POST(request: Request) {
         },
         signal: AbortSignal.timeout(10000),
       });
-
       if (mcfRes.ok) {
         const mcfData = await mcfRes.json() as McfResponse;
         jobs = mcfData.results ?? [];
         totalListings = mcfData.total ?? jobs.length;
       }
     } catch {
-      // MCF API unreachable — fall through to AI with empty context
+      // MCF unreachable
     }
 
     if (jobs.length === 0) {
-      return Response.json({ data: null, error: `No job listings found for "${jobTitle}" on MyCareersFuture. Try a broader title.` });
+      return Response.json({ data: null, error: `No job listings found for "${jobTitle}" on MyCareersFuture.` });
     }
 
-    // 2. Build combined text from all job descriptions (cap at 8 000 chars for token budget)
-    const jobBlocks = jobs.map((job, i) => {
-      const parts = [
-        `[Job ${i + 1}] ${job.title ?? jobTitle}${job.company?.name ? ` · ${job.company.name}` : ''}`,
-        job.description ?? '',
-        job.requirements ?? '',
+    // 3. Build combined text and extract skills with AI
+    const combinedText = jobs.map((job, i) =>
+      [`[Job ${i + 1}] ${job.title ?? jobTitle}${job.company?.name ? ` · ${job.company.name}` : ''}`,
+        job.description ?? '', job.requirements ?? '',
         (job.skills ?? []).map(s => s.skill).filter(Boolean).join(', '),
-      ].filter(Boolean);
-      return parts.join('\n');
-    });
+      ].filter(Boolean).join('\n')
+    ).join('\n\n---\n\n').slice(0, 8000);
 
-    const combinedText = jobBlocks.join('\n\n---\n\n').slice(0, 8000);
-
-    // 3. Use AI to extract and aggregate skills across all listings
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -75,44 +116,37 @@ export async function POST(request: Request) {
           role: 'system',
           content: `You are a skill extraction expert for Singapore job market analysis.
 Extract and deduplicate all required skills from job listings.
-Return ONLY a valid JSON object — no markdown, no explanation — with this exact shape:
-{
-  "skills": [
-    { "name": "string (1–5 words)", "category": "Technical" | "Tools & Platforms" | "Soft Skills" | "Domain Knowledge", "importance": "high" | "medium" | "low", "frequency": <number 1–${jobs.length}> }
-  ]
-}
-Rules:
-- Merge synonyms (e.g. "Node.js" and "NodeJS" → one entry)
-- frequency = number of listings that mentioned it
-- importance: high = 3+ listings, medium = 2 listings, low = 1 listing
-- Return 10–25 skills, sorted by frequency desc
-- Singapore context: treat "SkillsFuture", "WSG", "MOM" as Domain Knowledge`,
+Return ONLY valid JSON — no markdown, no explanation:
+{ "skills": [{ "name": "string (1–5 words)", "category": "Technical"|"Tools & Platforms"|"Soft Skills"|"Domain Knowledge", "importance": "high"|"medium"|"low", "frequency": <1–${jobs.length}> }] }
+Rules: merge synonyms; frequency = listings mentioning it; importance: high=3+, medium=2, low=1; return 10–25 skills sorted by frequency desc.`,
         },
-        {
-          role: 'user',
-          content: `Job title searched: "${jobTitle}"\n\n${combinedText}`,
-        },
+        { role: 'user', content: `Job title: "${jobTitle}"\n\n${combinedText}` },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
     });
 
-    const raw = completion.choices[0].message.content ?? '{"skills":[]}';
-    const extracted = JSON.parse(raw) as {
+    const extracted = JSON.parse(completion.choices[0].message.content ?? '{"skills":[]}') as {
       skills: Array<{ name: string; category: string; importance: string; frequency: number }>;
     };
 
-    const companies = [...new Set(
-      jobs.map(j => j.company?.name).filter((n): n is string => !!n)
-    )].slice(0, 5);
+    const skills = extracted.skills ?? [];
+    const companies = [...new Set(jobs.map(j => j.company?.name).filter((n): n is string => !!n))].slice(0, 5);
+
+    // 4. Cache the result
+    await sql`
+      INSERT INTO market_skills_cache (job_role, skills, job_count, total_listings, sample_companies)
+      VALUES (${jobTitle.trim()}, ${JSON.stringify(skills)}, ${jobs.length}, ${totalListings}, ${JSON.stringify(companies)})
+      ON CONFLICT (job_role) DO UPDATE SET
+        skills           = EXCLUDED.skills,
+        job_count        = EXCLUDED.job_count,
+        total_listings   = EXCLUDED.total_listings,
+        sample_companies = EXCLUDED.sample_companies,
+        fetched_at       = NOW()
+    `;
 
     return Response.json({
-      data: {
-        skills: extracted.skills ?? [],
-        jobCount: jobs.length,
-        totalListings,
-        sampleCompanies: companies,
-      },
+      data: { skills, jobCount: jobs.length, totalListings, sampleCompanies: companies, cached: false },
       error: null,
     });
   } catch (err) {
