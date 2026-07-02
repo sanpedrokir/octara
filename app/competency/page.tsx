@@ -683,11 +683,10 @@ export default function CompetencyPage() {
         <div className="space-y-5">
           {/* Summary */}
           {profile.length > 0 && (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Total Competencies', value: profile.length, color: 'var(--primary)', bg: 'var(--primary-light)' },
                 { label: 'SSG Framework Mapped', value: ssgCount, color: '#15803d', bg: '#f0fdf4' },
-                { label: 'Self-Identified', value: profile.length - ssgCount, color: '#7c3aed', bg: '#f5f3ff' },
               ].map(s => (
                 <div key={s.label} className="card p-4 text-center">
                   <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
