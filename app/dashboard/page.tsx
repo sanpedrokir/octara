@@ -2,60 +2,34 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-const SECTIONS = [
+type NavItem = { href: string; icon: string; label: string; description: string; color: string; bg: string; border: string };
+const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
   {
-    href: '/career-coach',
-    icon: '🎓',
-    label: 'Career Coach',
-    description: 'Chat with Cora, your AI career advisor, for personalised guidance.',
-    color: '#7c3aed',
-    bg: '#f5f3ff',
-    border: '#ddd6fe',
+    label: 'Career Path',
+    items: [
+      { href: '/career',      icon: '🎯', label: 'Career Goal',        description: 'Set your target industry and job role.',                             color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' },
+      { href: '/competency',  icon: '🧩', label: 'Competency Profile', description: 'Upload your resume and manage your skills.',                         color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+      { href: '/gap-analysis',icon: '📊', label: 'Gap Analysis',       description: 'See your skill gaps and get course recommendations.',                color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+    ],
   },
   {
-    href: '/career',
-    icon: '🎯',
-    label: 'Career Goal',
-    description: 'Set your target industry and job role.',
-    color: '#6366f1',
-    bg: '#eef2ff',
-    border: '#c7d2fe',
+    label: 'Career Tools',
+    items: [
+      { href: '/job-matcher',      icon: '🎯', label: 'Job Description Matcher', description: 'Paste a JD to see how well your profile matches.',                 color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
+      { href: '/salary-benchmark', icon: '💰', label: 'Salary Benchmark',        description: 'See Singapore salary ranges for your target role.',               color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
+      { href: '/resume-builder',   icon: '📄', label: 'Resume Builder',          description: 'Auto-generate a professional resume from your profile.',           color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+      { href: '/linkedin-scorer',  icon: '🔗', label: 'LinkedIn Scorer',         description: 'Score your LinkedIn profile and get improvement tips.',            color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+      { href: '/cover-letter',     icon: '✉️', label: 'Cover Letter',            description: 'Generate a personalised cover letter for any job application.',    color: '#7c3aed', bg: '#faf5ff', border: '#e9d5ff' },
+    ],
   },
   {
-    href: '/competency',
-    icon: '🧩',
-    label: 'Competency Profile',
-    description: 'Upload your resume and manage your skills.',
-    color: '#0891b2',
-    bg: '#ecfeff',
-    border: '#a5f3fc',
-  },
-  {
-    href: '/gap-analysis',
-    icon: '📊',
-    label: 'Gap Analysis',
-    description: 'See your skill gaps and get course recommendations.',
-    color: '#7c3aed',
-    bg: '#f5f3ff',
-    border: '#ddd6fe',
-  },
-  {
-    href: '/skill-quiz',
-    icon: '🧠',
-    label: 'Work Knowledge Quiz',
-    description: 'Test your work scenario knowledge and move up the Leaderboard!',
-    color: '#15803d',
-    bg: '#f0fdf4',
-    border: '#bbf7d0',
-  },
-  {
-    href: '/profile',
-    icon: '👤',
-    label: 'My Profile',
-    description: 'Update your bio, location and personal details.',
-    color: '#0369a1',
-    bg: '#f0f9ff',
-    border: '#bae6fd',
+    label: 'Learning',
+    items: [
+      { href: '/career-coach',     icon: '🎓', label: 'Career Coach',        description: 'Chat with Cora, your AI career advisor, for personalised guidance.', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+      { href: '/interview-prep',   icon: '🎤', label: 'Interview Prep',      description: 'Practise role-specific interview questions with AI feedback.',         color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+      { href: '/skill-quiz',       icon: '🧠', label: 'Work Knowledge Quiz', description: 'Test your work scenario knowledge.',                                  color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+      { href: '/learning-roadmap', icon: '🗺️', label: 'Learning Roadmap',   description: 'Get a personalised 3-phase plan to reach your career goal.',          color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+    ],
   },
 ];
 
@@ -240,56 +214,53 @@ export default async function DashboardPage() {
       )}
 
       {/* ── SECTION CARDS ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {SECTIONS.map(s => (
-          <Link key={s.href} href={s.href} className="no-underline group">
-            <div
-              className="h-full rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5"
-              style={{ background: s.bg, border: `1.5px solid ${s.border}` }}
-            >
-              <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
-                style={{ background: 'white', boxShadow: `0 2px 8px ${s.border}` }}
-              >
-                {s.icon}
-              </div>
-              <div className="flex-1">
-                <h2 className="text-lg font-bold mb-1.5" style={{ color: s.color }}>{s.label}</h2>
-                <p className="text-sm leading-relaxed" style={{ color: '#475569' }}>{s.description}</p>
-              </div>
-              <div className="flex items-center justify-end">
-                <span className="text-sm font-semibold transition-transform duration-200 group-hover:translate-x-1" style={{ color: s.color }}>
-                  Go →
-                </span>
-              </div>
+      <div className="space-y-8">
+        {NAV_SECTIONS.map(section => (
+          <div key={section.label}>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3 px-1" style={{ color: 'var(--muted)' }}>{section.label}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {section.items.map(s => (
+                <Link key={s.href} href={s.href} className="no-underline group">
+                  <div
+                    className="h-full rounded-2xl p-5 flex flex-col gap-3 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5"
+                    style={{ background: s.bg, border: `1.5px solid ${s.border}` }}
+                  >
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: 'white', boxShadow: `0 2px 8px ${s.border}` }}>
+                      {s.icon}
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-base font-bold mb-1" style={{ color: s.color }}>{s.label}</h2>
+                      <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>{s.description}</p>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <span className="text-xs font-semibold transition-transform duration-200 group-hover:translate-x-1" style={{ color: s.color }}>Go →</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-          </Link>
+          </div>
         ))}
 
-        {/* Admin card — only for admin users */}
+        {/* Admin card */}
         {isAdmin && (
-          <Link href="/admin" className="no-underline group">
-            <div
-              className="h-full rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5"
-              style={{ background: '#faf5ff', border: '1.5px solid #ddd6fe' }}
-            >
-              <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
-                style={{ background: 'white', boxShadow: '0 2px 8px #ddd6fe' }}
-              >
-                ⚙️
-              </div>
-              <div className="flex-1">
-                <h2 className="text-lg font-bold mb-1.5" style={{ color: '#7c3aed' }}>Admin Panel</h2>
-                <p className="text-sm leading-relaxed" style={{ color: '#475569' }}>Manage sectors, job roles, TSC/CCS data and platform settings.</p>
-              </div>
-              <div className="flex items-center justify-end">
-                <span className="text-sm font-semibold transition-transform duration-200 group-hover:translate-x-1" style={{ color: '#7c3aed' }}>
-                  Go →
-                </span>
-              </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3 px-1" style={{ color: 'var(--muted)' }}>Admin</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Link href="/admin" className="no-underline group">
+                <div className="h-full rounded-2xl p-5 flex flex-col gap-3 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5" style={{ background: '#faf5ff', border: '1.5px solid #ddd6fe' }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: 'white', boxShadow: '0 2px 8px #ddd6fe' }}>⚙️</div>
+                  <div className="flex-1">
+                    <h2 className="text-base font-bold mb-1" style={{ color: '#7c3aed' }}>Admin Panel</h2>
+                    <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>Manage sectors, job roles, TSC/CCS data and platform settings.</p>
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <span className="text-xs font-semibold transition-transform duration-200 group-hover:translate-x-1" style={{ color: '#7c3aed' }}>Go →</span>
+                  </div>
+                </div>
+              </Link>
             </div>
-          </Link>
+          </div>
         )}
       </div>
 
