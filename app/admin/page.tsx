@@ -1248,13 +1248,70 @@ export default function AdminPage() {
           <div className="card p-5 space-y-2" style={{ border: '2px solid #003399', background: '#E8F0FE' }}>
             <h3 className="font-semibold" style={{ color: '#003399' }}>🇪🇺 ESCO (EU) Job Framework</h3>
             <p className="text-sm" style={{ color: '#1e3a8a' }}>
-              ESCO is the European multilingual classification of Skills, Competences and Occupations — the EU equivalent of SSG.
-              Download free ESCO data as CSV from <strong>esco.ec.europa.eu/en/use-esco/download</strong>, then fill in the template and upload below.
+              ESCO is the European Skills, Competences and Occupations classification — the EU equivalent of SSG.
+              Used for users outside Singapore. No file download needed — data is fetched directly from the EU API.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
-              {['ISCO Groups → Sectors', 'Sub-Groups → Tracks', 'Occupations → Job Roles', 'Skills / Knowledge / Competences'].map(tag => (
+              {['ISCO Groups → Sectors', 'Sub-Groups → Tracks', 'Occupations → Job Roles', 'Essential Skills per Occupation'].map(tag => (
                 <span key={tag} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#c7d2fe', color: '#1e40af' }}>{tag}</span>
               ))}
+            </div>
+          </div>
+
+          {/* Setup guide */}
+          <div className="card p-5 space-y-4" style={{ border: '1.5px solid #bfdbfe', background: '#f8faff' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📋</span>
+              <h3 className="font-semibold" style={{ color: '#1e40af' }}>Setup Guide — do these steps in order</h3>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                {
+                  num: '1',
+                  title: 'Auto-Import Occupations',
+                  where: 'Below → "Auto-Import from ESCO API" → click Import All',
+                  what: 'Fetches ~3,000 job occupations directly from the EU ESCO API (esco.ec.europa.eu). No file needed. Takes ~2 minutes.',
+                  freq: 'Once, then again when ESCO releases a new version (~annually)',
+                  done: (escoStats?.occupations ?? 0) > 0,
+                },
+                {
+                  num: '2',
+                  title: 'Sync Skills per Occupation',
+                  where: 'Below → "Sync Skills per Occupation" → click the Sync button',
+                  what: 'Calls the EU API once per occupation to fetch its essential required skills and stores them in the database. This is what powers the Gap Analysis for non-SG users.',
+                  freq: 'Once after Step 1, then again when ESCO releases a new version',
+                  done: false,
+                },
+              ].map(step => (
+                <div key={step.num} className="flex gap-3">
+                  <span
+                    className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
+                    style={{ background: step.done ? '#15803d' : '#2563eb' }}
+                  >
+                    {step.done ? '✓' : step.num}
+                  </span>
+                  <div className="space-y-1 min-w-0">
+                    <p className="text-sm font-semibold" style={{ color: step.done ? '#15803d' : 'var(--foreground)' }}>
+                      {step.title} {step.done && <span className="text-xs font-normal">(done)</span>}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                      <span className="font-medium" style={{ color: '#1d4ed8' }}>Where: </span>{step.where}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                      <span className="font-medium" style={{ color: 'var(--foreground)' }}>What it does: </span>{step.what}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                      <span className="font-medium" style={{ color: 'var(--foreground)' }}>Frequency: </span>{step.freq}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t text-xs space-y-1" style={{ borderColor: '#dbeafe', color: 'var(--muted)' }}>
+              <p><strong style={{ color: 'var(--foreground)' }}>Data source:</strong> European Commission ESCO API — <span style={{ color: '#2563eb' }}>esco.ec.europa.eu</span> — free and public, no API key needed.</p>
+              <p><strong style={{ color: 'var(--foreground)' }}>Alternative:</strong> Download the ESCO dataset CSV from <span style={{ color: '#2563eb' }}>esco.ec.europa.eu/en/use-esco/download</span> and use the Manual Upload section below instead of the API import.</p>
             </div>
           </div>
 
