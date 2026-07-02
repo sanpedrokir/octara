@@ -605,7 +605,7 @@ export default function CareerPage() {
                         </div>
                       )}
                       {marketError && !marketLoading && (
-                        <p className="text-sm py-2" style={{ color: '#b91c1c' }}>{marketError}</p>
+                        <p className="text-sm py-2" style={{ color: 'var(--muted)' }}>No Listing available</p>
                       )}
                       {!marketLoading && !marketError && marketSkills.length > 0 && (
                         <>
@@ -635,7 +635,7 @@ export default function CareerPage() {
                       )}
                       {!marketLoading && !marketError && marketSkills.length === 0 && (
                         <p className="text-sm py-4 text-center" style={{ color: 'var(--muted)' }}>
-                          No live listings found for this role on MyCareersFuture.
+                          No Listing available
                         </p>
                       )}
                     </div>
