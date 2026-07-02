@@ -158,6 +158,7 @@ export default function GapAnalysisPage() {
     if (e === 'NO_CAREER_GOAL') setError('NO_CAREER_GOAL');
     else if (e === 'NO_SECTOR') setError('NO_SECTOR');
     else if (e === 'NO_COMPETENCY_PROFILE') setError('NO_COMPETENCY_PROFILE');
+    else if (e === 'ESCO_SKILLS_NOT_SYNCED') setError('ESCO_SKILLS_NOT_SYNCED');
     else if (e) setError(e);
     else setGapData(data);
     setLoading(false);
@@ -360,6 +361,20 @@ export default function GapAnalysisPage() {
           Gap analysis requires a career aspiration to compare against the SSG Skills Framework.
         </p>
         <Link href="/career" className="btn-primary inline-block">Go to Career Goal →</Link>
+      </div>
+    );
+  }
+
+  if (error === 'ESCO_SKILLS_NOT_SYNCED') {
+    return (
+      <div className="max-w-lg mx-auto mt-16 text-center space-y-4">
+        <p className="text-4xl">🔄</p>
+        <h2 className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>ESCO skills not synced yet</h2>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          The required skills for your occupation haven&apos;t been imported yet. Ask your administrator to run
+          <strong> ESCO → Sync Skills per Occupation</strong> in the Admin Panel. This is a one-time setup
+          (takes ~10 minutes) and only needs to be repeated when ESCO releases a new version.
+        </p>
       </div>
     );
   }

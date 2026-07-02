@@ -160,23 +160,29 @@ export async function GET() {
 
     // ── ESCO path (non-SG users) ────────────────────────────────────────────
     if (isEsco) {
-      type EscoSkillRef = { preferredLabel: string; uri: string };
-      let essentialSkills: EscoSkillRef[] = [];
+      // Use locally stored esco_skills_mapping (populated via Admin → ESCO → Sync Skills).
+      // Avoids a live EU API call on every page load and works offline.
+      let requiredSkills: RequiredSkill[] = [];
+      try {
+        const stored = await sql`
+          SELECT DISTINCT skill_title, skill_type
+          FROM esco_skills_mapping
+          WHERE LOWER(TRIM(occupation_title)) = LOWER(TRIM(${roleName}))
+        ` as Array<{ skill_title: string; skill_type: string | null }>;
 
-      const apiUrl = `https://ec.europa.eu/esco/api/resource/occupation?uri=${encodeURIComponent(career.esco_uri!)}&language=en`;
-      const escoRes = await fetch(apiUrl, { cache: 'no-store' });
-
-      if (escoRes.ok) {
-        const json = await escoRes.json() as { hasEssentialSkill?: EscoSkillRef[] };
-        essentialSkills = json.hasEssentialSkill ?? [];
+        requiredSkills = stored.map(s => ({
+          skill_title:    s.skill_title,
+          skill_code:     null,
+          skill_type:     s.skill_type,
+          required_level: null,
+        }));
+      } catch {
+        // Table doesn't exist yet — treated as empty below
       }
 
-      const requiredSkills: RequiredSkill[] = essentialSkills.map(s => ({
-        skill_title:    s.preferredLabel,
-        skill_code:     null,
-        skill_type:     null,
-        required_level: null,
-      }));
+      if (requiredSkills.length === 0) {
+        return Response.json({ data: null, error: 'ESCO_SKILLS_NOT_SYNCED' }, { status: 404 });
+      }
 
       const rows = buildRows(requiredSkills, userSkills, assessments, completedCourses);
 

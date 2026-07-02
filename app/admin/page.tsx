@@ -485,6 +485,87 @@ export default function AdminPage() {
     }
   }
 
+  const [escoSkillSyncing, setEscoSkillSyncing]         = useState(false);
+  const [escoSkillSyncProgress, setEscoSkillSyncProgress] = useState('');
+
+  async function syncEscoSkills() {
+    if (!confirm(
+      'This fetches essential skills for every ESCO occupation from the EU API and stores them locally.\n\n' +
+      '~2,900 occupations, takes around 10 minutes. Only needs to be done once (or when ESCO releases a new version).\n\n' +
+      'Make sure you have run "Auto-Import from ESCO" first so occupations are loaded. Continue?'
+    )) return;
+
+    setEscoSkillSyncing(true);
+    setEscoSkillSyncProgress('Loading occupation list…');
+
+    try {
+      // 1. Collect all occupations with URIs from our DB
+      const allOccs: Array<{ occupation_title: string; isco_group: string; esco_uri: string }> = [];
+      let offset = 0;
+      while (true) {
+        const res  = await fetch(`/api/admin/esco?view=occupations&limit=200&offset=${offset}`);
+        const { data } = await res.json() as { data: { rows: Array<{ occupation_title: string; isco_group: string; esco_uri: string | null }> } | null };
+        if (!data?.rows?.length) break;
+        for (const r of data.rows) if (r.esco_uri) allOccs.push(r as typeof allOccs[0]);
+        if (data.rows.length < 200) break;
+        offset += 200;
+      }
+
+      if (allOccs.length === 0) {
+        showMsg('No ESCO occupations found. Run Auto-Import from ESCO first.', 'error');
+        return;
+      }
+
+      let processed   = 0;
+      let totalSkills = 0;
+      let clearFirst  = true;
+      let batch: Array<{ occupation_title: string; isco_group: string; skills: Array<{ title: string; uri: string; skill_type: string }> }> = [];
+
+      const saveBatch = async () => {
+        if (batch.length === 0) return;
+        const r = await fetch('/api/admin/esco/sync-skills', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mappings: batch, clearFirst }),
+        });
+        const { data: d } = await r.json() as { data: { inserted: number } | null };
+        totalSkills += d?.inserted ?? 0;
+        clearFirst   = false;
+        batch        = [];
+      };
+
+      for (const occ of allOccs) {
+        try {
+          const r = await fetch(
+            `https://ec.europa.eu/esco/api/resource/occupation?uri=${encodeURIComponent(occ.esco_uri)}&language=en`
+          );
+          if (r.ok) {
+            const json = await r.json() as { hasEssentialSkill?: Array<{ preferredLabel: string; uri: string }> };
+            const skills = (json.hasEssentialSkill ?? []).map(s => ({
+              title: s.preferredLabel, uri: s.uri, skill_type: 'essential',
+            }));
+            if (skills.length > 0) batch.push({ occupation_title: occ.occupation_title, isco_group: occ.isco_group, skills });
+          }
+        } catch { /* skip this occupation */ }
+
+        processed++;
+        setEscoSkillSyncProgress(`⏳ ${processed} / ${allOccs.length} occupations processed — ${totalSkills} skills stored so far`);
+        if (batch.length >= 20) await saveBatch();
+        await new Promise(r => setTimeout(r, 80));
+      }
+
+      await saveBatch();
+      setEscoSkillSyncProgress('');
+      showMsg(`✅ ESCO skills synced — ${processed} occupations, ${totalSkills} skill mappings stored.`, 'success');
+      loadEsco();
+    } catch (err) {
+      showMsg('Sync failed: ' + (err instanceof Error ? err.message : 'Unknown'), 'error');
+      setEscoSkillSyncProgress('');
+    } finally {
+      setEscoSkillSyncing(false);
+    }
+  }
+
   const [syncSuccess, setSyncSuccess] = useState(false);
   type SkillEntry = { status: number; ok: boolean; snippet: string; error?: string };
   const [ssgDiag, setSsgDiag] = useState<{ hasCredentials: boolean; hasToken: boolean; tokenStatus: number; tokenError?: string; skillResults: Record<string, SkillEntry> } | null>(null);
@@ -1220,6 +1301,33 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Sync Skills per Occupation */}
+          <div className="card p-5 space-y-3" style={{ border: '2px solid #003399', background: '#f0f4ff' }}>
+            <div>
+              <h3 className="font-semibold" style={{ color: '#003399' }}>🔗 Sync Skills per Occupation</h3>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                Fetches the <strong>essential skills</strong> for each occupation from the EU ESCO API and stores them locally.
+                Required for gap analysis to work for non-SG users. Run once after Auto-Import, then again whenever ESCO releases a new version (~annually).
+              </p>
+            </div>
+            {escoSkillSyncProgress && (
+              <p className="text-xs font-mono px-3 py-2 rounded-lg" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
+                {escoSkillSyncProgress}
+              </p>
+            )}
+            <button
+              onClick={syncEscoSkills}
+              disabled={escoSkillSyncing || !!escoFetching}
+              className="btn-primary text-sm w-full"
+              style={{ background: '#003399', borderColor: '#003399', opacity: (escoSkillSyncing || !!escoFetching) ? 0.6 : 1 }}
+            >
+              {escoSkillSyncing ? '⏳ Syncing… (do not close this tab)' : '🔗 Sync Skills per Occupation'}
+            </button>
+            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+              ⚠️ Takes ~10 minutes for ~2,900 occupations. Keep this tab open.
+            </p>
           </div>
 
           {/* Manual Upload card */}
