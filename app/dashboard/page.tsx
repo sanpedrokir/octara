@@ -373,7 +373,7 @@ export default async function DashboardPage() {
       </div>
 
 
-      {/* ── CERTIFICATIONS & TRAINING ────────────────────────── */}
+      {/* ── CERTIFICATIONS & TRAINING (hidden — re-enable by uncommenting)
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🏆 Certifications & Training</h2>
@@ -403,6 +403,7 @@ export default async function DashboardPage() {
           </p>
         )}
       </div>
+      ── */}
 
     </div>
   );
