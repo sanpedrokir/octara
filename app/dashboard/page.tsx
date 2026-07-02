@@ -27,8 +27,8 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: '/career-coach',     icon: '🎓', label: 'Career Coach',        description: 'Chat with Cora, your AI career advisor, for personalised guidance.', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
       { href: '/interview-prep',   icon: '🎤', label: 'Interview Prep',      description: 'Practise role-specific interview questions with AI feedback.',         color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
-      { href: '/skill-quiz',       icon: '🧠', label: 'Work Knowledge Quiz', description: 'Test your work scenario knowledge.',                                  color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
       { href: '/learning-roadmap', icon: '🗺️', label: 'Learning Roadmap',   description: 'Get a personalised 3-phase plan to reach your career goal.',          color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+      { href: '/skill-quiz',       icon: '🧠', label: 'Work Knowledge Quiz', description: 'Test your work scenario knowledge.',                                  color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
     ],
   },
 ];
