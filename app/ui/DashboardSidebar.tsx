@@ -10,7 +10,6 @@ const navItems = [
   { href: '/career',           label: 'Career Goal',           icon: '🎯' },
   { href: '/competency',       label: 'Competency Profile',    icon: '🧩' },
   { href: '/gap-analysis',     label: 'Gap Analysis',          icon: '📈' },
-  { href: '/market-skills',    label: 'Market Skills',         icon: '🌐' },
   { href: '/skill-quiz',       label: 'Work Knowledge Quiz',   icon: '🧠' },
   { href: '/profile',          label: 'My Profile',            icon: '👤' },
 ];

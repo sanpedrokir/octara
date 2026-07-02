@@ -20,6 +20,13 @@ type CatalogRole = {
 
 type CwfEntry = { critical_work_function: string; key_tasks: string[] };
 type SkillEntry = { skill_title: string; skill_type: string | null; proficiency_level: string | null; skill_code: string | null };
+type MarketSkill = { name: string; importance: 'high' | 'medium' | 'low'; frequency: number };
+
+const DEMAND_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  high:   { label: 'High demand', bg: '#dcfce7', color: '#15803d' },
+  medium: { label: 'Moderate',    bg: '#fef3c7', color: '#92400e' },
+  low:    { label: 'Niche',       bg: '#f1f5f9', color: '#64748b' },
+};
 
 function TrackMultiSelect({
   tracks,
@@ -178,6 +185,12 @@ export default function CareerPage() {
   const [tsc, setTsc] = useState<SkillEntry[]>([]);
   const [ccs, setCcs] = useState<SkillEntry[]>([]);
 
+  const [activeTab, setActiveTab] = useState<'market' | 'ssg'>('market');
+  const [marketSkills, setMarketSkills] = useState<MarketSkill[]>([]);
+  const [marketJobCount, setMarketJobCount] = useState(0);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [marketError, setMarketError] = useState('');
+
   const router = useRouter();
   const suppressSectorEffect = useRef(false);
 
@@ -247,7 +260,17 @@ export default function CareerPage() {
   const apiBase = userCountry === 'SG' ? '/api/job-role-catalog' : '/api/esco-catalog';
 
   useEffect(() => {
-    if (!selectedRole) { setCwf([]); setTsc([]); setCcs([]); return; }
+    if (!selectedRole) {
+      setCwf([]); setTsc([]); setCcs([]);
+      setMarketSkills([]); setMarketJobCount(0); setMarketError('');
+      return;
+    }
+
+    // Reset tab to Market Skills whenever a new role is selected
+    setActiveTab('market');
+    setMarketSkills([]); setMarketJobCount(0); setMarketError('');
+
+    // Fetch SSG/ESCO details (for SSG tab)
     setDetailsLoading(true);
     const isSG = userCountry === 'SG';
     const params = new URLSearchParams({ sector: selectedRole.sector, job_role: selectedRole.job_role });
@@ -261,6 +284,21 @@ export default function CareerPage() {
         setCcs(data?.ccs ?? []);
       })
       .finally(() => setDetailsLoading(false));
+
+    // Fetch live market skills (for Market Skills tab)
+    setMarketLoading(true);
+    fetch('/api/market-skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobTitle: selectedRole.job_role }),
+    })
+      .then(r => r.json())
+      .then(({ data, error: e }) => {
+        if (e) setMarketError(e);
+        else { setMarketSkills(data?.skills ?? []); setMarketJobCount(data?.jobCount ?? 0); }
+      })
+      .catch(() => setMarketError('Failed to fetch market skills'))
+      .finally(() => setMarketLoading(false));
   }, [selectedRole, userCountry, apiBase]);
 
   useEffect(() => {
@@ -537,57 +575,129 @@ export default function CareerPage() {
                   )}
                 </div>
 
-                {detailsLoading && (
-                  <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading role details…</p>
-                )}
+                {/* ── Tabs ──────────────────────────────────────────── */}
+                <div>
+                  <div className="flex border-b" style={{ borderColor: 'var(--card-border)' }}>
+                    {([
+                      { id: 'market' as const, label: '🌐 Market Skills' },
+                      { id: 'ssg'    as const, label: userCountry === 'SG' ? '📋 SSG Framework' : '📋 ESCO Framework' },
+                    ]).map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors"
+                        style={{
+                          borderColor: activeTab === tab.id ? 'var(--primary)' : 'transparent',
+                          color: activeTab === tab.id ? 'var(--primary)' : 'var(--muted)',
+                          background: 'transparent',
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
 
-                {!detailsLoading && cwf.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold mb-2" style={{ color: 'var(--foreground)' }}>Critical Work Function and Key Tasks</h4>
-                    <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid var(--card-border)' }}>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--card-border)', background: 'var(--muted-bg)' }}>
-                            <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Critical Work Function</th>
-                            <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Key Tasks</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {cwf.map(entry => (
-                            <tr key={entry.critical_work_function} style={{ borderBottom: '1px solid var(--card-border)' }}>
-                              <td className="py-2.5 px-3 font-medium align-top" style={{ color: 'var(--foreground)' }}>{entry.critical_work_function}</td>
-                              <td className="py-2.5 px-3" style={{ color: 'var(--muted)' }}>
-                                <ul className="list-disc pl-4 space-y-1">
-                                  {entry.key_tasks.map((task, i) => <li key={i}>{task}</li>)}
-                                </ul>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  {/* ── Market Skills tab ─────────────────────────── */}
+                  {activeTab === 'market' && (
+                    <div className="pt-4 space-y-3">
+                      {marketLoading && (
+                        <div className="flex items-center gap-2 py-4" style={{ color: 'var(--muted)' }}>
+                          <LoadingSpinner label="" />
+                          <span className="text-sm">Searching live listings on MyCareersFuture…</span>
+                        </div>
+                      )}
+                      {marketError && !marketLoading && (
+                        <p className="text-sm py-2" style={{ color: '#b91c1c' }}>{marketError}</p>
+                      )}
+                      {!marketLoading && !marketError && marketSkills.length > 0 && (
+                        <>
+                          <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                            Skills extracted from {marketJobCount} live job listings on MyCareersFuture.
+                          </p>
+                          <div className="space-y-2">
+                            {marketSkills.map((skill, i) => {
+                              const badge = DEMAND_BADGE[skill.importance] ?? DEMAND_BADGE.low;
+                              return (
+                                <div
+                                  key={`${skill.name}-${i}`}
+                                  className="flex items-center justify-between px-3 py-2.5 rounded-lg"
+                                  style={{ background: 'var(--muted-bg)', border: '1px solid var(--card-border)' }}
+                                >
+                                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{skill.name}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>
+                                      {badge.label}
+                                    </span>
+                                    <span className="text-xs" style={{ color: 'var(--muted)' }}>{skill.frequency}/{marketJobCount}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                      {!marketLoading && !marketError && marketSkills.length === 0 && (
+                        <p className="text-sm py-4 text-center" style={{ color: 'var(--muted)' }}>
+                          No live listings found for this role on MyCareersFuture.
+                        </p>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {!detailsLoading && (
-                  <div>
-                    <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
-                      {userCountry === 'SG' ? 'TSC (Technical Skills and Competencies)' : 'Essential Skills'}
-                    </h4>
-                    <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {tsc.length} skill(s).</p>
-                    <SkillTable rows={tsc} emptyText="No skills found for this occupation." />
-                  </div>
-                )}
-
-                {!detailsLoading && (
-                  <div>
-                    <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
-                      {userCountry === 'SG' ? 'CCS (Critical Core Skills)' : 'Optional Skills'}
-                    </h4>
-                    <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {ccs.length} skill(s).</p>
-                    <SkillTable rows={ccs} emptyText="No optional skills found for this occupation." />
-                  </div>
-                )}
+                  {/* ── SSG / ESCO Framework tab ──────────────────── */}
+                  {activeTab === 'ssg' && (
+                    <div className="pt-4 space-y-4">
+                      {detailsLoading && (
+                        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading framework details…</p>
+                      )}
+                      {!detailsLoading && cwf.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-2" style={{ color: 'var(--foreground)' }}>Critical Work Function and Key Tasks</h4>
+                          <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid var(--card-border)' }}>
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr style={{ borderBottom: '1px solid var(--card-border)', background: 'var(--muted-bg)' }}>
+                                  <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Critical Work Function</th>
+                                  <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Key Tasks</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {cwf.map(entry => (
+                                  <tr key={entry.critical_work_function} style={{ borderBottom: '1px solid var(--card-border)' }}>
+                                    <td className="py-2.5 px-3 font-medium align-top" style={{ color: 'var(--foreground)' }}>{entry.critical_work_function}</td>
+                                    <td className="py-2.5 px-3" style={{ color: 'var(--muted)' }}>
+                                      <ul className="list-disc pl-4 space-y-1">
+                                        {entry.key_tasks.map((task, i) => <li key={i}>{task}</li>)}
+                                      </ul>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      {!detailsLoading && (
+                        <div>
+                          <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
+                            {userCountry === 'SG' ? 'TSC (Technical Skills and Competencies)' : 'Essential Skills'}
+                          </h4>
+                          <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {tsc.length} skill(s).</p>
+                          <SkillTable rows={tsc} emptyText="No skills found for this occupation." />
+                        </div>
+                      )}
+                      {!detailsLoading && (
+                        <div>
+                          <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
+                            {userCountry === 'SG' ? 'CCS (Critical Core Skills)' : 'Optional Skills'}
+                          </h4>
+                          <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {ccs.length} skill(s).</p>
+                          <SkillTable rows={ccs} emptyText="No optional skills found for this occupation." />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--foreground)' }}>Notes (optional)</label>
