@@ -24,16 +24,20 @@ const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: 'Career Tools',
     items: [
-      { href: '/salary-benchmark', label: 'Salary Benchmark', icon: '💰' },
-      { href: '/resume-builder',   label: 'Resume Builder',   icon: '📄' },
-      { href: '/linkedin-scorer',  label: 'LinkedIn Scorer',  icon: '🔗' },
+      { href: '/salary-benchmark', label: 'Salary Benchmark',      icon: '💰' },
+      { href: '/resume-builder',   label: 'Resume Builder',        icon: '📄' },
+      { href: '/linkedin-scorer',  label: 'LinkedIn Scorer',       icon: '🔗' },
+      { href: '/cover-letter',     label: 'Cover Letter',          icon: '✉️' },
+      { href: '/job-matcher',      label: 'Job Description Matcher', icon: '🎯' },
     ],
   },
   {
     label: 'Learning',
     items: [
-      { href: '/career-coach', label: 'Career Coach',        icon: '🎓' },
-      { href: '/skill-quiz',   label: 'Work Knowledge Quiz', icon: '🧠' },
+      { href: '/career-coach',     label: 'Career Coach',        icon: '🎓' },
+      { href: '/skill-quiz',       label: 'Work Knowledge Quiz', icon: '🧠' },
+      { href: '/interview-prep',   label: 'Interview Prep',      icon: '🎤' },
+      { href: '/learning-roadmap', label: 'Learning Roadmap',    icon: '🗺️' },
     ],
   },
 ];
