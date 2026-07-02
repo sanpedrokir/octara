@@ -392,7 +392,7 @@ export default function ProfilePage() {
                 {education.length > 0 && (
                   <div className="space-y-3">
                     {education.map(edu => (
-                      <div key={edu.id} className="card p-4 flex items-start justify-between gap-3">
+                      <div key={edu.id} className="p-4 flex items-start justify-between gap-3 rounded-xl" style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe' }}>
                         <div>
                           <p className="font-semibold" style={{ color: 'var(--foreground)' }}>{edu.institution}</p>
                           {(edu.degree || edu.field_of_study) && (
