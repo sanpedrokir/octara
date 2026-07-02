@@ -153,7 +153,7 @@ export default function SalaryBenchmarkPage() {
 
       {/* Disclaimer */}
       <div className="rounded-xl px-4 py-3 text-xs" style={{ background: 'var(--muted-bg)', border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
-        ℹ️ {data.data_note}
+        ℹ️ These are estimated ranges based on Singapore market knowledge as of 2024-2025. Actual salaries vary by company size, skills, and negotiation.
       </div>
     </div>
   );
