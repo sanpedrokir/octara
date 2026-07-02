@@ -75,8 +75,9 @@ export default function CompetencyPage() {
   const [linkedInText, setLinkedInText] = useState('');
 
   // Upload tab state
-  const [resumeText, setResumeText] = useState('');
   const [fileName, setFileName] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');
   const [extracted, setExtracted] = useState<ExtractedSkill[]>([]);
@@ -155,35 +156,41 @@ export default function CompetencyPage() {
   }
 
   // ── File upload handler ─────────────────────────────────────────────────────
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFileName(file.name);
-    setExtractError('');
-    // Clear pasted text — file and paste are mutually exclusive
-    setResumeText('');
+    if (fileRef.current) fileRef.current.value = '';
 
-    if (file.name.endsWith('.txt')) {
-      const text = await file.text();
-      setResumeText(text);
-      (fileRef.current as HTMLInputElement & { _file?: File })._file = undefined;
-    } else if (file.name.endsWith('.pdf')) {
-      (fileRef.current as HTMLInputElement & { _file?: File })._file = file;
-    } else {
-      setExtractError('Supported formats: PDF, TXT. For DOCX, paste the text below.');
-      setFileName('');
+    if (!file.name.endsWith('.pdf') && !file.name.endsWith('.txt')) {
+      setExtractError('Supported formats: PDF or TXT. For DOCX, export as PDF first.');
+      return;
     }
+    setExtractError('');
+
+    if (userMeta?.resume_filename) {
+      setPendingFile(file);
+      setShowReplaceConfirm(true);
+      return;
+    }
+
+    applyFile(file);
   }
 
-  // ── Paste text handler — clears any uploaded file ───────────────────────────
-  function handleResumeTextChange(text: string) {
-    setResumeText(text);
-    if (text.trim()) {
-      // Clear uploaded file so they don't conflict
-      (fileRef.current as HTMLInputElement & { _file?: File })._file = undefined;
-      if (fileRef.current) fileRef.current.value = '';
-      setFileName('');
-    }
+  function applyFile(file: File) {
+    setFileName(file.name);
+    (fileRef.current as HTMLInputElement & { _file?: File })._file = file;
+  }
+
+  function confirmReplace() {
+    if (!pendingFile) return;
+    applyFile(pendingFile);
+    setPendingFile(null);
+    setShowReplaceConfirm(false);
+  }
+
+  function cancelReplace() {
+    setPendingFile(null);
+    setShowReplaceConfirm(false);
   }
 
   // ── Extract competencies ────────────────────────────────────────────────────
@@ -193,32 +200,19 @@ export default function CompetencyPage() {
     setSsgMatches({});
     setSaved(new Set());
 
-    const pdfFile = (fileRef.current as HTMLInputElement & { _file?: File })?._file;
+    const cvFile = (fileRef.current as HTMLInputElement & { _file?: File })?._file;
 
-    if (!resumeText.trim() && !pdfFile && !linkedInText.trim()) {
-      setExtractError('Please upload a CV, paste resume text, or add LinkedIn profile text.');
+    if (!cvFile && !linkedInText.trim()) {
+      setExtractError('Please upload a CV or add LinkedIn profile text.');
       return;
     }
 
     setExtracting(true);
     try {
-      let res: Response;
-
-      if (pdfFile && !resumeText.trim()) {
-        const fd = new FormData();
-        fd.append('file', pdfFile);
-        if (linkedInText.trim()) fd.append('linkedInText', linkedInText.trim());
-        res = await fetch('/api/competency/extract', { method: 'POST', body: fd });
-      } else {
-        res = await fetch('/api/competency/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: resumeText,
-            linkedInText: linkedInText.trim() || undefined,
-          }),
-        });
-      }
+      const fd = new FormData();
+      if (cvFile) fd.append('file', cvFile);
+      if (linkedInText.trim()) fd.append('linkedInText', linkedInText.trim());
+      const res = await fetch('/api/competency/extract', { method: 'POST', body: fd });
 
       const { data, error } = await res.json();
       if (error) { setExtractError(error); return; }
@@ -228,14 +222,16 @@ export default function CompetencyPage() {
       setSsgMatches(data.ssgMatches ?? {});
       setSaved(new Set(skills.map(s => s.skill)));
       if (skills.length > 0) {
-        // Refresh CV metadata shown in UI
-        if (data.resumeFilename) {
-          setUserMeta(prev => prev ? {
-            ...prev,
-            resume_filename: data.resumeFilename,
-            resume_uploaded_at: new Date().toISOString(),
-          } : prev);
-        }
+        fetch('/api/user/me')
+          .then(r => r.json())
+          .then(({ data: meta }) => {
+            if (meta) setUserMeta({
+              linkedin_url: meta.linkedin_url ?? null,
+              resume_filename: meta.resume_filename ?? null,
+              resume_uploaded_at: meta.resume_uploaded_at ?? null,
+            });
+          })
+          .catch(() => {});
         loadProfile();
         setTab('upload');
       }
@@ -343,7 +339,7 @@ export default function CompetencyPage() {
 
   const ssgCount = profile.filter(c => c.ssg_matched).length;
   const hasLinkedIn = linkedInText.trim().length > 0;
-  const hasCV = !!(resumeText.trim() || fileName);
+  const hasCV = !!fileName;
   const extractLabel = hasCV && hasLinkedIn
     ? '🔍 Extract from CV + LinkedIn'
     : hasLinkedIn
@@ -417,54 +413,69 @@ export default function CompetencyPage() {
               </div>
             )}
 
-            {/* File upload drop zone */}
-            <div
-              className="rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
-              style={{ borderColor: fileName ? 'var(--primary)' : 'var(--card-border)' }}
-              onClick={() => fileRef.current?.click()}
-            >
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".pdf,.txt"
-                className="hidden"
-                onChange={handleFile}
-              />
-              <p className="text-2xl mb-2">📎</p>
-              {fileName ? (
-                <>
-                  <p className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{fileName}</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Click to change file</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Click to upload your CV</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>PDF or TXT · max 5 MB</p>
-                </>
-              )}
-            </div>
-
-            {/* Replace notice */}
-            {userMeta?.resume_filename && (
-              <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                Uploading a new CV will replace the previous one, even if the filename is different.
-              </p>
+            {/* Replace confirmation dialog */}
+            {showReplaceConfirm && pendingFile && (
+              <div className="rounded-xl p-4 space-y-3" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                <div className="flex items-start gap-2.5">
+                  <span className="text-lg shrink-0">⚠️</span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold" style={{ color: '#9a3412' }}>Replace existing CV?</p>
+                    <p className="text-xs leading-relaxed" style={{ color: '#c2410c' }}>
+                      You have <strong>{userMeta?.resume_filename}</strong> on file. Replacing it will
+                      permanently clear <strong>all competencies</strong> previously extracted from your
+                      CV and LinkedIn profile. You will need to re-extract after uploading.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={cancelReplace}
+                    className="flex-1 text-sm py-2 rounded-lg font-medium"
+                    style={{ background: 'var(--card)', border: '1px solid var(--card-border)', color: 'var(--foreground)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmReplace}
+                    className="flex-1 text-sm py-2 rounded-lg font-medium"
+                    style={{ background: '#ea580c', color: 'white' }}
+                  >
+                    Replace & Re-extract
+                  </button>
+                </div>
+              </div>
             )}
 
-            {/* Text paste */}
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
-                Or paste CV text here
-              </label>
-              <textarea
-                className="input font-mono text-xs"
-                rows={7}
-                placeholder="Paste the full text of your CV here…"
-                value={resumeText}
-                onChange={e => handleResumeTextChange(e.target.value)}
-                style={{ resize: 'vertical' }}
-              />
-            </div>
+            {/* Hidden file input — always mounted so ref stays valid */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.txt"
+              className="hidden"
+              onChange={handleFile}
+            />
+
+            {/* File upload drop zone */}
+            {!showReplaceConfirm && (
+              <div
+                className="rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
+                style={{ borderColor: fileName ? 'var(--primary)' : 'var(--card-border)' }}
+                onClick={() => fileRef.current?.click()}
+              >
+                <p className="text-2xl mb-2">📎</p>
+                {fileName ? (
+                  <>
+                    <p className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{fileName}</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Click to change file</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Click to upload your CV</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>PDF or TXT · max 5 MB</p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Step 2: LinkedIn Profile ─────────────────────────────────── */}
