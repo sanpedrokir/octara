@@ -1090,8 +1090,6 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
 
           {/* Market Skills Pre-warm */}
           <div className="card p-5 space-y-3" style={{ border: '2px solid #0369a1', background: '#f0f9ff' }}>
