@@ -224,6 +224,20 @@ export async function GET() {
       ORDER BY LOWER(TRIM(skill_title)), skill_type, id
     ` as RequiredSkill[];
 
+    // Cross-sector fallback: some roles (e.g. "Head of Sales", "Managing Director") are
+    // stored under a different sector because they appear in multiple sectors and the
+    // TSC upload picked the wrong one. Try without sector filter before falling back to
+    // the jobs_skills_mapping table.
+    if (requiredSkills.length === 0) {
+      requiredSkills = await sql`
+        SELECT DISTINCT ON (LOWER(TRIM(skill_title)))
+          skill_title, skill_code, skill_type, proficiency_level AS required_level
+        FROM job_role_tsc_ccs
+        WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${roleName}))
+        ORDER BY LOWER(TRIM(skill_title)), skill_type, id
+      ` as RequiredSkill[];
+    }
+
     if (requiredSkills.length === 0) {
       const firstWord = resolvedSector.split(/[\s&,]/)[0]?.trim() ?? resolvedSector;
       requiredSkills = await sql`

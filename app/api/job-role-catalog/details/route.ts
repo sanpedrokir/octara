@@ -20,7 +20,10 @@ export async function GET(request: Request) {
       ORDER BY id
     `;
 
-    const skillRows = await sql`
+    // Try sector-specific first; fall back to any sector if the role's skills were
+    // stored under a different sector (happens when a role appears in multiple sectors
+    // and the upload sector-lookup picks the wrong one).
+    let skillRows = await sql`
       SELECT skill_title, skill_type, proficiency_level, skill_code
       FROM job_role_tsc_ccs
       WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${jobRole}))
@@ -28,6 +31,14 @@ export async function GET(request: Request) {
         AND (${track} = '' OR LOWER(TRIM(track)) = LOWER(TRIM(${track})) OR track IS NULL)
       ORDER BY skill_type, id
     `;
+    if (skillRows.length === 0) {
+      skillRows = await sql`
+        SELECT skill_title, skill_type, proficiency_level, skill_code
+        FROM job_role_tsc_ccs
+        WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${jobRole}))
+        ORDER BY skill_type, id
+      `;
+    }
 
     const cwfMap = new Map<string, string[]>();
     for (const row of cwfRows) {
