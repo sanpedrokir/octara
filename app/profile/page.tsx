@@ -506,7 +506,7 @@ export default function ProfilePage() {
                 {experience.length > 0 && (
                   <div className="space-y-3">
                     {experience.map(exp => (
-                      <div key={exp.id} className="card p-4 flex items-start justify-between gap-3">
+                      <div key={exp.id} className="p-4 flex items-start justify-between gap-3 rounded-xl" style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe' }}>
                         <div>
                           <p className="font-semibold" style={{ color: 'var(--foreground)' }}>{exp.title}</p>
                           <p className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{exp.company}</p>
