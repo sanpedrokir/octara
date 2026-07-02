@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 type TscRow = {
+  sector: string | null;
   track: string | null;
   job_role: string;
   skill_title: string;
@@ -15,6 +16,7 @@ type TscRow = {
 };
 
 const TSC_ALIASES: Record<string, keyof TscRow> = {
+  sector: 'sector',
   track: 'track',
   jobrole: 'job_role',
   tscccstitle: 'skill_title',
@@ -86,21 +88,27 @@ export async function POST(request: Request) {
     const pool = getPool();
     const client = await pool.connect();
     try {
-      // Look up sector for each unique job_role from the catalog table
-      const uniqueJobRoles = [...new Set(rows.map(r => r.job_role.toLowerCase().trim()))];
-      const sectorResult = await client.query(
-        `SELECT DISTINCT LOWER(TRIM(job_role)) AS job_role_key, sector
-         FROM job_role_catalog
-         WHERE LOWER(TRIM(job_role)) = ANY($1::text[])`,
-        [uniqueJobRoles]
-      );
+      // Use sector from the file directly. Only fall back to catalog lookup for rows
+      // where the file has no sector — avoids the ambiguity of roles that appear in
+      // multiple sectors (e.g. "Head of Sales" in ICT and Wholesale Trade).
+      const rowsMissingSector = rows
+        .filter(r => !r.sector)
+        .map(r => r.job_role.toLowerCase().trim());
       const sectorMap = new Map<string, string>();
-      for (const r of sectorResult.rows) sectorMap.set(r.job_role_key, r.sector);
+      if (rowsMissingSector.length > 0) {
+        const uniqueMissing = [...new Set(rowsMissingSector)];
+        const sectorResult = await client.query(
+          `SELECT LOWER(TRIM(job_role)) AS job_role_key, sector
+           FROM job_role_catalog
+           WHERE LOWER(TRIM(job_role)) = ANY($1::text[])`,
+          [uniqueMissing]
+        );
+        for (const r of sectorResult.rows) sectorMap.set(r.job_role_key, r.sector);
+      }
 
-      // Enrich rows with sector (fallback to 'Unknown' if not in catalog)
       const enriched = rows.map(r => ({
         ...r,
-        sector: sectorMap.get(r.job_role.toLowerCase().trim()) ?? 'Unknown',
+        sector: r.sector ?? sectorMap.get(r.job_role.toLowerCase().trim()) ?? 'Unknown',
       }));
 
       await client.query('BEGIN');
