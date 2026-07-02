@@ -5,13 +5,17 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 const navItems = [
-  { href: '/dashboard',        label: 'Overview',              icon: '📊' },
-  { href: '/career-coach',     label: 'Career Coach',          icon: '🎓' },
-  { href: '/career',           label: 'Career Goal',           icon: '🎯' },
-  { href: '/competency',       label: 'Competency Profile',    icon: '🧩' },
-  { href: '/gap-analysis',     label: 'Gap Analysis',          icon: '📈' },
-  { href: '/skill-quiz',       label: 'Work Knowledge Quiz',   icon: '🧠' },
-  { href: '/profile',          label: 'My Profile',            icon: '👤' },
+  { href: '/dashboard',          label: 'Overview',              icon: '📊' },
+  { href: '/career-coach',       label: 'Career Coach',          icon: '🎓' },
+  { href: '/career',             label: 'Career Goal',           icon: '🎯' },
+  { href: '/competency',         label: 'Competency Profile',    icon: '🧩' },
+  { href: '/gap-analysis',       label: 'Gap Analysis',          icon: '📈' },
+  { href: '/skill-quiz',         label: 'Work Knowledge Quiz',   icon: '🧠' },
+  { href: '/profile',            label: 'My Profile',            icon: '👤' },
+  { href: '/resume-builder',     label: 'Resume Builder',        icon: '📄' },
+  { href: '/linkedin-scorer',    label: 'LinkedIn Scorer',       icon: '🔗' },
+  { href: '/job-tracker',        label: 'Job Tracker',           icon: '📌' },
+  { href: '/salary-benchmark',   label: 'Salary Benchmark',      icon: '💰' },
 ];
 
 export default function DashboardSidebar({ role: roleProp }: { role?: string }) {

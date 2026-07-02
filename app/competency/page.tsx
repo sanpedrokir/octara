@@ -27,6 +27,15 @@ interface CompetencyRow {
   source: string;
   ssg_matched: boolean;
   ssg_sector: string | null;
+  created_at: string | null;
+}
+
+function skillFreshness(createdAt: string | null): { label: string; bg: string; color: string } | null {
+  if (!createdAt) return null;
+  const months = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30);
+  if (months < 12) return null;
+  if (months < 30) return { label: 'Aging', bg: '#fffbeb', color: '#92400e' };
+  return { label: 'Stale', bg: '#fef2f2', color: '#b91c1c' };
 }
 
 interface SsgSearchResult {
@@ -741,6 +750,7 @@ export default function CompetencyPage() {
               <div className="space-y-2">
                 {pageProfile.map(c => {
                   const prof = PROFICIENCY_COLORS[c.proficiency_level] ?? PROFICIENCY_COLORS.intermediate;
+                  const fresh = skillFreshness(c.created_at ?? null);
                   return (
                     <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--muted-bg)' }}>
                       <span className="text-base">{CATEGORY_ICONS[c.category ?? ''] ?? '🔹'}</span>
@@ -749,6 +759,11 @@ export default function CompetencyPage() {
                           <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{c.skill_title}</span>
                           {c.ssg_matched && (
                             <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>SSG ✓</span>
+                          )}
+                          {fresh && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: fresh.bg, color: fresh.color }}>
+                              ⚠ {fresh.label}
+                            </span>
                           )}
                           <span className="text-xs" style={{ color: 'var(--muted)' }}>
                             {c.source === 'resume' ? '📄 CV'
