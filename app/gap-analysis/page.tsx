@@ -14,7 +14,6 @@ interface CompetencyRow {
   user_proficiency: string | null;
   source: string | null;
   ssg_matched: boolean;
-  self_assessment_score: number | null;
   matched: boolean;
   status: Status;
   fuzzy_matched_via: string | null;
@@ -66,9 +65,6 @@ interface MoocCourse {
   _status?: 'tracked' | 'completed';
 }
 
-const SCORE_LABELS = ['', 'No knowledge', 'Basic awareness', 'Applied', 'Proficient', 'Expert'];
-const SCORE_COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#6366f1'];
-
 const STATUS_STYLE: Record<Status, { row: string; badge: string; badgeText: string }> = {
   strong:       { row: '#f0fdf4', badge: '#dcfce7', badgeText: '#15803d' },
   partial:      { row: '#fffbeb', badge: '#fef3c7', badgeText: '#92400e' },
@@ -84,24 +80,6 @@ const STATUS_LABEL: Record<Status, string> = {
 };
 
 const PAGE_SIZE = 5;
-
-function ScoreDots({ score, size = 18 }: { score: number | null; size?: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map(n => (
-        <div
-          key={n}
-          style={{
-            width: size, height: size,
-            borderRadius: '50%',
-            background: score !== null && n <= score ? SCORE_COLORS[score] : '#e5e7eb',
-            transition: 'background 0.2s',
-          }}
-        />
-      ))}
-    </div>
-  );
-}
 
 function Pagination({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -137,10 +115,6 @@ export default function GapAnalysisPage() {
   const [error, setError]           = useState('');
   const [filter, setFilter]         = useState<Filter>('all');
   const [gapPage, setGapPage]       = useState(0);
-  const [assessingKey, setAssessingKey] = useState<string | null>(null);
-  const [pendingScore, setPendingScore] = useState<number>(0);
-  const [savingAssess, setSavingAssess] = useState(false);
-
   // Course recommendation state
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [courseError, setCourseError]       = useState('');
@@ -180,25 +154,6 @@ export default function GapAnalysisPage() {
       })
       .catch(() => {});
   }, []);
-
-  function openAssess(skill: CompetencyRow) {
-    setAssessingKey(skill.skill_title);
-    setPendingScore(skill.self_assessment_score ?? 0);
-  }
-
-  function closeAssess() { setAssessingKey(null); setPendingScore(0); }
-
-  async function saveAssessment(skillTitle: string, score: number) {
-    setSavingAssess(true);
-    await fetch('/api/gap-analysis/assess', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ skill_title: skillTitle, score }),
-    });
-    setSavingAssess(false);
-    closeAssess();
-    load();
-  }
 
   async function recommendCourses() {
     if (!gapData) return;
@@ -416,13 +371,20 @@ export default function GapAnalysisPage() {
         </p>
       </div>
 
+      {/* ── How it works ────────────────────────────────────────────────── */}
+      <div className="rounded-xl px-4 py-3 text-xs space-y-1" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}>
+        <p className="font-semibold">How these numbers relate to your other pages</p>
+        <p><span className="font-medium">Competency Profile</span> — all skills extracted from your CV (may be a larger number).</p>
+        <p><span className="font-medium">Gap Analysis</span> — only the skills required for <span className="font-medium">{career.role || career.sector}</span> are shown here, compared against what you have.</p>
+        <p><span className="font-medium">Career Goal</span> sets the target role. Re-upload your CV anytime — Gap Analysis updates automatically on your next visit.</p>
+      </div>
+
       {/* ── Summary cards ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Required',   value: summary.total,   color: '#1e40af', bg: '#eff6ff' },
-          { label: 'Matched',    value: summary.matched, color: '#15803d', bg: '#f0fdf4' },
-          { label: 'Missing',    value: summary.missing, color: '#b91c1c', bg: '#fef2f2' },
-          { label: 'Self-Rated', value: summary.strong,  color: '#7c3aed', bg: '#f5f3ff' },
+          { label: 'Required', value: summary.total,   color: '#1e40af', bg: '#eff6ff' },
+          { label: 'Matched',  value: summary.matched, color: '#15803d', bg: '#f0fdf4' },
+          { label: 'Missing',  value: summary.missing, color: '#b91c1c', bg: '#fef2f2' },
         ].map(s => (
           <div key={s.label} className="card p-4 text-center">
             <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
@@ -492,24 +454,22 @@ export default function GapAnalysisPage() {
 
           {/* Column headers */}
           <div
-            className="hidden sm:grid grid-cols-[1fr_1fr_180px] gap-0 text-xs font-semibold uppercase tracking-wide px-4 py-2.5"
+            className="hidden sm:grid grid-cols-[1fr_1fr] gap-0 text-xs font-semibold uppercase tracking-wide px-4 py-2.5"
             style={{ background: 'var(--muted-bg)', color: 'var(--muted)', borderBottom: '1px solid var(--card-border)' }}
           >
             <span>Required Competency</span>
             <span>Your Current Level</span>
-            <span className="text-center">Self-Assessment</span>
           </div>
 
           {/* Rows */}
           <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
             {pagedRows.map((row, i) => {
               const style = STATUS_STYLE[row.status];
-              const isAssessing = assessingKey === row.skill_title;
 
               return (
                 <div key={`${row.skill_code ?? row.skill_title}-${i}`}>
                   <div
-                    className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_180px] gap-3 sm:gap-0 p-4"
+                    className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-3 sm:gap-0 p-4"
                     style={{ background: style.row }}
                   >
                     {/* Col 1 */}
@@ -550,7 +510,6 @@ export default function GapAnalysisPage() {
                             {row.source === 'resume' ? '📄 from resume'
                               : row.source === 'course' ? '🎓 course earned'
                               : row.source === 'ssg' ? '🏛 SSG'
-                              : row.source === 'self_assessment' ? '⭐ self-assessed'
                               : '✍️ self-added'}
                           </span>
                           {row.fuzzy_matched_via && (
@@ -566,71 +525,7 @@ export default function GapAnalysisPage() {
                       )}
                     </div>
 
-                    {/* Col 3 */}
-                    <div className="flex flex-col items-center justify-center gap-1.5">
-                      {row.self_assessment_score ? (
-                        <>
-                          <ScoreDots score={row.self_assessment_score} size={14} />
-                          <span className="text-xs" style={{ color: SCORE_COLORS[row.self_assessment_score] }}>
-                            {row.self_assessment_score}/5 · {SCORE_LABELS[row.self_assessment_score]}
-                          </span>
-                          <button onClick={() => openAssess(row)} className="text-xs underline" style={{ color: 'var(--muted)' }}>
-                            Edit
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => openAssess(row)}
-                          className="text-xs px-3 py-1.5 rounded-lg font-medium w-full max-w-[140px]"
-                          style={{ background: 'var(--primary)', color: 'white' }}
-                        >
-                          Assess Myself
-                        </button>
-                      )}
-                    </div>
                   </div>
-
-                  {/* Self-assess panel */}
-                  {isAssessing && (
-                    <div className="px-4 pb-4 pt-3 space-y-3" style={{ background: '#f8fafc', borderTop: '1px solid var(--card-border)' }}>
-                      <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                        How would you rate your <strong>{row.skill_title}</strong> competency?
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {[1, 2, 3, 4, 5].map(n => (
-                          <button
-                            key={n}
-                            onClick={() => setPendingScore(n)}
-                            className="flex flex-col items-center gap-1 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-bold"
-                            style={{
-                              borderColor: pendingScore === n ? SCORE_COLORS[n] : 'var(--card-border)',
-                              background: pendingScore === n ? SCORE_COLORS[n] : 'white',
-                              color: pendingScore === n ? 'white' : 'var(--foreground)',
-                              minWidth: 64,
-                            }}
-                          >
-                            <span className="text-lg font-black">{n}</span>
-                            <span className="text-xs font-normal text-center leading-tight" style={{ color: pendingScore === n ? 'rgba(255,255,255,0.9)' : 'var(--muted)' }}>
-                              {SCORE_LABELS[n]}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => saveAssessment(row.skill_title, pendingScore)}
-                          disabled={!pendingScore || savingAssess}
-                          className="btn-primary text-sm"
-                          style={{ opacity: !pendingScore || savingAssess ? 0.6 : 1 }}
-                        >
-                          {savingAssess ? 'Saving…' : 'Save Assessment'}
-                        </button>
-                        <button onClick={closeAssess} className="text-sm px-4 py-2 rounded-lg" style={{ background: 'var(--muted-bg)', color: 'var(--foreground)' }}>
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}

@@ -98,16 +98,15 @@ function buildRows(
       : null;
 
     return {
-      skill_title:           req.skill_title,
-      skill_code:            req.skill_code,
-      required_level:        req.required_level,
-      user_proficiency:      userSkill?.proficiency_level ?? derivedProficiency,
-      source:                userSkill?.source ?? (courseEarned ? 'course' : selfRated ? 'self_assessment' : null),
-      ssg_matched:           userSkill?.ssg_matched ?? false,
-      self_assessment_score: score,
+      skill_title:      req.skill_title,
+      skill_code:       req.skill_code,
+      required_level:   req.required_level,
+      user_proficiency: userSkill?.proficiency_level ?? derivedProficiency,
+      source:           userSkill?.source ?? (courseEarned ? 'course' : null),
+      ssg_matched:      userSkill?.ssg_matched ?? false,
       matched,
       status,
-      fuzzy_matched_via:     fuzzyMatchedVia,
+      fuzzy_matched_via: fuzzyMatchedVia,
     };
   });
 }
