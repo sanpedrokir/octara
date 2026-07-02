@@ -10,7 +10,7 @@ const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: 'Overview',
     items: [
-      { href: '/dashboard', label: 'Overview', icon: '📊' },
+      { href: '/dashboard', label: 'Overview', icon: '📈' },
     ],
   },
   {
@@ -18,7 +18,7 @@ const navSections: { label: string; items: NavItem[] }[] = [
     items: [
       { href: '/career',     label: 'Career Goal',        icon: '🎯' },
       { href: '/competency', label: 'Competency Profile', icon: '🧩' },
-      { href: '/gap-analysis', label: 'Gap Analysis',     icon: '📈' },
+      { href: '/gap-analysis', label: 'Gap Analysis',     icon: '📊' },
     ],
   },
   {
