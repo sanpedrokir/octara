@@ -75,7 +75,7 @@ export default function CoverLetterPage() {
               type="text"
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
               style={{ borderColor: 'var(--card-border)', color: 'var(--foreground)' }}
-              placeholder="e.g. Product Manager"
+              placeholder=""
               value={jobTitle}
               onChange={e => setJobTitle(e.target.value)}
             />
@@ -86,7 +86,7 @@ export default function CoverLetterPage() {
               type="text"
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
               style={{ borderColor: 'var(--card-border)', color: 'var(--foreground)' }}
-              placeholder="e.g. GovTech Singapore"
+              placeholder=""
               value={companyName}
               onChange={e => setCompanyName(e.target.value)}
             />
@@ -100,7 +100,7 @@ export default function CoverLetterPage() {
           <textarea
             className="w-full border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2"
             style={{ borderColor: 'var(--card-border)', color: 'var(--foreground)', minHeight: '160px' }}
-            placeholder="Paste the job description here…"
+            placeholder=""
             value={jobDescription}
             onChange={e => setJobDescription(e.target.value)}
           />
