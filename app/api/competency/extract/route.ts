@@ -3,6 +3,48 @@ import { db } from '@/lib/db';
 import OpenAI from 'openai';
 import { Agent, fetch as undiciFetch } from 'undici';
 
+type Skill = { skill: string; proficiency: string; category: string };
+
+async function extractFromText(openai: OpenAI, text: string, sourceLabel: string): Promise<Skill[]> {
+  const res = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    response_format: { type: 'json_object' },
+    max_tokens: 3000,
+    messages: [{
+      role: 'user',
+      content: `Analyse the following ${sourceLabel} and extract ALL professional competencies, technical skills, and domain knowledge the person possesses. Be thorough — do not consolidate or skip skills.
+
+For each competency:
+- Identify the skill name (concise, 2-5 words)
+- Estimate proficiency: "basic", "intermediate", "advanced", or "expert" based on context (years, seniority, achievements mentioned)
+- Categorise as: "technical", "domain", "leadership", "soft", or "tool"
+
+${sourceLabel} text:
+---
+${text.slice(0, 8000)}
+---
+
+Return JSON:
+{
+  "competencies": [
+    { "skill": "Python Programming", "proficiency": "advanced", "category": "technical" },
+    { "skill": "Financial Analysis", "proficiency": "intermediate", "category": "domain" }
+  ]
+}`,
+    }],
+  });
+
+  const content = res.choices[0]?.message?.content ?? '{"competencies":[]}';
+  const parsed = JSON.parse(content) as { competencies: Skill[] };
+  return parsed.competencies ?? [];
+}
+
+function mergeSkills(primary: Skill[], secondary: Skill[]): Skill[] {
+  const seen = new Set(primary.map(s => s.skill.toLowerCase()));
+  const additions = secondary.filter(s => !seen.has(s.skill.toLowerCase()));
+  return [...primary, ...additions];
+}
+
 export async function POST(request: Request) {
   try {
     const session = await requireAuth();
@@ -25,7 +67,6 @@ export async function POST(request: Request) {
       } else if (file) {
         resumeFilename = file.name;
         if (file.name.endsWith('.pdf')) {
-          // Import the lib directly to skip the debug-mode test-file load in index.js
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const pdfParseModule: any = await import('pdf-parse/lib/pdf-parse');
           const pdfParse = pdfParseModule.default ?? pdfParseModule;
@@ -43,15 +84,9 @@ export async function POST(request: Request) {
       if (resumeText) resumeFilename = 'pasted text';
     }
 
-    // Append LinkedIn text if provided
-    if (linkedInText) {
-      resumeText = resumeText
-        ? `${resumeText}\n\n--- LinkedIn Profile ---\n${linkedInText}`
-        : `LinkedIn Profile:\n${linkedInText}`;
-      if (!resumeFilename) resumeFilename = 'LinkedIn profile';
-    }
+    if (!resumeFilename && linkedInText) resumeFilename = 'LinkedIn profile';
 
-    if (!resumeText) {
+    if (!resumeText && !linkedInText) {
       return Response.json({ data: null, error: 'No resume text provided' }, { status: 400 });
     }
 
@@ -60,7 +95,6 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
-    // Use undici directly with rejectUnauthorized:false to bypass Windows CRL check
     const tlsAgent = new Agent({ connect: { rejectUnauthorized: false } });
     const openai = new OpenAI({
       apiKey,
@@ -68,38 +102,20 @@ export async function POST(request: Request) {
       fetch: (url, init) => undiciFetch(url as string, { ...(init as any), dispatcher: tlsAgent }) as unknown as Promise<Response>,
     });
 
-    // Extract competencies from resume text
-    const aiRes = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      response_format: { type: 'json_object' },
-      max_tokens: 3000,
-      messages: [{
-        role: 'user',
-        content: `Analyse the following resume and extract all professional competencies, technical skills, and domain knowledge the person possesses.
-
-For each competency:
-- Identify the skill name (concise, 2-5 words)
-- Estimate proficiency: "basic", "intermediate", "advanced", or "expert" based on context (years, seniority, achievements mentioned)
-- Categorise as: "technical", "domain", "leadership", "soft", or "tool"
-
-Resume text:
----
-${resumeText.slice(0, 6000)}
----
-
-Return JSON:
-{
-  "competencies": [
-    { "skill": "Python Programming", "proficiency": "advanced", "category": "technical" },
-    { "skill": "Financial Analysis", "proficiency": "intermediate", "category": "domain" }
-  ]
-}`,
-      }],
-    });
-
-    const content = aiRes.choices[0]?.message?.content ?? '{"competencies":[]}';
-    const parsed = JSON.parse(content) as { competencies: Array<{ skill: string; proficiency: string; category: string }> };
-    const competencies = parsed.competencies ?? [];
+    // Run CV and LinkedIn extractions independently so neither truncates the other,
+    // then merge — LinkedIn can only ever ADD skills, never reduce the CV count.
+    let competencies: Skill[];
+    if (resumeText && linkedInText) {
+      const [cvSkills, liSkills] = await Promise.all([
+        extractFromText(openai, resumeText, 'resume / CV'),
+        extractFromText(openai, linkedInText, 'LinkedIn profile'),
+      ]);
+      competencies = mergeSkills(cvSkills, liSkills);
+    } else if (resumeText) {
+      competencies = await extractFromText(openai, resumeText, 'resume / CV');
+    } else {
+      competencies = await extractFromText(openai, linkedInText, 'LinkedIn profile');
+    }
 
     if (competencies.length === 0) {
       return Response.json({ data: { competencies: [], ssgMatches: {} }, error: null });
@@ -121,7 +137,6 @@ Return JSON:
       if (rows.length > 0) ssgMatches[c.skill] = rows;
     }
 
-    // Auto-save all extracted competencies to user_competencies (replace previous resume ones)
     await sql`
       CREATE TABLE IF NOT EXISTS user_competencies (
         id                SERIAL PRIMARY KEY,
@@ -138,7 +153,6 @@ Return JSON:
       )
     `;
     await sql`DELETE FROM user_competencies WHERE user_id = ${session.userId} AND source = 'resume'`;
-    // Save resume metadata so the UI can show the previously uploaded file
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_filename TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_uploaded_at TIMESTAMPTZ`;
     if (resumeFilename) {
