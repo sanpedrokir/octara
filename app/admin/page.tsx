@@ -488,6 +488,10 @@ export default function AdminPage() {
   const [escoSkillSyncing, setEscoSkillSyncing]         = useState(false);
   const [escoSkillSyncProgress, setEscoSkillSyncProgress] = useState('');
 
+  // Market Skills pre-warm state
+  const [marketPrewarming, setMarketPrewarming]     = useState(false);
+  const [marketPrewarmProgress, setMarketPrewarmProgress] = useState('');
+
   async function syncEscoSkills() {
     if (!confirm(
       'This fetches essential skills for every ESCO occupation from the EU API and stores them locally.\n\n' +
@@ -563,6 +567,69 @@ export default function AdminPage() {
       setEscoSkillSyncProgress('');
     } finally {
       setEscoSkillSyncing(false);
+    }
+  }
+
+  async function prewarmMarketSkills() {
+    if (!confirm(
+      'This fetches live job listings from MyCareersFuture and extracts skills for every SSG job role, then caches the results.\n\n' +
+      'Cost: ~$0.20 in OpenAI credits. Takes ~10–20 minutes for ~300 roles.\n\n' +
+      'After this, every user gets instant Market Skills results for 7 days. Continue?'
+    )) return;
+
+    setMarketPrewarming(true);
+    setMarketPrewarmProgress('Loading job roles from catalog…');
+
+    try {
+      // Fetch all job roles from the catalog
+      const allRoles: string[] = [];
+      let offset = 0;
+      while (true) {
+        const res = await fetch(`/api/job-role-catalog/roles?limit=200&offset=${offset}`);
+        const { data } = await res.json() as { data: { rows: Array<{ job_role: string }> } | null };
+        if (!data?.rows?.length) break;
+        for (const r of data.rows) {
+          if (!allRoles.includes(r.job_role)) allRoles.push(r.job_role);
+        }
+        if (data.rows.length < 200) break;
+        offset += 200;
+      }
+
+      if (allRoles.length === 0) {
+        showMsg('No job roles found. Upload the Job Role Catalog first.', 'error');
+        return;
+      }
+
+      let done = 0;
+      let cached = 0;
+      let failed = 0;
+
+      for (const role of allRoles) {
+        try {
+          const res = await fetch('/api/market-skills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobTitle: role }),
+          });
+          const { data, error } = await res.json();
+          if (error) failed++;
+          else if (data?.cached) cached++;
+        } catch {
+          failed++;
+        }
+        done++;
+        setMarketPrewarmProgress(`⏳ ${done} / ${allRoles.length} roles processed${failed > 0 ? ` · ${failed} failed` : ''}${cached > 0 ? ` · ${cached} already cached` : ''}`);
+        // Small delay to avoid hammering MCF API
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      setMarketPrewarmProgress('');
+      showMsg(`✅ Market Skills cache pre-warmed — ${done - failed} roles cached, ${failed} had no MCF listings.`, 'success');
+    } catch (err) {
+      showMsg('Pre-warm failed: ' + (err instanceof Error ? err.message : 'Unknown'), 'error');
+      setMarketPrewarmProgress('');
+    } finally {
+      setMarketPrewarming(false);
     }
   }
 
@@ -1022,6 +1089,35 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+          {/* Market Skills Pre-warm */}
+          <div className="card p-5 space-y-3" style={{ border: '2px solid #0369a1', background: '#f0f9ff' }}>
+            <div>
+              <h3 className="font-semibold" style={{ color: '#0369a1' }}>🌐 Pre-warm Market Skills Cache</h3>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                Fetches live job listings from <strong>MyCareersFuture</strong> and uses AI to extract required skills for every job role in the catalog, then caches the results for 7 days.
+                Run this weekly so users always get instant results. Cost: ~$0.20 in OpenAI credits per run.
+              </p>
+            </div>
+            {marketPrewarmProgress && (
+              <p className="text-xs font-mono px-3 py-2 rounded-lg" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                {marketPrewarmProgress}
+              </p>
+            )}
+            <button
+              onClick={prewarmMarketSkills}
+              disabled={marketPrewarming}
+              className="btn-primary text-sm w-full"
+              style={{ background: '#0369a1', borderColor: '#0369a1', opacity: marketPrewarming ? 0.6 : 1 }}
+            >
+              {marketPrewarming ? '⏳ Pre-warming… (do not close this tab)' : '🌐 Pre-warm Market Skills Cache'}
+            </button>
+            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+              ⚠️ Takes ~10–20 min for ~300 roles. Roles already cached within 7 days are skipped.
+            </p>
           </div>
         </div>
       )}
