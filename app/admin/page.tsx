@@ -615,6 +615,32 @@ export default function AdminPage() {
                   </div>
                 )}
 
+                {/* SSG file upload reference guide */}
+                <div className="rounded-lg p-3 space-y-2" style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#1e40af' }}>📋 Upload guide — do these in order:</p>
+                  <div className="space-y-1.5">
+                    {[
+                      { num: '1', file: 'jobsandskills-skillsfuture-skills-framework-dataset (Tab 1)', btn: 'Job Role Catalog', table: 'job_role_catalog' },
+                      { num: '2', file: 'jobsandskills-skillsfuture-skills-framework-dataset_TSC_CSC', btn: 'TSC/CCS Mapping', table: 'job_role_tsc_ccs' },
+                      { num: '3', file: 'jobsandskills-skillsfuture-tsc-to-unique-skills-mapping', btn: 'Skills Mapping', table: 'jobs_skills_mapping' },
+                    ].map(r => (
+                      <div key={r.num} className="flex items-start gap-2 text-xs">
+                        <span className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center font-bold text-white" style={{ background: '#2563eb', fontSize: '0.6rem' }}>{r.num}</span>
+                        <div className="min-w-0">
+                          <span className="font-mono" style={{ color: '#1e3a8a', wordBreak: 'break-all' }}>{r.file}</span>
+                          <span style={{ color: 'var(--muted)' }}> → </span>
+                          <span className="font-semibold" style={{ color: '#1d4ed8' }}>{r.btn}</span>
+                          <span style={{ color: 'var(--muted)' }}> → </span>
+                          <span className="font-mono" style={{ color: '#64748b' }}>{r.table}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs" style={{ color: '#64748b' }}>
+                    File 2 looks up sectors from File 1 — upload order matters. Re-uploading any file fully replaces its table (no duplicates).
+                  </p>
+                </div>
+
                 {/* SSG sub-tabs quick links */}
                 <div className="pt-1 border-t grid grid-cols-3 gap-2" style={{ borderColor: '#bfdbfe' }}>
                   {[
