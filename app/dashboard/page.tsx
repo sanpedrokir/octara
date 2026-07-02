@@ -2,7 +2,6 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import QuizLeaderboard from '@/app/ui/QuizLeaderboard';
 const SECTIONS = [
   {
     href: '/career-coach',
@@ -373,23 +372,6 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* ── QUIZ LEADERBOARD ─────────────────────────────────── */}
-      {careerSector && (
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>🧠 Work Knowledge Quiz</h2>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                See how you rank against other learners in {careerSector}
-              </p>
-            </div>
-            <Link href="/skill-quiz" className="text-xs font-medium no-underline" style={{ color: 'var(--primary)' }}>
-              Take Quiz →
-            </Link>
-          </div>
-          <QuizLeaderboard sector={careerSector} compact={true} />
-        </div>
-      )}
 
       {/* ── CERTIFICATIONS & TRAINING ────────────────────────── */}
       <div className="card p-5">
