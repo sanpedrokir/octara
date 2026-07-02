@@ -10,7 +10,7 @@ export async function GET() {
     const session = await requireAuth();
     const sql = db();
 
-    const [[career], skills, gapRows] = await Promise.all([
+    const [[career], skills] = await Promise.all([
       sql`
         SELECT COALESCE(jr.name, jrc.job_role, ej.occupation_title) AS role,
                COALESCE(i.name, jrc.sector, ej.isco_group) AS sector
@@ -22,7 +22,6 @@ export async function GET() {
         WHERE ca.user_id = ${session.userId}
       ` as Promise<Array<{ role: string | null; sector: string | null }>>,
       sql`SELECT skill_title, proficiency_level FROM user_competencies WHERE user_id = ${session.userId} ORDER BY ssg_matched DESC LIMIT 20` as Promise<Array<{ skill_title: string; proficiency_level: string }>>,
-      sql`SELECT skill_title, gap_type FROM skill_gaps WHERE user_id = ${session.userId} LIMIT 15` as Promise<Array<{ skill_title: string; gap_type: string }>>,
     ]);
 
     if (!career) {
@@ -31,7 +30,6 @@ export async function GET() {
 
     const targetRole = career.role || career.sector || 'Professional';
     const currentSkills = skills.map(s => `${s.skill_title} (${s.proficiency_level})`).join(', ') || 'None listed';
-    const gaps = gapRows.map(g => g.skill_title).join(', ') || 'None identified';
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -41,7 +39,6 @@ export async function GET() {
           role: 'user',
           content: `Create a learning roadmap for someone targeting: ${targetRole}
 Current skills: ${currentSkills}
-Skill gaps to close: ${gaps}
 
 Return JSON with exactly 3 phases:
 {
