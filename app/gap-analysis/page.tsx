@@ -17,6 +17,7 @@ interface CompetencyRow {
   self_assessment_score: number | null;
   matched: boolean;
   status: Status;
+  fuzzy_matched_via: string | null;
 }
 
 interface GapSummary {
@@ -537,6 +538,11 @@ export default function GapAnalysisPage() {
                               : row.source === 'self_assessment' ? '⭐ self-assessed'
                               : '✍️ self-added'}
                           </span>
+                          {row.fuzzy_matched_via && (
+                            <span className="text-xs italic" style={{ color: '#92400e' }}>
+                              ~ via &ldquo;{row.fuzzy_matched_via}&rdquo;
+                            </span>
+                          )}
                         </>
                       ) : row.status === 'course_earned' ? (
                         <span className="text-sm" style={{ color: '#1d4ed8' }}>🎓 Earned via course</span>

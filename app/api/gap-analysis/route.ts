@@ -25,6 +25,28 @@ function scoreToProficiency(score: number): string {
 
 type RequiredSkill = { skill_title: string; skill_code: string | null; skill_type: string | null; required_level: string | null };
 
+const STOP_WORDS = new Set(['and', 'or', 'the', 'of', 'in', 'for', 'a', 'an', 'to', 'with', '&']);
+
+function tokenize(s: string): string[] {
+  return s.toLowerCase()
+    .split(/[\s/\-&,()]+/)
+    .map(w => w.replace(/[^a-z0-9]/g, ''))
+    .filter(w => w.length > 1 && !STOP_WORDS.has(w));
+}
+
+function isFuzzyMatch(userTitle: string, requiredTitle: string): boolean {
+  const userTokens = tokenize(userTitle);
+  const reqTokens  = tokenize(requiredTitle);
+  if (userTokens.length === 0 || reqTokens.length === 0) return false;
+  // All tokens of the shorter title must appear in the longer title's token set.
+  // This catches "Agile" ⊂ "Agile Software Development" and
+  // "Cloud Computing" ⊂ "Cloud Computing Architecture".
+  const [shorter, longerSet] = userTokens.length <= reqTokens.length
+    ? [userTokens, new Set(reqTokens)]
+    : [reqTokens,  new Set(userTokens)];
+  return shorter.every(t => longerSet.has(t));
+}
+
 function buildRows(
   requiredSkills: RequiredSkill[],
   userSkills: Array<{ skill_title: string; proficiency_level: string; ssg_matched: boolean; source: string }>,
@@ -36,8 +58,23 @@ function buildRows(
   const completedSet  = new Set(completedCourses.map(c => c.skill_name.toLowerCase()));
 
   return requiredSkills.map(req => {
-    const key          = req.skill_title.toLowerCase();
-    const userSkill    = userSkillMap.get(key);
+    const key = req.skill_title.toLowerCase();
+
+    // 1. Exact match
+    let userSkill = userSkillMap.get(key);
+    let fuzzyMatchedVia: string | null = null;
+
+    // 2. Fuzzy match — only when no exact match found
+    if (!userSkill) {
+      for (const s of userSkills) {
+        if (isFuzzyMatch(s.skill_title, req.skill_title)) {
+          userSkill = s;
+          fuzzyMatchedVia = s.skill_title;
+          break;
+        }
+      }
+    }
+
     const score        = assessMap.get(key) ?? null;
     const courseEarned = completedSet.has(key);
     const noKnowledge  = score === 1;
@@ -49,7 +86,8 @@ function buildRows(
       status = 'missing';
     } else if (courseEarned && !userSkill && !selfRated) {
       status = 'course_earned';
-    } else if (score !== null && score >= 3) {
+    } else if (!fuzzyMatchedVia && score !== null && score >= 3) {
+      // Fuzzy matches cap at partial — we're less certain about the skill level
       status = 'strong';
     } else {
       status = 'partial';
@@ -69,6 +107,7 @@ function buildRows(
       self_assessment_score: score,
       matched,
       status,
+      fuzzy_matched_via:     fuzzyMatchedVia,
     };
   });
 }
