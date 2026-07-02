@@ -160,16 +160,29 @@ export default function CompetencyPage() {
     if (!file) return;
     setFileName(file.name);
     setExtractError('');
+    // Clear pasted text — file and paste are mutually exclusive
+    setResumeText('');
 
     if (file.name.endsWith('.txt')) {
       const text = await file.text();
       setResumeText(text);
+      (fileRef.current as HTMLInputElement & { _file?: File })._file = undefined;
     } else if (file.name.endsWith('.pdf')) {
-      setResumeText('');
-      setExtractError('');
       (fileRef.current as HTMLInputElement & { _file?: File })._file = file;
     } else {
       setExtractError('Supported formats: PDF, TXT. For DOCX, paste the text below.');
+      setFileName('');
+    }
+  }
+
+  // ── Paste text handler — clears any uploaded file ───────────────────────────
+  function handleResumeTextChange(text: string) {
+    setResumeText(text);
+    if (text.trim()) {
+      // Clear uploaded file so they don't conflict
+      (fileRef.current as HTMLInputElement & { _file?: File })._file = undefined;
+      if (fileRef.current) fileRef.current.value = '';
+      setFileName('');
     }
   }
 
@@ -258,11 +271,6 @@ export default function CompetencyPage() {
     loadProfile();
   }
 
-  async function saveAll() {
-    for (const skill of extracted) {
-      if (!saved.has(skill.skill)) await saveSkill(skill);
-    }
-  }
 
   // ── Search SSG skills ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -453,7 +461,7 @@ export default function CompetencyPage() {
                 rows={7}
                 placeholder="Paste the full text of your CV here…"
                 value={resumeText}
-                onChange={e => setResumeText(e.target.value)}
+                onChange={e => handleResumeTextChange(e.target.value)}
                 style={{ resize: 'vertical' }}
               />
             </div>
