@@ -129,31 +129,33 @@ export default function GapAnalysisPage() {
     setError('');
     const res = await fetch('/api/gap-analysis');
     const { data, error: e } = await res.json();
-    if (e === 'NO_CAREER_GOAL') setError('NO_CAREER_GOAL');
-    else if (e === 'NO_SECTOR') setError('NO_SECTOR');
-    else if (e === 'NO_COMPETENCY_PROFILE') setError('NO_COMPETENCY_PROFILE');
-    else if (e === 'ESCO_SKILLS_NOT_SYNCED') setError('ESCO_SKILLS_NOT_SYNCED');
-    else if (e) setError(e);
-    else setGapData(data);
+    if (e === 'NO_CAREER_GOAL') { setError('NO_CAREER_GOAL'); setLoading(false); return; }
+    if (e === 'NO_SECTOR') { setError('NO_SECTOR'); setLoading(false); return; }
+    if (e === 'NO_COMPETENCY_PROFILE') { setError('NO_COMPETENCY_PROFILE'); setLoading(false); return; }
+    if (e === 'ESCO_SKILLS_NOT_SYNCED') { setError('ESCO_SKILLS_NOT_SYNCED'); setLoading(false); return; }
+    if (e) { setError(e); setLoading(false); return; }
+    setGapData(data);
+
+    // Load saved recommendations — only apply if they were generated for the same role
+    try {
+      const recRes = await fetch('/api/gap-analysis/recommend');
+      const { data: recData } = await recRes.json() as { data: { courses: SsgCourse[]; youtube: Record<string, YouTubeVideo>; mooc: MoocCourse[]; role: string | null; sector: string | null } | null };
+      if (recData) {
+        const currentRole = (data.career.role || data.career.sector || '').toLowerCase().trim();
+        const savedRole   = (recData.role || recData.sector || '').toLowerCase().trim();
+        if (!savedRole || savedRole === currentRole) {
+          setSsgCourses((recData.courses ?? []).map((c) => ({ ...c })));
+          setYoutubeMap(typeof recData.youtube === 'object' && !Array.isArray(recData.youtube) ? recData.youtube : {});
+          setMoocCourses((recData.mooc ?? []).map((c) => ({ ...c })));
+        }
+        // else: recs are for a different role, skip them so user sees a clean state for the new goal
+      }
+    } catch { /* ignore */ }
+
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  // Auto-load saved recommendations on mount
-  useEffect(() => {
-    fetch('/api/gap-analysis/recommend')
-      .then(r => r.json())
-      .then(({ data }) => {
-        if (!data) return;
-        setSsgCourses((data.courses ?? []).map((c: SsgCourse) => ({ ...c })));
-        setYoutubeMap(typeof data.youtube === 'object' && !Array.isArray(data.youtube)
-          ? data.youtube as Record<string, YouTubeVideo>
-          : {});
-        setMoocCourses((data.mooc ?? []).map((c: MoocCourse) => ({ ...c })));
-      })
-      .catch(() => {});
-  }, []);
 
   async function recommendCourses() {
     if (!gapData) return;

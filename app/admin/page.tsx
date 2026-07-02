@@ -908,6 +908,28 @@ export default function AdminPage() {
                 </a>
               </div>
 
+              {/* Market Skills Cache */}
+              <div className="card p-5 space-y-3" style={{ border: '1.5px solid #bae6fd', background: '#f0f9ff' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: '#e0f2fe' }}>🌐</div>
+                <div>
+                  <h4 className="font-semibold" style={{ color: '#0369a1' }}>Market Skills Cache</h4>
+                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Pre-warm MCF job listings + AI skill extraction for all roles. ~$0.20 / run. Run weekly for instant results.</p>
+                </div>
+                {marketPrewarmProgress && (
+                  <p className="text-xs font-mono px-2 py-1.5 rounded-lg" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                    {marketPrewarmProgress}
+                  </p>
+                )}
+                <button
+                  onClick={prewarmMarketSkills}
+                  disabled={marketPrewarming}
+                  className="btn-primary text-sm w-full"
+                  style={{ background: '#0369a1', borderColor: '#0369a1', opacity: marketPrewarming ? 0.6 : 1 }}
+                >
+                  {marketPrewarming ? '⏳ Pre-warming…' : '🌐 Pre-warm Cache'}
+                </button>
+              </div>
+
             </div>
           </div>
 
@@ -1091,32 +1113,6 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Market Skills Pre-warm */}
-          <div className="card p-5 space-y-3" style={{ border: '2px solid #0369a1', background: '#f0f9ff' }}>
-            <div>
-              <h3 className="font-semibold" style={{ color: '#0369a1' }}>🌐 Pre-warm Market Skills Cache</h3>
-              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                Fetches live job listings from <strong>MyCareersFuture</strong> and uses AI to extract required skills for every job role in the catalog, then caches the results for 7 days.
-                Run this weekly so users always get instant results. Cost: ~$0.20 in OpenAI credits per run.
-              </p>
-            </div>
-            {marketPrewarmProgress && (
-              <p className="text-xs font-mono px-3 py-2 rounded-lg" style={{ background: '#e0f2fe', color: '#0369a1' }}>
-                {marketPrewarmProgress}
-              </p>
-            )}
-            <button
-              onClick={prewarmMarketSkills}
-              disabled={marketPrewarming}
-              className="btn-primary text-sm w-full"
-              style={{ background: '#0369a1', borderColor: '#0369a1', opacity: marketPrewarming ? 0.6 : 1 }}
-            >
-              {marketPrewarming ? '⏳ Pre-warming… (do not close this tab)' : '🌐 Pre-warm Market Skills Cache'}
-            </button>
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>
-              ⚠️ Takes ~10–20 min for ~300 roles. Roles already cached within 7 days are skipped.
-            </p>
-          </div>
         </div>
       )}
 

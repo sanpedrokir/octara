@@ -46,12 +46,16 @@ export async function GET() {
     await ensureTable();
     const sql = db();
     const rows = await sql`
-      SELECT courses, youtube, mooc FROM course_recommendations
+      SELECT courses, youtube, mooc, sector, role FROM course_recommendations
       WHERE user_id = ${session.userId}
-    ` as Array<{ courses: object; youtube: object; mooc: object }>;
+    ` as Array<{ courses: object; youtube: object; mooc: MoocCourse[]; sector: string | null; role: string | null }>;
 
     if (!rows.length) return Response.json({ data: null, error: null });
-    return Response.json({ data: rows[0], error: null });
+    const row = rows[0];
+    const mooc: MoocCourse[] = (row.mooc as MoocCourse[])?.length
+      ? row.mooc as MoocCourse[]
+      : getCuratedMooc(row.sector ?? '', row.role ?? '', []);
+    return Response.json({ data: { courses: row.courses, youtube: row.youtube, mooc, sector: row.sector, role: row.role }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed';
     return Response.json({ data: null, error: msg }, { status: 500 });
