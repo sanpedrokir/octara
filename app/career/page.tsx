@@ -634,7 +634,6 @@ export default function CareerPage() {
                                     <thead>
                                       <tr style={{ borderBottom: '1px solid var(--card-border)', background: 'var(--muted-bg)' }}>
                                         <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Skill Title</th>
-                                        <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Category</th>
                                         <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Demand</th>
                                       </tr>
                                     </thead>
@@ -644,7 +643,6 @@ export default function CareerPage() {
                                         return (
                                           <tr key={i} style={{ borderBottom: '1px solid var(--card-border)' }}>
                                             <td className="py-2 px-3 font-medium" style={{ color: 'var(--primary)' }}>{skill.name}</td>
-                                            <td className="py-2 px-3 text-xs" style={{ color: 'var(--muted)' }}>{skill.category}</td>
                                             <td className="py-2 px-3">
                                               <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
                                             </td>
