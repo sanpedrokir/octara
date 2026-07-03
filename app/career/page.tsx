@@ -304,8 +304,12 @@ export default function CareerPage() {
       suppressSectorEffect.current = false;
       return;
     }
+    // Sector changed manually — clear stale results and selected role
     setSelectedTracks([]);
     setTracks([]);
+    setResults([]);
+    setHasSearched(false);
+    setSelectedRole(null);
     if (!selectedSector) return;
     fetch(`${apiBase}/tracks?sector=${encodeURIComponent(selectedSector)}`)
       .then(r => r.json())
@@ -401,11 +405,14 @@ export default function CareerPage() {
             )}
 
             {current && !saved && (
-              <div className="mb-5 p-4 rounded-xl text-sm" style={{ background: 'var(--primary-light)', border: '1px solid rgba(0,120,212,0.2)' }}>
-                <p className="font-medium" style={{ color: 'var(--primary)' }}>Current Goal</p>
-                <p className="mt-1" style={{ color: 'var(--foreground)' }}>
-                  {current.job_role_name} · {current.industry_name}{current.catalog_track ? ` · ${current.catalog_track}` : ''}
-                </p>
+              <div className="mb-5 p-4 rounded-xl text-sm flex items-start justify-between gap-3" style={{ background: 'var(--primary-light)', border: '1px solid rgba(0,120,212,0.2)' }}>
+                <div>
+                  <p className="font-medium" style={{ color: 'var(--primary)' }}>Current Goal</p>
+                  <p className="mt-0.5 font-semibold" style={{ color: 'var(--foreground)' }}>
+                    {current.job_role_name} · {current.industry_name}{current.catalog_track ? ` · ${current.catalog_track}` : ''}
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>Select a new sector below and click Search to browse and change your goal.</p>
+                </div>
               </div>
             )}
 
