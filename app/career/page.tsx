@@ -410,8 +410,8 @@ export default function CareerPage() {
                 </div>
                 <div className="px-4 py-2.5 flex items-start gap-2 text-xs" style={{ background: '#fffbeb', borderTop: '1px solid #fde68a' }}>
                   <span className="shrink-0">⚠️</span>
-                  <p style={{ color: '#92400e' }}>
-                    Browsing below does <strong>not</strong> change your goal. Only click <strong>"Update Career Goal"</strong> when you are sure — this will replace your current goal and reset your Gap Analysis and course recommendations.
+                  <p style={{ color: '#92400e', fontWeight: 700 }}>
+                    Browsing does not change your goal. Only click "Update Career Goal" when you are sure — this will replace your current goal and reset your Gap Analysis and course recommendations.
                   </p>
                 </div>
               </div>
