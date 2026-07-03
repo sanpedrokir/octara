@@ -137,6 +137,8 @@ export default function GapAnalysisPage() {
     setGapData(data);
 
     // Load saved recommendations — only apply if they were generated for the same role
+    const missing = (data.required ?? []).filter((r: { status: string }) => r.status === 'missing').map((r: { skill_title: string }) => r.skill_title);
+    let hasRecs = false;
     try {
       const recRes = await fetch('/api/gap-analysis/recommend');
       const { data: recData } = await recRes.json() as { data: { courses: SsgCourse[]; youtube: Record<string, YouTubeVideo>; mooc: MoocCourse[]; role: string | null; sector: string | null } | null };
@@ -147,12 +149,33 @@ export default function GapAnalysisPage() {
           setSsgCourses((recData.courses ?? []).map((c) => ({ ...c })));
           setYoutubeMap(typeof recData.youtube === 'object' && !Array.isArray(recData.youtube) ? recData.youtube : {});
           setMoocCourses((recData.mooc ?? []).map((c) => ({ ...c })));
+          hasRecs = (recData.courses?.length ?? 0) > 0 || (recData.mooc?.length ?? 0) > 0;
         }
-        // else: recs are for a different role, skip them so user sees a clean state for the new goal
       }
     } catch { /* ignore */ }
 
     setLoading(false);
+
+    // Auto-generate recommendations if missing skills exist but no saved recs for this role
+    if (!hasRecs && missing.length > 0) {
+      setLoadingCourses(true);
+      setCourseError('');
+      try {
+        const res = await fetch('/api/gap-analysis/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ missingSkills: missing, sector: data.career.sector, role: data.career.role, isEsco: data.is_esco }),
+        });
+        const { data: recData, error: recErr } = await res.json();
+        if (recErr) { setCourseError(recErr); }
+        else if (recData) {
+          setSsgCourses((recData.courses ?? []).map((c: SsgCourse) => ({ ...c })));
+          setYoutubeMap(typeof recData.youtube === 'object' && !Array.isArray(recData.youtube) ? recData.youtube : {});
+          setMoocCourses((recData.mooc ?? []).map((c: MoocCourse) => ({ ...c })));
+        }
+      } catch { setCourseError('Failed to generate recommendations.'); }
+      finally { setLoadingCourses(false); }
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -573,17 +596,10 @@ export default function GapAnalysisPage() {
                   : 'All competencies matched — great job!'}
               </p>
             </div>
-            {missingCount > 0 && ssgCourses.length === 0 && moocCourses.length === 0 && (
-              <button
-                onClick={recommendCourses}
-                disabled={loadingCourses}
-                className="btn-primary text-sm shrink-0"
-                style={{ opacity: loadingCourses ? 0.7 : 1 }}
-              >
-                {loadingCourses
-                  ? <><LoadingSpinner label="" /> Fetching…</>
-                  : '🤖 Generate Recommendations'}
-              </button>
+            {loadingCourses && (
+              <span className="text-xs flex items-center gap-1.5 shrink-0" style={{ color: 'var(--muted)' }}>
+                <LoadingSpinner label="" /> Generating…
+              </span>
             )}
           </div>
 
