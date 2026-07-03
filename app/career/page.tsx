@@ -561,16 +561,27 @@ export default function CareerPage() {
 
             {selectedRole && (
               <div className="card p-6 mt-5 space-y-4">
-                <div>
-                  <p className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>Selected Job Role</p>
-                  <p className="text-lg font-semibold mt-1" style={{ color: 'var(--foreground)' }}>{selectedRole.job_role}</p>
-                  <p className="text-sm" style={{ color: 'var(--muted)' }}>{selectedRole.sector}{selectedRole.track ? ` · ${selectedRole.track}` : ''}</p>
-                  {selectedRole.job_role_description && (
-                    <p className="text-sm mt-3" style={{ color: 'var(--muted)' }}>{selectedRole.job_role_description}</p>
-                  )}
-                  {selectedRole.performance_expectation && (
-                    <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}><strong>Performance Expectation:</strong> {selectedRole.performance_expectation}</p>
-                  )}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>Selected Job Role</p>
+                    <p className="text-lg font-semibold mt-1" style={{ color: 'var(--foreground)' }}>{selectedRole.job_role}</p>
+                    <p className="text-sm" style={{ color: 'var(--muted)' }}>{selectedRole.sector}{selectedRole.track ? ` · ${selectedRole.track}` : ''}</p>
+                    {selectedRole.job_role_description && (
+                      <p className="text-sm mt-3" style={{ color: 'var(--muted)' }}>{selectedRole.job_role_description}</p>
+                    )}
+                    {selectedRole.performance_expectation && (
+                      <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}><strong>Performance Expectation:</strong> {selectedRole.performance_expectation}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSetGoal}
+                    disabled={saving || saved}
+                    className="btn-primary shrink-0"
+                    style={{ opacity: saving ? 0.7 : 1 }}
+                  >
+                    {saving ? 'Saving…' : saved ? '✅ Saved!' : current ? 'Update Career Goal →' : 'Set Career Goal →'}
+                  </button>
                 </div>
 
                 {/* ── Tabs ──────────────────────────────────────────── */}
@@ -622,8 +633,10 @@ export default function CareerPage() {
 
                             {/* TSC section */}
                             <div>
-                              <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>TSC (Technical Skills and Competencies)</h4>
-                              <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {tscSkills.length} skill(s).</p>
+                              <div className="flex items-center gap-2 mb-2">
+                                <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>TSC (Technical Skills and Competencies)</h4>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#eff6ff', color: '#1d4ed8' }}>{tscSkills.length}</span>
+                              </div>
                               {tscSkills.length === 0 ? (
                                 <div className="rounded-lg p-4 text-sm text-center" style={{ border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
                                   No technical skills found.
@@ -657,8 +670,10 @@ export default function CareerPage() {
 
                             {/* CCS section */}
                             <div>
-                              <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>CCS (Critical Core Skills)</h4>
-                              <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {ccsSkills.length} skill(s).</p>
+                              <div className="flex items-center gap-2 mb-2">
+                                <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>CCS (Critical Core Skills)</h4>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f0fdf4', color: '#15803d' }}>{ccsSkills.length}</span>
+                              </div>
                               {ccsSkills.length === 0 ? (
                                 <div className="rounded-lg p-4 text-sm text-center" style={{ border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
                                   No critical core skills found.
@@ -730,19 +745,23 @@ export default function CareerPage() {
                       )}
                       {!detailsLoading && (
                         <div>
-                          <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
-                            {userCountry === 'SG' ? 'TSC (Technical Skills and Competencies)' : 'Essential Skills'}
-                          </h4>
-                          <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {tsc.length} skill(s).</p>
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>
+                              {userCountry === 'SG' ? 'TSC (Technical Skills and Competencies)' : 'Essential Skills'}
+                            </h4>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#eff6ff', color: '#1d4ed8' }}>{tsc.length}</span>
+                          </div>
                           <SkillTable rows={tsc} emptyText="No skills found for this occupation." />
                         </div>
                       )}
                       {!detailsLoading && (
                         <div>
-                          <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
-                            {userCountry === 'SG' ? 'CCS (Critical Core Skills)' : 'Optional Skills'}
-                          </h4>
-                          <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {ccs.length} skill(s).</p>
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>
+                              {userCountry === 'SG' ? 'CCS (Critical Core Skills)' : 'Optional Skills'}
+                            </h4>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f0fdf4', color: '#15803d' }}>{ccs.length}</span>
+                          </div>
                           <SkillTable rows={ccs} emptyText="No optional skills found for this occupation." />
                         </div>
                       )}
