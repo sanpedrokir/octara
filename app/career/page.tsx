@@ -635,10 +635,6 @@ export default function CareerPage() {
                         const ccsSkills = marketSkills.filter(s => !tscCategories.has((s.category ?? '').toLowerCase()));
                         return (
                           <>
-                            <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                              Skills extracted from {marketJobCount} live job listings on MyCareersFuture.
-                            </p>
-
                             {/* TSC section */}
                             <div>
                               <div className="flex items-center gap-2 mb-2">
