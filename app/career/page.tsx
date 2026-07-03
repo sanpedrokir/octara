@@ -401,13 +401,18 @@ export default function CareerPage() {
             )}
 
             {current && !saved && (
-              <div className="mb-5 p-4 rounded-xl text-sm flex items-start justify-between gap-3" style={{ background: 'var(--primary-light)', border: '1px solid rgba(0,120,212,0.2)' }}>
-                <div>
+              <div className="mb-5 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,120,212,0.2)' }}>
+                <div className="p-4 text-sm" style={{ background: 'var(--primary-light)' }}>
                   <p className="font-medium" style={{ color: 'var(--primary)' }}>Current Goal</p>
                   <p className="mt-0.5 font-semibold" style={{ color: 'var(--foreground)' }}>
                     {current.job_role_name} · {current.industry_name}{current.catalog_track ? ` · ${current.catalog_track}` : ''}
                   </p>
-                  <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>Select a new sector below and click Search to browse and change your goal.</p>
+                </div>
+                <div className="px-4 py-2.5 flex items-start gap-2 text-xs" style={{ background: '#fffbeb', borderTop: '1px solid #fde68a' }}>
+                  <span className="shrink-0">⚠️</span>
+                  <p style={{ color: '#92400e' }}>
+                    Browsing below does <strong>not</strong> change your goal. Only click <strong>"Update Career Goal"</strong> when you are sure — this will replace your current goal and reset your Gap Analysis and course recommendations.
+                  </p>
                 </div>
               </div>
             )}
@@ -784,6 +789,11 @@ export default function CareerPage() {
                   />
                 </div>
 
+                {current && (
+                  <p className="text-xs px-1" style={{ color: '#b45309' }}>
+                    ⚠️ Saving will replace <strong>{current.job_role_name}</strong> as your career goal and reset your Gap Analysis.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={handleSetGoal}
