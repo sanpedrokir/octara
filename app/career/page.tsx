@@ -304,12 +304,8 @@ export default function CareerPage() {
       suppressSectorEffect.current = false;
       return;
     }
-    // Sector changed manually — clear stale results and selected role
     setSelectedTracks([]);
     setTracks([]);
-    setResults([]);
-    setHasSearched(false);
-    setSelectedRole(null);
     if (!selectedSector) return;
     fetch(`${apiBase}/tracks?sector=${encodeURIComponent(selectedSector)}`)
       .then(r => r.json())
