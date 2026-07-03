@@ -569,13 +569,11 @@ export default function GapAnalysisPage() {
               <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>📚 Course Recommendations</h2>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                 {missingCount > 0
-                  ? isEsco
-                    ? `YouTube videos and MOOCs to bridge ${missingCount} missing competencies`
-                    : `SSG courses, YouTube videos and MOOCs to bridge ${missingCount} missing competencies`
+                  ? 'SSG courses, YouTube videos and MOOCs to bridge missing competencies'
                   : 'All competencies matched — great job!'}
               </p>
             </div>
-            {missingCount > 0 && ssgCourses.length === 0 && moocCourses.length === 0 && (
+            {missingCount > 0 && (
               <button
                 onClick={recommendCourses}
                 disabled={loadingCourses}
@@ -584,7 +582,9 @@ export default function GapAnalysisPage() {
               >
                 {loadingCourses
                   ? <><LoadingSpinner label="" /> Fetching…</>
-                  : '🤖 Generate Recommendations'}
+                  : ssgCourses.length > 0 || moocCourses.length > 0
+                    ? '↺ Refresh Recommendations'
+                    : '🤖 Generate Recommendations'}
               </button>
             )}
           </div>
