@@ -1,6 +1,9 @@
 import { requireAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { searchCoursesWithSource } from '@/lib/ssg-api';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface YouTubeVideo {
   courseTitle: string;
@@ -54,7 +57,7 @@ export async function GET() {
     const row = rows[0];
     const mooc: MoocCourse[] = (row.mooc as MoocCourse[])?.length
       ? row.mooc as MoocCourse[]
-      : getCuratedMooc(row.sector ?? '', row.role ?? '', []);
+      : await getCuratedMooc(row.sector ?? '', row.role ?? '', []);
     return Response.json({ data: { courses: row.courses, youtube: row.youtube, mooc, sector: row.sector, role: row.role }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed';
@@ -143,35 +146,42 @@ async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
   }
 }
 
-// Curated fallback courses used when Coursera API is unreachable
-function getCuratedMooc(sector: string, role: string, skills: string[]): MoocCourse[] {
-  const keyword = (role || sector || skills[0] || '').toLowerCase();
-  const base: MoocCourse[] = [
-    { title: 'Learning How to Learn', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/learning-how-to-learn', description: 'Powerful mental tools to help you master tough subjects · approx. 15 hours', skills_covered: [skills[0] ?? sector] },
-    { title: 'The Science of Well-Being', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/the-science-of-well-being', description: 'Yale\'s most popular course on happiness and productivity · approx. 19 hours', skills_covered: [skills[1] ?? sector] },
-    { title: 'Project Management Principles', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/project-management-foundations', description: 'Foundations of project management for professionals · approx. 17 hours', skills_covered: [skills[2] ?? sector] },
-    { title: 'Introduction to Data Analytics', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/introduction-to-data-analytics', description: 'IBM – data analytics fundamentals and tools · approx. 14 hours', skills_covered: [skills[3] ?? sector] },
-    { title: 'Business Communication Skills', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/wharton-communication-skills', description: 'Wharton – communication for career advancement · approx. 10 hours', skills_covered: [skills[4] ?? sector] },
-  ];
-
-  if (/tech|software|digital|infocomm|ict|data|cyber|ai|cloud/i.test(keyword)) {
-    return [
-      { title: 'Google IT Support', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/professional-certificates/google-it-support', description: 'Google – IT fundamentals for the modern workplace · approx. 6 months', skills_covered: [skills[0] ?? sector] },
-      { title: 'IBM Data Science', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/professional-certificates/ibm-data-science', description: 'IBM – data science professional certificate · approx. 10 months', skills_covered: [skills[1] ?? sector] },
-      { title: 'Deep Learning Specialization', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/specializations/deep-learning', description: 'DeepLearning.AI – neural networks and deep learning · approx. 5 months', skills_covered: [skills[2] ?? sector] },
-      { title: 'Cloud Computing Fundamentals', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/cloud-computing', description: 'Illinois – distributed systems and cloud architectures · approx. 20 hours', skills_covered: [skills[3] ?? sector] },
-      { title: 'Cybersecurity Fundamentals', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/intro-cyber-security', description: 'NYU – introduction to cybersecurity · approx. 10 hours', skills_covered: [skills[4] ?? sector] },
-    ];
+// AI-powered fallback: generates role-specific MOOC suggestions when Coursera API returns nothing
+async function getCuratedMooc(sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
+  try {
+    const target = role || sector || 'professional development';
+    const skillList = skills.slice(0, 5).join(', ') || target;
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a learning expert. Suggest real Coursera courses. Return ONLY valid JSON.' },
+        {
+          role: 'user',
+          content: `Suggest 5 Coursera courses relevant to someone training to be a ${target} needing to learn: ${skillList}.
+Return JSON:
+{ "courses": [
+  { "title": "exact Coursera course title", "slug": "coursera-url-slug", "provider": "university or company name", "description": "one sentence description · approx X hours", "skill": "which skill from the list this covers" }
+] }
+Use real, existing Coursera courses with accurate slugs (used in coursera.org/learn/<slug>).`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+    });
+    const parsed = JSON.parse(completion.choices[0].message.content ?? '{}') as {
+      courses: Array<{ title: string; slug: string; provider: string; description: string; skill: string }>;
+    };
+    return (parsed.courses ?? []).map(c => ({
+      title: c.title,
+      provider: c.provider || 'Coursera',
+      type: 'mooc' as const,
+      url: `https://www.coursera.org/learn/${c.slug}`,
+      description: c.description,
+      skills_covered: [c.skill],
+    }));
+  } catch {
+    return [];
   }
-  if (/finance|banking|accounting|insurance/i.test(keyword)) {
-    return [
-      { title: 'Financial Markets', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/financial-markets-global', description: 'Yale (Robert Shiller) – overview of financial markets · approx. 33 hours', skills_covered: [skills[0] ?? sector] },
-      { title: 'Introduction to Corporate Finance', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/wharton-corporate-finance', description: 'Wharton – corporate finance fundamentals · approx. 16 hours', skills_covered: [skills[1] ?? sector] },
-      { title: 'FinTech: Finance Industry Transformation', provider: 'Coursera', type: 'mooc', url: 'https://www.coursera.org/learn/hong-kong-fintech', description: 'HKU – FinTech trends and digital banking · approx. 10 hours', skills_covered: [skills[2] ?? sector] },
-      ...base.slice(2),
-    ];
-  }
-  return base;
 }
 
 async function fetchCourseraCourses(queries: string[], sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
@@ -185,9 +195,9 @@ async function fetchCourseraCourses(queries: string[], sector: string, role: str
       results.push(c);
     }
   }
-  // If Coursera API returned nothing, use curated fallback
+  // If Coursera API returned nothing, use AI-generated role-specific fallback
   if (results.length === 0) {
-    return getCuratedMooc(sector, role, skills);
+    return await getCuratedMooc(sector, role, skills);
   }
   return results;
 }
