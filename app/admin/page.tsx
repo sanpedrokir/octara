@@ -618,13 +618,13 @@ export default function AdminPage() {
           failed++;
         }
         done++;
-        setMarketPrewarmProgress(`⏳ ${done} / ${allRoles.length} roles processed${failed > 0 ? ` · ${failed} failed` : ''}${cached > 0 ? ` · ${cached} already cached` : ''}`);
+        setMarketPrewarmProgress(`⏳ ${done} / ${allRoles.length} roles processed${cached > 0 ? ` · ${cached} already cached` : ''}${failed > 0 ? ` · ${failed} no MCF listings` : ''}`);
         // Small delay to avoid hammering MCF API
         await new Promise(r => setTimeout(r, 500));
       }
 
       setMarketPrewarmProgress('');
-      showMsg(`✅ Market Skills cache pre-warmed — ${done - failed} roles cached, ${failed} had no MCF listings.`, 'success');
+      showMsg(`✅ Market Skills pre-warm complete — ${done - failed - cached} newly cached, ${cached} already up to date, ${failed} roles have no MCF listings (normal for niche roles).`, 'success');
     } catch (err) {
       showMsg('Pre-warm failed: ' + (err instanceof Error ? err.message : 'Unknown'), 'error');
       setMarketPrewarmProgress('');
