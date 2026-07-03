@@ -20,7 +20,7 @@ type CatalogRole = {
 
 type CwfEntry = { critical_work_function: string; key_tasks: string[] };
 type SkillEntry = { skill_title: string; skill_type: string | null; proficiency_level: string | null; skill_code: string | null };
-type MarketSkill = { name: string; importance: 'high' | 'medium' | 'low'; frequency: number };
+type MarketSkill = { name: string; category: string; importance: 'high' | 'medium' | 'low'; frequency: number };
 
 const DEMAND_BADGE: Record<string, { label: string; bg: string; color: string }> = {
   high:   { label: 'High demand', bg: '#dcfce7', color: '#15803d' },
@@ -597,7 +597,7 @@ export default function CareerPage() {
 
                   {/* ── Market Skills tab ─────────────────────────── */}
                   {activeTab === 'market' && (
-                    <div className="pt-4 space-y-3">
+                    <div className="pt-4 space-y-5">
                       {marketLoading && (
                         <div className="flex items-center gap-2 py-4" style={{ color: 'var(--muted)' }}>
                           <LoadingSpinner label="" />
@@ -607,37 +607,93 @@ export default function CareerPage() {
                       {marketError && !marketLoading && (
                         <p className="text-sm py-2" style={{ color: 'var(--muted)' }}>No Listing available</p>
                       )}
-                      {!marketLoading && !marketError && marketSkills.length > 0 && (
-                        <>
-                          <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                            Skills extracted from {marketJobCount} live job listings on MyCareersFuture.
-                          </p>
-                          <div className="space-y-2">
-                            {marketSkills.map((skill, i) => {
-                              const badge = DEMAND_BADGE[skill.importance] ?? DEMAND_BADGE.low;
-                              return (
-                                <div
-                                  key={`${skill.name}-${i}`}
-                                  className="flex items-center justify-between px-3 py-2.5 rounded-lg"
-                                  style={{ background: 'var(--muted-bg)', border: '1px solid var(--card-border)' }}
-                                >
-                                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{skill.name}</span>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>
-                                      {badge.label}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </>
-                      )}
                       {!marketLoading && !marketError && marketSkills.length === 0 && (
-                        <p className="text-sm py-4 text-center" style={{ color: 'var(--muted)' }}>
-                          No Listing available
-                        </p>
+                        <p className="text-sm py-4 text-center" style={{ color: 'var(--muted)' }}>No Listing available</p>
                       )}
+                      {!marketLoading && !marketError && marketSkills.length > 0 && (() => {
+                        const tscCategories = new Set(['technical', 'tools & platforms', 'domain knowledge']);
+                        const tscSkills = marketSkills.filter(s => tscCategories.has((s.category ?? '').toLowerCase()));
+                        const ccsSkills = marketSkills.filter(s => !tscCategories.has((s.category ?? '').toLowerCase()));
+                        return (
+                          <>
+                            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                              Skills extracted from {marketJobCount} live job listings on MyCareersFuture.
+                            </p>
+
+                            {/* TSC section */}
+                            <div>
+                              <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>TSC (Technical Skills and Competencies)</h4>
+                              <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {tscSkills.length} skill(s).</p>
+                              {tscSkills.length === 0 ? (
+                                <div className="rounded-lg p-4 text-sm text-center" style={{ border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
+                                  No technical skills found.
+                                </div>
+                              ) : (
+                                <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid var(--card-border)' }}>
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr style={{ borderBottom: '1px solid var(--card-border)', background: 'var(--muted-bg)' }}>
+                                        <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Skill Title</th>
+                                        <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Category</th>
+                                        <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Demand</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {tscSkills.map((skill, i) => {
+                                        const badge = DEMAND_BADGE[skill.importance] ?? DEMAND_BADGE.low;
+                                        return (
+                                          <tr key={i} style={{ borderBottom: '1px solid var(--card-border)' }}>
+                                            <td className="py-2 px-3 font-medium" style={{ color: 'var(--primary)' }}>{skill.name}</td>
+                                            <td className="py-2 px-3 text-xs" style={{ color: 'var(--muted)' }}>{skill.category}</td>
+                                            <td className="py-2 px-3">
+                                              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* CCS section */}
+                            <div>
+                              <h4 className="font-semibold mb-1" style={{ color: 'var(--foreground)' }}>CCS (Critical Core Skills)</h4>
+                              <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Showing {ccsSkills.length} skill(s).</p>
+                              {ccsSkills.length === 0 ? (
+                                <div className="rounded-lg p-4 text-sm text-center" style={{ border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
+                                  No critical core skills found.
+                                </div>
+                              ) : (
+                                <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid var(--card-border)' }}>
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr style={{ borderBottom: '1px solid var(--card-border)', background: 'var(--muted-bg)' }}>
+                                        <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Skill Title</th>
+                                        <th className="text-left py-2 px-3" style={{ color: 'var(--foreground)' }}>Demand</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {ccsSkills.map((skill, i) => {
+                                        const badge = DEMAND_BADGE[skill.importance] ?? DEMAND_BADGE.low;
+                                        return (
+                                          <tr key={i} style={{ borderBottom: '1px solid var(--card-border)' }}>
+                                            <td className="py-2 px-3 font-medium" style={{ color: 'var(--primary)' }}>{skill.name}</td>
+                                            <td className="py-2 px-3">
+                                              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 
