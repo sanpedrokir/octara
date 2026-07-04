@@ -15,9 +15,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Career Tools',
     items: [
-      { href: '/salary-benchmark', icon: '💰', label: 'Salary Benchmark',        description: 'See Singapore salary ranges for your target role.',               color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
-      { href: '/job-matcher',      icon: '🎯', label: 'Job Description Matcher', description: 'Paste a JD to see how well your profile matches.',                 color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
-      { href: '/cover-letter',     icon: '✉️', label: 'Cover Letter',            description: 'Generate a personalised cover letter for any job application.',    color: '#7c3aed', bg: '#faf5ff', border: '#e9d5ff' },
+      { href: '/salary-benchmark', icon: '💰', label: 'Salary Benchmark', description: 'See Singapore salary ranges for your target role.', color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
       { href: '/resume-builder',   icon: '📄', label: 'Resume Builder',          description: 'Auto-generate a professional resume from your profile.',           color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
       { href: '/linkedin-scorer',  icon: '🔗', label: 'LinkedIn Scorer',         description: 'Score your LinkedIn profile and get improvement tips.',            color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
     ],

@@ -24,9 +24,7 @@ const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: 'Career Tools',
     items: [
-      { href: '/salary-benchmark', label: 'Salary Benchmark',        icon: '💰' },
-      { href: '/job-matcher',      label: 'Job Description Matcher', icon: '🎯' },
-      { href: '/cover-letter',     label: 'Cover Letter',            icon: '✉️' },
+      { href: '/salary-benchmark', label: 'Salary Benchmark', icon: '💰' },
       { href: '/resume-builder',   label: 'Resume Builder',          icon: '📄' },
       { href: '/linkedin-scorer',  label: 'LinkedIn Scorer',         icon: '🔗' },
     ],
