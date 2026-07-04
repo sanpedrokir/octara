@@ -46,19 +46,19 @@ export default async function DashboardPage() {
 
   const careerRows = await sql`
     SELECT
-      i.name    AS industry_name,
-      COALESCE(jr.name, jrc.job_role) AS job_role_name,
-      COALESCE(i.name, jrc.sector)    AS career_sector,
-      COALESCE(jr.name, jrc.job_role) AS role_name,
-      COALESCE(i.name, jrc.sector)    AS sector_name
+      COALESCE(jr.name, jrc.job_role, ej.occupation_title) AS job_role_name,
+      COALESCE(i.name, jrc.sector, ej.isco_group)          AS career_sector,
+      COALESCE(jr.name, jrc.job_role, ej.occupation_title) AS role_name,
+      COALESCE(i.name, jrc.sector, ej.isco_group)          AS sector_name
     FROM career_aspirations ca
-    LEFT JOIN industries       i   ON ca.industry_id         = i.id
-    LEFT JOIN job_roles        jr  ON ca.job_role_id         = jr.id
-    LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
+    LEFT JOIN industries       i   ON ca.industry_id          = i.id
+    LEFT JOIN job_roles        jr  ON ca.job_role_id          = jr.id
+    LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id  = jrc.id
+    LEFT JOIN esco_job_catalog ej  ON ca.esco_occupation_id   = ej.id
     WHERE ca.user_id = ${session.userId}
   `;
-  const careerRaw = careerRows[0] as { industry_name: string | null; job_role_name: string | null; career_sector: string | null; role_name: string | null; sector_name: string | null } | undefined;
-  const career = (careerRaw?.career_sector && careerRaw?.job_role_name) ? careerRaw as { industry_name: string | null; job_role_name: string; career_sector: string; role_name: string | null; sector_name: string | null } : undefined;
+  const careerRaw = careerRows[0] as { job_role_name: string | null; career_sector: string | null; role_name: string | null; sector_name: string | null } | undefined;
+  const career = (careerRaw?.career_sector && careerRaw?.job_role_name) ? careerRaw as { job_role_name: string; career_sector: string; role_name: string | null; sector_name: string | null } : undefined;
   const careerSector = careerRaw?.career_sector ?? '';
   const careerRoleName   = careerRaw?.role_name ?? '';
   const careerSectorName = careerRaw?.sector_name ?? '';

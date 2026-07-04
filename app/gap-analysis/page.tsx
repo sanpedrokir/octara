@@ -405,14 +405,14 @@ export default function GapAnalysisPage() {
       </div>
 
       {/* ── Summary cards ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {[
           { label: 'Required', value: summary.total,   color: '#1e40af', bg: '#eff6ff' },
           { label: 'Matched',  value: summary.matched, color: '#15803d', bg: '#f0fdf4' },
           { label: 'Missing',  value: summary.missing, color: '#b91c1c', bg: '#fef2f2' },
         ].map(s => (
-          <div key={s.label} className="card p-4 text-center">
-            <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+          <div key={s.label} className="card p-2.5 sm:p-4 text-center">
+            <p className="text-xl sm:text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.label}</p>
           </div>
         ))}
@@ -456,25 +456,27 @@ export default function GapAnalysisPage() {
       {gapData.required.length > 0 && (
         <div className="card overflow-hidden">
           {/* Filter tabs */}
-          <div className="flex border-b" style={{ borderColor: 'var(--card-border)' }}>
-            {([
-              { id: 'all' as Filter,     label: `All (${summary.total})` },
-              { id: 'matched' as Filter, label: `✓ Matched (${summary.matched})` },
-              { id: 'missing' as Filter, label: `✗ Missing (${summary.missing})` },
-            ]).map(t => (
-              <button
-                key={t.id}
-                onClick={() => { setFilter(t.id); setGapPage(0); }}
-                className="px-4 py-3 text-sm font-medium border-b-2 transition-colors"
-                style={{
-                  borderColor: filter === t.id ? 'var(--primary)' : 'transparent',
-                  color: filter === t.id ? 'var(--primary)' : 'var(--muted)',
-                  background: 'transparent',
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="overflow-x-auto">
+            <div className="flex border-b min-w-max" style={{ borderColor: 'var(--card-border)' }}>
+              {([
+                { id: 'all' as Filter,     label: `All (${summary.total})` },
+                { id: 'matched' as Filter, label: `✓ Matched (${summary.matched})` },
+                { id: 'missing' as Filter, label: `✗ Missing (${summary.missing})` },
+              ]).map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => { setFilter(t.id); setGapPage(0); }}
+                  className="px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
+                  style={{
+                    borderColor: filter === t.id ? 'var(--primary)' : 'transparent',
+                    color: filter === t.id ? 'var(--primary)' : 'var(--muted)',
+                    background: 'transparent',
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Column headers */}

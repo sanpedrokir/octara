@@ -121,20 +121,26 @@ export async function POST(request: Request) {
       return Response.json({ data: { competencies: [], ssgMatches: {} }, error: null });
     }
 
-    // Match each competency against SSG Skills Framework in DB
+    // Match each competency against SSG Skills Framework only for SG users
     const sql = db();
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(2) DEFAULT 'SG'`;
+    const [userRow] = await sql`SELECT COALESCE(country, 'SG') AS country FROM users WHERE id = ${session.userId}` as Array<{ country: string }>;
+    const isSgUser = (userRow?.country ?? 'SG') === 'SG';
+
     const ssgMatches: Record<string, { skill_title: string; skill_code: string | null; sector: string | null }[]> = {};
 
-    for (const c of competencies) {
-      const keyword = c.skill.replace(/[%_]/g, '');
-      const rows = await sql`
-        SELECT DISTINCT skill_title, skill_code, updated_sector_tagging AS sector
-        FROM jobs_skills_mapping
-        WHERE skill_title ILIKE ${'%' + keyword + '%'}
-           OR updated_skill_title ILIKE ${'%' + keyword + '%'}
-        LIMIT 3
-      ` as Array<{ skill_title: string; skill_code: string | null; sector: string | null }>;
-      if (rows.length > 0) ssgMatches[c.skill] = rows;
+    if (isSgUser) {
+      for (const c of competencies) {
+        const keyword = c.skill.replace(/[%_]/g, '');
+        const rows = await sql`
+          SELECT DISTINCT skill_title, skill_code, updated_sector_tagging AS sector
+          FROM jobs_skills_mapping
+          WHERE skill_title ILIKE ${'%' + keyword + '%'}
+             OR updated_skill_title ILIKE ${'%' + keyword + '%'}
+          LIMIT 3
+        ` as Array<{ skill_title: string; skill_code: string | null; sector: string | null }>;
+        if (rows.length > 0) ssgMatches[c.skill] = rows;
+      }
     }
 
     await sql`

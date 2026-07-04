@@ -40,10 +40,13 @@ export async function POST(request: Request) {
   try {
     await requireAuth();
 
-    const { jobTitle } = await request.json() as { jobTitle: string };
+    const { jobTitle, sector = '' } = await request.json() as { jobTitle: string; sector?: string };
     if (!jobTitle?.trim()) {
       return Response.json({ data: null, error: 'Job title is required' }, { status: 400 });
     }
+
+    // Cache key combines role + sector so "Assistant Director (Finance)" ≠ "Assistant Director (Social Work)"
+    const cacheKey = sector.trim() ? `${jobTitle.trim()}:${sector.trim()}` : jobTitle.trim();
 
     const sql = db();
     await ensureCacheTable();
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
     const cached = await sql`
       SELECT skills, job_count, total_listings, sample_companies, fetched_at
       FROM market_skills_cache
-      WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${jobTitle}))
+      WHERE LOWER(TRIM(job_role)) = LOWER(TRIM(${cacheKey}))
         AND fetched_at > NOW() - INTERVAL '7 days'
     ` as Array<{
       skills: object;
@@ -75,8 +78,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // 2. Fetch live listings from MyCareersFuture
-    const mcfUrl = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(jobTitle.trim())}&limit=10`;
+    // 2. Fetch live listings from MyCareersFuture — include sector to avoid cross-sector contamination
+    const mcfQuery = sector.trim() ? `${jobTitle.trim()} ${sector.trim()}` : jobTitle.trim();
+    const mcfUrl = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(mcfQuery)}&limit=10`;
     let jobs: McfJob[] = [];
     let totalListings = 0;
 
@@ -118,9 +122,10 @@ export async function POST(request: Request) {
 Extract and deduplicate all required skills from job listings.
 Return ONLY valid JSON — no markdown, no explanation:
 { "skills": [{ "name": "string (1–5 words)", "category": "Technical"|"Tools & Platforms"|"Soft Skills"|"Domain Knowledge", "importance": "high"|"medium"|"low", "frequency": <1–${jobs.length}> }] }
-Rules: merge synonyms; frequency = listings mentioning it; importance: high=3+, medium=2, low=1; return 10–25 skills sorted by frequency desc.`,
+Rules: merge synonyms; frequency = listings mentioning it; importance: high=3+, medium=2, low=1; return 10–25 skills sorted by frequency desc.
+IMPORTANT: Only extract skills genuinely relevant to the "${sector || jobTitle}" sector. Ignore skills from unrelated industries that may appear in mixed search results.`,
         },
-        { role: 'user', content: `Job title: "${jobTitle}"\n\n${combinedText}` },
+        { role: 'user', content: `Job title: "${jobTitle}"${sector ? ` | Sector: "${sector}"` : ''}\n\n${combinedText}` },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
@@ -133,10 +138,10 @@ Rules: merge synonyms; frequency = listings mentioning it; importance: high=3+, 
     const skills = extracted.skills ?? [];
     const companies = [...new Set(jobs.map(j => j.company?.name).filter((n): n is string => !!n))].slice(0, 5);
 
-    // 4. Cache the result
+    // 4. Cache the result (keyed by role:sector to avoid cross-sector collisions)
     await sql`
       INSERT INTO market_skills_cache (job_role, skills, job_count, total_listings, sample_companies)
-      VALUES (${jobTitle.trim()}, ${JSON.stringify(skills)}, ${jobs.length}, ${totalListings}, ${JSON.stringify(companies)})
+      VALUES (${cacheKey}, ${JSON.stringify(skills)}, ${jobs.length}, ${totalListings}, ${JSON.stringify(companies)})
       ON CONFLICT (job_role) DO UPDATE SET
         skills           = EXCLUDED.skills,
         job_count        = EXCLUDED.job_count,

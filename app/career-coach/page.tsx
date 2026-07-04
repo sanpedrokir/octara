@@ -88,7 +88,7 @@ export default function CareerCoachPage() {
   const isEmpty = messages.length === 0;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] max-w-3xl mx-auto">
+    <div className="flex flex-col h-[calc(100vh-176px)] md:h-[calc(100vh-120px)] max-w-3xl mx-auto">
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-4 shrink-0">

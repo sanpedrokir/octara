@@ -116,9 +116,9 @@ export default function JobMatcherPage() {
       {data && verdictStyle && (
         <div className="space-y-4 animate-fade-in">
           {/* Score + verdict */}
-          <div className="card p-5 flex items-center gap-6">
+          <div className="card p-5 flex flex-wrap items-center gap-5 sm:gap-6 justify-center sm:justify-start">
             <ScoreRing score={data.match_score} />
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <span className="inline-block px-3 py-1 rounded-full text-sm font-bold" style={{ background: verdictStyle.bg, color: verdictStyle.color, border: `1.5px solid ${verdictStyle.border}` }}>
                 {data.verdict}
               </span>

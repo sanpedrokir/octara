@@ -54,26 +54,25 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'Career Coach is not configured yet.' }, { status: 503 });
     }
 
-    // Fetch user context
+    // Fetch user context — covers SSG catalog, legacy job_roles, and ESCO catalog
     const sql = db();
     const rows = await sql`
       SELECT u.name,
-        i.name       AS industry_name,
-        jr.name      AS job_role_name,
-        jrc.job_role AS catalog_role,
-        jrc.sector   AS catalog_sector
+        COALESCE(jrc.job_role, jr.name, ej.occupation_title) AS job_role_name,
+        COALESCE(jrc.sector, i.name, ej.isco_group)          AS industry_name
       FROM users u
       LEFT JOIN career_aspirations ca  ON ca.user_id = u.id
       LEFT JOIN industries i           ON ca.industry_id = i.id
       LEFT JOIN job_roles jr           ON ca.job_role_id = jr.id
       LEFT JOIN job_role_catalog jrc   ON ca.catalog_job_role_id = jrc.id
+      LEFT JOIN esco_job_catalog ej    ON ca.esco_occupation_id = ej.id
       WHERE u.id = ${session.userId}
       LIMIT 1
-    ` as Array<{ name: string; industry_name: string | null; job_role_name: string | null; catalog_role: string | null; catalog_sector: string | null }>;
+    ` as Array<{ name: string; job_role_name: string | null; industry_name: string | null }>;
 
     const user = rows[0];
-    const jobRole = user?.catalog_role || user?.job_role_name || null;
-    const industry = user?.catalog_sector || user?.industry_name || null;
+    const jobRole = user?.job_role_name || null;
+    const industry = user?.industry_name || null;
     const userContext = user
       ? [
           `User's name: ${user.name}`,

@@ -23,6 +23,7 @@ export interface User {
   last_login: string | null;
   created_at: string;
   updated_at: string;
+  country: string;
 }
 
 // ─── Profiles ────────────────────────────────────────────
@@ -176,6 +177,7 @@ export interface CareerAspiration {
   industry_id: number | null;
   job_role_id: number | null;
   catalog_job_role_id: number | null;
+  esco_occupation_id: number | null;
   notes: string | null;
   is_active: boolean;
   priority: number;

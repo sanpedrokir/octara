@@ -581,15 +581,16 @@ export default function AdminPage() {
     setMarketPrewarmProgress('Loading job roles from catalog…');
 
     try {
-      // Fetch all job roles from the catalog
-      const allRoles: string[] = [];
+      // Fetch all job roles from the catalog (with sector for accurate MCF searches)
+      const allRoles: Array<{ job_role: string; sector: string }> = [];
       let offset = 0;
       while (true) {
         const res = await fetch(`/api/job-role-catalog/roles?limit=200&offset=${offset}`);
-        const { data } = await res.json() as { data: { rows: Array<{ job_role: string }> } | null };
+        const { data } = await res.json() as { data: { rows: Array<{ job_role: string; sector: string }> } | null };
         if (!data?.rows?.length) break;
         for (const r of data.rows) {
-          if (!allRoles.includes(r.job_role)) allRoles.push(r.job_role);
+          const key = `${r.job_role}::${r.sector}`;
+          if (!allRoles.some(x => `${x.job_role}::${x.sector}` === key)) allRoles.push({ job_role: r.job_role, sector: r.sector });
         }
         if (data.rows.length < 200) break;
         offset += 200;
@@ -609,7 +610,7 @@ export default function AdminPage() {
           const res = await fetch('/api/market-skills', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jobTitle: role }),
+            body: JSON.stringify({ jobTitle: role.job_role, sector: role.sector }),
           });
           const { data, error } = await res.json();
           if (error) failed++;
@@ -790,7 +791,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* SSG sub-tabs quick links */}
-                <div className="pt-1 border-t grid grid-cols-3 gap-2" style={{ borderColor: '#bfdbfe' }}>
+                <div className="pt-1 border-t grid grid-cols-1 sm:grid-cols-3 gap-2" style={{ borderColor: '#bfdbfe' }}>
                   {[
                     { label: 'Job Role Catalog', id: 'catalog' as Tab },
                     { label: 'TSC/CCS Mapping', id: 'tsc-ccs' as Tab },

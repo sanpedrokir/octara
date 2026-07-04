@@ -288,7 +288,7 @@ export default function CareerPage() {
     fetch('/api/market-skills', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobTitle: selectedRole.job_role }),
+      body: JSON.stringify({ jobTitle: selectedRole.job_role, sector: selectedRole.sector }),
     })
       .then(r => r.json())
       .then(({ data, error: e }) => {
@@ -369,7 +369,7 @@ export default function CareerPage() {
         <Navbar user={null} />
         <div className="flex flex-1 max-w-7xl mx-auto w-full">
           <DashboardSidebar />
-          <main className="flex-1 flex items-center justify-center"><LoadingSpinner label="Loading career options…" /></main>
+          <main className="flex-1 flex items-center justify-center pb-24 md:pb-8"><LoadingSpinner label="Loading career options…" /></main>
         </div>
         <MobileNav />
       </div>
@@ -470,7 +470,7 @@ export default function CareerPage() {
                 />
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[480px]">
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--card-border)' }}>
                         <th
@@ -481,7 +481,7 @@ export default function CareerPage() {
                           Job Role {sortDir === 'asc' ? '↑' : '↓'}
                         </th>
                         <th className="text-left py-2 pr-4" style={{ color: 'var(--foreground)' }}>Sector</th>
-                        <th className="text-left py-2" style={{ color: 'var(--foreground)' }}>Track</th>
+                        <th className="text-left py-2 hidden sm:table-cell" style={{ color: 'var(--foreground)' }}>Track</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -497,7 +497,7 @@ export default function CareerPage() {
                         >
                           <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--primary)' }}>{role.job_role}</td>
                           <td className="py-2.5 pr-4" style={{ color: 'var(--muted)' }}>{role.sector}</td>
-                          <td className="py-2.5" style={{ color: 'var(--muted)' }}>{role.track}</td>
+                          <td className="py-2.5 hidden sm:table-cell" style={{ color: 'var(--muted)' }}>{role.track}</td>
                         </tr>
                       ))}
                       {visibleResults.length === 0 && (
@@ -569,7 +569,7 @@ export default function CareerPage() {
 
             {selectedRole && (
               <div className="card p-6 mt-5 space-y-4">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>Selected Job Role</p>
                     <p className="text-lg font-semibold mt-1" style={{ color: 'var(--foreground)' }}>{selectedRole.job_role}</p>
@@ -585,7 +585,7 @@ export default function CareerPage() {
                     type="button"
                     onClick={handleSetGoal}
                     disabled={saving || saved}
-                    className="btn-primary shrink-0"
+                    className="btn-primary shrink-0 w-full sm:w-auto"
                     style={{ opacity: saving ? 0.7 : 1 }}
                   >
                     {saving ? 'Saving…' : saved ? '✅ Saved!' : current ? 'Update Career Goal →' : 'Set Career Goal →'}

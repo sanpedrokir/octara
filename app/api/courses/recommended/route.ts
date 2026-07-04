@@ -54,16 +54,18 @@ export async function GET() {
     const session = await requireAuth();
     const sql = db();
 
-    // Fetch user's career aspiration — resolve from both job_roles (seeded) and job_role_catalog (SSG)
+    // Fetch user's career aspiration — resolve from SSG catalog, legacy job_roles, and ESCO catalog
     const rows = await sql`
       SELECT
-        COALESCE(i.name,  jrc.sector)   AS industry_name,
-        COALESCE(jr.name, jrc.job_role) AS job_role_name,
-        jr.skill_keywords
+        COALESCE(i.name,  jrc.sector,   ej.isco_group)        AS industry_name,
+        COALESCE(jr.name, jrc.job_role, ej.occupation_title)  AS job_role_name,
+        jr.skill_keywords,
+        ca.esco_occupation_id
       FROM career_aspirations ca
-      LEFT JOIN industries      i   ON ca.industry_id         = i.id
-      LEFT JOIN job_roles       jr  ON ca.job_role_id         = jr.id
-      LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
+      LEFT JOIN industries       i   ON ca.industry_id          = i.id
+      LEFT JOIN job_roles        jr  ON ca.job_role_id          = jr.id
+      LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id  = jrc.id
+      LEFT JOIN esco_job_catalog ej  ON ca.esco_occupation_id   = ej.id
       WHERE ca.user_id = ${session.userId}
       ORDER BY ca.created_at DESC
       LIMIT 1
@@ -73,17 +75,28 @@ export async function GET() {
       return Response.json({ data: null, error: 'No career goal set' }, { status: 404 });
     }
 
-    const { industry_name, job_role_name, skill_keywords } = rows[0] as {
+    const { industry_name, job_role_name, skill_keywords, esco_occupation_id } = rows[0] as {
       industry_name: string | null;
       job_role_name: string | null;
       skill_keywords: string[] | null;
+      esco_occupation_id: number | null;
     };
 
     if (!job_role_name && !industry_name) {
       return Response.json({ data: null, error: 'No career goal set' }, { status: 404 });
     }
 
-    // Prefer TSC/CCS skill titles from job_role_tsc_ccs for more targeted keywords
+    const isEsco = !!esco_occupation_id;
+
+    // ── ESCO path: SSG courses are not applicable; return empty so UI can direct to Gap Analysis ──
+    if (isEsco) {
+      return Response.json({
+        data: { courses: [], industry_name, job_role_name, source: 'esco' },
+        error: null,
+      });
+    }
+
+    // ── SSG path: Prefer TSC/CCS skill titles for more targeted keywords ──────────────────────────
     let keywords: string[] = [];
     if (job_role_name) {
       const tscRows = await sql`

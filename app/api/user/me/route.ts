@@ -23,10 +23,11 @@ export async function GET() {
     if (!rows.length) return Response.json({ data: null, error: 'User not found' }, { status: 404 });
 
     const careerRows = await sql`
-      SELECT COALESCE(i.name, jrc.sector) AS career_sector
+      SELECT COALESCE(i.name, jrc.sector, ej.isco_group) AS career_sector
       FROM career_aspirations ca
       LEFT JOIN industries i ON ca.industry_id = i.id
       LEFT JOIN job_role_catalog jrc ON ca.catalog_job_role_id = jrc.id
+      LEFT JOIN esco_job_catalog ej ON ca.esco_occupation_id = ej.id
       WHERE ca.user_id = ${session.userId}
       LIMIT 1
     ` as Array<{ career_sector: string | null }>;
