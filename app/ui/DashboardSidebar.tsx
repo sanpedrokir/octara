@@ -26,7 +26,6 @@ const navSections: { label: string; items: NavItem[] }[] = [
     items: [
       { href: '/salary-benchmark', label: 'Salary Benchmark', icon: '💰' },
       { href: '/resume-builder',   label: 'Resume Builder',          icon: '📄' },
-      { href: '/linkedin-scorer',  label: 'LinkedIn Scorer',         icon: '🔗' },
     ],
   },
   {

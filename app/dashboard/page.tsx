@@ -17,7 +17,6 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: '/salary-benchmark', icon: '💰', label: 'Salary Benchmark', description: 'See Singapore salary ranges for your target role.', color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
       { href: '/resume-builder',   icon: '📄', label: 'Resume Builder',          description: 'Auto-generate a professional resume from your profile.',           color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-      { href: '/linkedin-scorer',  icon: '🔗', label: 'LinkedIn Scorer',         description: 'Score your LinkedIn profile and get improvement tips.',            color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
     ],
   },
   {
