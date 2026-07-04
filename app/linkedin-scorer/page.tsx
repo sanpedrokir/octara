@@ -56,46 +56,37 @@ const SECTION_LABELS: Record<string, string> = {
   experience: 'Experience', completeness: 'Profile Completeness',
 };
 
-export default function LinkedInScorerPage() {
-  const [linkedinUrl, setLinkedinUrl]   = useState('');
-  const [profileText, setProfileText]   = useState('');
-  const [showPaste, setShowPaste]       = useState(false);
-  const [loadingStep, setLoadingStep]   = useState('');
-  const [error, setError]               = useState('');
-  const [result, setResult]             = useState<ScoreData | null>(null);
-  const [expanded, setExpanded]         = useState<string | null>('headline');
+// Bookmarklet: copies all visible text from the current page to clipboard,
+// then alerts the user to come back and paste.
+const BOOKMARKLET = `javascript:(function(){var t=(document.querySelector('.scaffold-layout__main')||document.body).innerText;if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){alert('✓ LinkedIn profile copied!\n\nSwitch back to Octara and paste it in the scorer.')}).catch(go)}else{go()}function go(){var el=document.createElement('textarea');el.value=t;el.style.cssText='position:fixed;opacity:0';document.body.appendChild(el);el.select();try{document.execCommand('copy');alert('✓ LinkedIn profile copied!\n\nSwitch back to Octara and paste it in the scorer.')}catch(e){alert('Please use Ctrl+A / Cmd+A to select all text on this page, then copy manually.')}document.body.removeChild(el)}})();`;
 
-  const loading = loadingStep !== '';
+export default function LinkedInScorerPage() {
+  const [profileText, setProfileText] = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState('');
+  const [result, setResult]           = useState<ScoreData | null>(null);
+  const [expanded, setExpanded]       = useState<string | null>('headline');
 
   async function score() {
-    setError('');
-
-    const useUrl  = linkedinUrl.trim().includes('linkedin.com/in/');
-    const useText = profileText.trim().length >= 50;
-
-    if (!useUrl && !useText) {
-      setError('Enter a LinkedIn profile URL (linkedin.com/in/…) or paste your profile text below.');
+    if (profileText.trim().length < 50) {
+      setError('Please paste at least 50 characters of your LinkedIn profile text.');
       return;
     }
-
+    setLoading(true);
+    setError('');
     try {
-      if (useUrl) setLoadingStep('Fetching your LinkedIn profile…');
-      else        setLoadingStep('Analysing your profile…');
-
       const res = await fetch('/api/linkedin-scorer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(useUrl ? { linkedinUrl: linkedinUrl.trim() } : { profileText }),
+        body: JSON.stringify({ profileText }),
       });
-
-      setLoadingStep('Scoring…');
-      const { data, error: e } = await res.json() as { data: ScoreData & { source: string } | null; error: string | null };
+      const { data, error: e } = await res.json() as { data: ScoreData | null; error: string | null };
       if (e) setError(e);
       else setResult(data);
     } catch {
       setError('Network error. Please try again.');
     } finally {
-      setLoadingStep('');
+      setLoading(false);
     }
   }
 
@@ -104,9 +95,6 @@ export default function LinkedInScorerPage() {
     ? result.overall_score >= 80 ? '#15803d' : result.overall_score >= 60 ? '#1d4ed8' : result.overall_score >= 40 ? '#92400e' : '#b91c1c'
     : '#64748b';
 
-  const urlValid = linkedinUrl.trim().includes('linkedin.com/in/');
-  const canScore = urlValid || profileText.trim().length >= 50;
-
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
 
@@ -114,67 +102,68 @@ export default function LinkedInScorerPage() {
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>🔗 LinkedIn Profile Scorer</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          Enter your LinkedIn URL for an AI-powered score with section-by-section feedback and rewrite suggestions.
+          Get an AI-powered score with section-by-section feedback and rewrite suggestions.
         </p>
       </div>
 
+      {/* Bookmarklet helper */}
+      {!result && (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}>
+          <p className="text-sm font-semibold" style={{ color: '#0369a1' }}>One-click copy — the easy way</p>
+          <ol className="space-y-2 text-xs" style={{ color: '#0369a1' }}>
+            <li className="flex items-start gap-2">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">1</span>
+              <span>Drag the button below to your browser&apos;s bookmarks bar (desktop only).</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">2</span>
+              <span>Go to your <strong>LinkedIn profile page</strong> and click the bookmark — it copies your profile instantly.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">3</span>
+              <span>Come back here and paste (Ctrl+V / Cmd+V) in the box below.</span>
+            </li>
+          </ol>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a
+              href={BOOKMARKLET}
+              onClick={e => e.preventDefault()}
+              draggable
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-grab active:cursor-grabbing select-none"
+              style={{ background: '#0a66c2', color: 'white', textDecoration: 'none', border: '2px dashed #93c5fd' }}
+              title="Drag me to your bookmarks bar"
+            >
+              🔗 Copy LinkedIn Profile
+            </a>
+            <p className="text-xs" style={{ color: '#64748b' }}>← drag this to your bookmarks bar</p>
+          </div>
+          <p className="text-xs" style={{ color: '#64748b' }}>
+            No bookmarks bar? Use <strong>Ctrl+A / Cmd+A</strong> on your LinkedIn page to select all, then copy and paste below.
+          </p>
+        </div>
+      )}
+
       {/* Input */}
       {!result && (
-        <div className="card p-5 space-y-4">
-          {/* URL field */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>LinkedIn Profile URL</label>
-            <input
-              type="url"
-              value={linkedinUrl}
-              onChange={e => setLinkedinUrl(e.target.value)}
-              placeholder="https://www.linkedin.com/in/your-name"
-              className="w-full rounded-lg px-3 py-2.5 text-sm border outline-none focus:ring-2"
-              style={{ borderColor: urlValid ? '#86efac' : 'var(--card-border)', color: 'var(--foreground)', background: 'white' }}
-              onKeyDown={e => e.key === 'Enter' && canScore && !loading && score()}
-            />
-            {linkedinUrl && !urlValid && (
-              <p className="text-xs" style={{ color: '#b45309' }}>URL should contain linkedin.com/in/</p>
-            )}
-          </div>
-
-          {/* Manual paste toggle */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowPaste(v => !v)}
-              className="text-xs font-medium"
-              style={{ color: 'var(--muted)' }}
-            >
-              {showPaste ? '▲ Hide' : '▼ Or paste profile text manually instead'}
-            </button>
-            {showPaste && (
-              <div className="mt-3 space-y-1.5">
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                  Go to your LinkedIn profile → Ctrl+A / Cmd+A → copy → paste below.
-                </p>
-                <textarea
-                  value={profileText}
-                  onChange={e => setProfileText(e.target.value)}
-                  placeholder="Paste your LinkedIn profile text here…"
-                  rows={8}
-                  className="w-full rounded-xl p-3 text-sm border outline-none resize-y"
-                  style={{ borderColor: 'var(--card-border)', color: 'var(--foreground)', background: 'white' }}
-                />
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>{profileText.length} characters</p>
-              </div>
-            )}
-          </div>
-
+        <div className="space-y-3">
+          <textarea
+            value={profileText}
+            onChange={e => setProfileText(e.target.value)}
+            placeholder="Paste your LinkedIn profile text here…"
+            rows={10}
+            className="w-full rounded-xl p-3 text-sm border outline-none resize-y"
+            style={{ border: '1.5px solid var(--card-border)', color: 'var(--foreground)', background: 'white' }}
+          />
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>{profileText.length} characters</p>
           {error && <p className="text-sm" style={{ color: '#b91c1c' }}>{error}</p>}
-
           <button
             onClick={score}
-            disabled={loading || !canScore}
-            className="btn-primary w-full"
-            style={{ opacity: loading || !canScore ? 0.6 : 1 }}
+            disabled={loading || profileText.trim().length < 50}
+            className="btn-primary text-sm px-8"
+            style={{ opacity: loading || profileText.trim().length < 50 ? 0.6 : 1 }}
           >
-            {loading ? loadingStep : '🔍 Score My Profile'}
+            {loading ? <><LoadingSpinner label="" /> Scoring…</> : '🔍 Score My Profile'}
           </button>
         </div>
       )}
@@ -183,7 +172,7 @@ export default function LinkedInScorerPage() {
       {result && (
         <div className="space-y-5">
           <div className="flex gap-3 flex-wrap">
-            <button onClick={() => { setResult(null); setProfileText(''); setLinkedinUrl(''); setError(''); }} className="btn-secondary text-sm">← Score Again</button>
+            <button onClick={() => { setResult(null); setProfileText(''); setError(''); }} className="btn-secondary text-sm">← Score Again</button>
           </div>
 
           {/* Overall score */}
