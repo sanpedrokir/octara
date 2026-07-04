@@ -20,7 +20,8 @@ interface SalaryData {
   top_paying_factors: string[];
   in_demand_skills: string[];
   market_outlook: string;
-  data_note: string;
+  data_source: 'mcf' | 'gpt';
+  listing_count: number;
 }
 
 function fmt(n: number) {
@@ -92,7 +93,18 @@ export default function SalaryBenchmarkPage() {
 
       {/* Salary bands */}
       <div className="card p-5 space-y-5">
-        <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Annual Salary Ranges (SGD)</h2>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Monthly Salary Ranges (SGD)</h2>
+          {data.data_source === 'mcf' ? (
+            <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
+              📡 {data.listing_count} live MCF listings
+            </span>
+          ) : (
+            <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+              🤖 AI estimate
+            </span>
+          )}
+        </div>
         {data.bands.map((band, i) => {
           const pct = Math.round((band.typical / maxSalary) * 100);
           return (
@@ -113,7 +125,7 @@ export default function SalaryBenchmarkPage() {
             </div>
           );
         })}
-        <p className="text-xs text-center pt-1" style={{ color: 'var(--muted)' }}>Bars show typical / median. Range shows min–max.</p>
+        <p className="text-xs text-center pt-1" style={{ color: 'var(--muted)' }}>Bars show typical / median. Range shows min–max. All figures are monthly gross.</p>
       </div>
 
       {/* Market outlook */}
@@ -153,7 +165,9 @@ export default function SalaryBenchmarkPage() {
 
       {/* Disclaimer */}
       <div className="rounded-xl px-4 py-3 text-xs" style={{ background: 'var(--muted-bg)', border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
-        ℹ️ These are estimated ranges based on Singapore market knowledge as of 2024-2025. Actual salaries vary by company size, skills, and negotiation.
+        {data.data_source === 'mcf'
+          ? `ℹ️ Salary bands are derived from ${data.listing_count} live job listings on MyCareersFuture and structured by AI. Actual salaries vary by company, skills, and negotiation.`
+          : 'ℹ️ No live MCF salary listings found for this role — ranges are AI-estimated based on Singapore market knowledge. Actual salaries vary by company, skills, and negotiation.'}
       </div>
     </div>
   );
