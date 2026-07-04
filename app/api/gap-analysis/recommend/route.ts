@@ -196,7 +196,8 @@ Use real, existing Coursera courses with accurate slugs (used in coursera.org/le
       title: c.title,
       provider: c.provider || 'Coursera',
       type: 'mooc' as const,
-      url: `https://www.coursera.org/learn/${c.slug}`,
+      // Use search URL instead of /learn/<slug> — AI-generated slugs frequently 404
+      url: `https://www.coursera.org/search?query=${encodeURIComponent(c.title)}`,
       description: c.description,
       skills_covered: [c.skill],
     }));
