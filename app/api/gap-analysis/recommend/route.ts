@@ -237,8 +237,13 @@ export async function POST(request: Request) {
       return Response.json({ data: { courses: [], youtube: {}, mooc: [] }, error: null });
     }
 
-    // Drive MOOC search by actual skill gaps, not role/sector
-    const moocQueries = missingSkills.slice(0, 6).filter(Boolean);
+    // Sector as first query (returns real Coursera courses reliably).
+    // Skill names truncated to 3 words — full SSG names are too jargon-specific
+    // for Coursera's catalog and cause the AI fallback to generate fake slugs.
+    const moocQueries = [
+      sector.trim(),
+      ...missingSkills.slice(0, 5).map(s => s.split(/\s+/).slice(0, 3).join(' ')),
+    ].filter(Boolean);
     const youtube: Record<string, YouTubeVideo> = {};
 
     if (isEsco) {
