@@ -15,6 +15,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Career Tools',
     items: [
+      { href: '/jobs',             icon: '💼', label: 'Job Postings',    description: 'Browse live MCF job listings matched to your target role.', color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4' },
       { href: '/salary-benchmark', icon: '💰', label: 'Salary Benchmark', description: 'See Singapore salary ranges for your target role.', color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
       { href: '/resume-builder',   icon: '📄', label: 'Resume Builder',          description: 'Auto-generate a professional resume from your profile.',           color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
     ],

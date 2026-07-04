@@ -24,6 +24,7 @@ const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: 'Career Tools',
     items: [
+      { href: '/jobs',             label: 'Job Postings',   icon: '💼' },
       { href: '/salary-benchmark', label: 'Salary Benchmark', icon: '💰' },
       { href: '/resume-builder',   label: 'Resume Builder',          icon: '📄' },
     ],
