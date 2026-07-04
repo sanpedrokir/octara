@@ -6,6 +6,7 @@ import LoadingSpinner from '../ui/LoadingSpinner';
 interface JobEntry {
   uuid: string;
   title: string;
+  company: string;
   salaryMin: number | null;
   salaryMax: number | null;
   expYears: number | null;
@@ -25,8 +26,11 @@ interface ApiData {
   grouped: CompanyGroup[];
   total: number;
   page: number;
-  company: string;
+  search: string;
+  mode: string;
 }
+
+type Mode = 'company' | 'role';
 
 function fmt(n: number) { return `S$${n.toLocaleString()}`; }
 
@@ -81,11 +85,9 @@ function JobRow({ job }: { job: JobEntry }) {
   );
 }
 
-function CompanyCard({ group }: { group: CompanyGroup }) {
+function CompanyCard({ group, mode }: { group: CompanyGroup; mode: Mode }) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? group.jobs : group.jobs.slice(0, 3);
-
-  // Company initials avatar
   const initials = group.company.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
   return (
@@ -100,7 +102,10 @@ function CompanyCard({ group }: { group: CompanyGroup }) {
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm truncate" style={{ color: 'var(--foreground)' }}>{group.company}</p>
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
-            {group.jobs.length} active listing{group.jobs.length !== 1 ? 's' : ''}
+            {mode === 'role'
+              ? `${group.jobs.length} matching role${group.jobs.length !== 1 ? 's' : ''}`
+              : `${group.jobs.length} active listing${group.jobs.length !== 1 ? 's' : ''}`
+            }
           </p>
         </div>
       </div>
@@ -120,20 +125,37 @@ function CompanyCard({ group }: { group: CompanyGroup }) {
   );
 }
 
-export default function CompanyJobsPage() {
-  const [data, setData]         = useState<ApiData | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-  const [search, setSearch]     = useState('');
-  const [query, setQuery]       = useState('');
-  const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null);
+const MODE_CONFIG: Record<Mode, { icon: string; label: string; placeholder: string; emptyMsg: string }> = {
+  company: {
+    icon: '🏢',
+    label: 'By Company',
+    placeholder: 'e.g. DBS, GovTech, Grab, Shopee…',
+    emptyMsg: 'No company found matching',
+  },
+  role: {
+    icon: '💼',
+    label: 'By Job Role',
+    placeholder: 'e.g. Head of Sales, Data Analyst, Software Engineer…',
+    emptyMsg: 'No postings found for',
+  },
+};
 
-  const load = useCallback(async (company: string) => {
+export default function CompanyJobsPage() {
+  const [data, setData]       = useState<ApiData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+  const [mode, setMode]       = useState<Mode>('company');
+  const [search, setSearch]   = useState('');
+  const [query, setQuery]     = useState('');
+  const debounceRef           = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const load = useCallback(async (q: string, m: Mode) => {
     setLoading(true);
     setError('');
     try {
-      const params = company ? `?company=${encodeURIComponent(company)}` : '';
-      const res = await fetch(`/api/company-jobs${params}`);
+      const params = new URLSearchParams({ mode: m });
+      if (q) params.set('search', q);
+      const res = await fetch(`/api/company-jobs?${params}`);
       const { data: d, error: e } = await res.json() as { data: ApiData | null; error: string | null };
       if (e) setError(e);
       else setData(d);
@@ -147,14 +169,19 @@ export default function CompanyJobsPage() {
   // Debounce search input
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setQuery(search);
-    }, 500);
+    debounceRef.current = setTimeout(() => setQuery(search), 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search]);
 
-  useEffect(() => { load(query); }, [load, query]);
+  useEffect(() => { load(query, mode); }, [load, query, mode]);
 
+  function switchMode(m: Mode) {
+    setMode(m);
+    setSearch('');
+    setQuery('');
+  }
+
+  const cfg = MODE_CONFIG[mode];
   const isSearching = query.length > 0;
 
   return (
@@ -162,27 +189,48 @@ export default function CompanyJobsPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>🏢 Jobs by Company</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>🔎 Search All Jobs</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          Browse the latest live job postings from Singapore employers.
+          Find live Singapore job postings — search by company or job role, grouped by employer.
         </p>
       </div>
 
-      {/* Search */}
+      {/* Mode toggle */}
+      <div className="flex gap-2 p-1 rounded-xl w-fit" style={{ background: 'var(--muted-bg)' }}>
+        {(['company', 'role'] as Mode[]).map(m => (
+          <button
+            key={m}
+            onClick={() => switchMode(m)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: mode === m ? 'white' : 'transparent',
+              color: mode === m ? 'var(--foreground)' : 'var(--muted)',
+              boxShadow: mode === m ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            <span>{MODE_CONFIG[m].icon}</span>
+            <span>{MODE_CONFIG[m].label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search bar */}
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base pointer-events-none">🔍</span>
         <input
+          key={mode}
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by company name (e.g. DBS, GovTech, Grab…)"
-          className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm border outline-none focus:ring-2"
+          placeholder={cfg.placeholder}
+          className="w-full rounded-xl pl-9 pr-9 py-2.5 text-sm border outline-none focus:ring-2"
           style={{ borderColor: 'var(--card-border)', color: 'var(--foreground)', background: 'white' }}
+          autoFocus
         />
         {search && (
           <button
-            onClick={() => setSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
+            onClick={() => { setSearch(''); setQuery(''); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-base leading-none"
             style={{ color: 'var(--muted)' }}
           >
             ✕
@@ -190,13 +238,29 @@ export default function CompanyJobsPage() {
         )}
       </div>
 
-      {/* Stats bar */}
-      {data && !loading && (
-        <p className="text-xs" style={{ color: 'var(--muted)' }}>
-          {isSearching
-            ? <>Showing <strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> {data.grouped.length === 1 ? 'company' : 'companies'} matching &ldquo;{query}&rdquo; · <strong>{data.total.toLocaleString()}</strong> total listings on MCF</>
-            : <>Latest postings from <strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> companies · <strong>{data.total.toLocaleString()}</strong> active listings on MCF</>
+      {/* Context hint when no search entered */}
+      {!isSearching && !loading && (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd' }}>
+          {mode === 'company'
+            ? '💡 Type a company name to see all their active listings.'
+            : '💡 Type a job role to see which companies are currently hiring for it.'
           }
+        </div>
+      )}
+
+      {/* Stats bar */}
+      {data && !loading && isSearching && (
+        <p className="text-xs" style={{ color: 'var(--muted)' }}>
+          {mode === 'role'
+            ? <><strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> {data.grouped.length === 1 ? 'company is' : 'companies are'} hiring for &ldquo;{query}&rdquo;</>
+            : <><strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> {data.grouped.length === 1 ? 'company' : 'companies'} matched &ldquo;{query}&rdquo; · {data.grouped.reduce((s, g) => s + g.jobs.length, 0)} listing{data.grouped.reduce((s, g) => s + g.jobs.length, 0) !== 1 ? 's' : ''}</>
+          }
+        </p>
+      )}
+
+      {data && !loading && !isSearching && (
+        <p className="text-xs" style={{ color: 'var(--muted)' }}>
+          Showing latest postings from <strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> companies · <strong>{data.total.toLocaleString()}</strong> active listings on MCF
         </p>
       )}
 
@@ -212,16 +276,16 @@ export default function CompanyJobsPage() {
         <div className="card p-6 text-center space-y-3">
           <p className="text-2xl">⚠️</p>
           <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p>
-          <button onClick={() => load(query)} className="btn-secondary text-sm">Try Again</button>
+          <button onClick={() => load(query, mode)} className="btn-secondary text-sm">Try Again</button>
         </div>
       )}
 
       {/* No results */}
-      {!loading && !error && data && data.grouped.length === 0 && (
+      {!loading && !error && data && data.grouped.length === 0 && isSearching && (
         <div className="card p-10 text-center space-y-2">
-          <p className="text-3xl">🏢</p>
-          <p className="font-medium" style={{ color: 'var(--foreground)' }}>No companies found for &ldquo;{query}&rdquo;</p>
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>Try a shorter or different name.</p>
+          <p className="text-3xl">{cfg.icon}</p>
+          <p className="font-medium" style={{ color: 'var(--foreground)' }}>{cfg.emptyMsg} &ldquo;{query}&rdquo;</p>
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>Try a different keyword or check spelling.</p>
         </div>
       )}
 
@@ -229,7 +293,7 @@ export default function CompanyJobsPage() {
       {!loading && !error && data && data.grouped.length > 0 && (
         <div className="space-y-4">
           {data.grouped.map(group => (
-            <CompanyCard key={group.company} group={group} />
+            <CompanyCard key={group.company} group={group} mode={mode} />
           ))}
         </div>
       )}

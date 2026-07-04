@@ -21,14 +21,10 @@ interface McfResponse {
   results?: McfJob[];
 }
 
-export interface CompanyGroup {
-  company: string;
-  jobs: JobEntry[];
-}
-
 export interface JobEntry {
   uuid: string;
   title: string;
+  company: string;
   salaryMin: number | null;
   salaryMax: number | null;
   expYears: number | null;
@@ -39,16 +35,21 @@ export interface JobEntry {
   url: string;
 }
 
+export interface CompanyGroup {
+  company: string;
+  jobs: JobEntry[];
+}
+
 export async function GET(request: Request) {
   try {
     await requireAuth();
     const { searchParams } = new URL(request.url);
-    const company = searchParams.get('company')?.trim() ?? '';
-    const page    = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10));
+    const search = searchParams.get('search')?.trim() ?? '';
+    const mode   = (searchParams.get('mode') ?? 'company') as 'company' | 'role';
+    const page   = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10));
+    const limit  = search ? 30 : 30;
 
-    const query  = company || '';
-    const limit  = company ? 20 : 30;
-    const mcfUrl = `https://api.mycareersfuture.gov.sg/v2/jobs?${company ? `search=${encodeURIComponent(query)}&` : ''}limit=${limit}&page=${page}&sortBy=new_posting_date`;
+    const mcfUrl = `https://api.mycareersfuture.gov.sg/v2/jobs?${search ? `search=${encodeURIComponent(search)}&` : ''}limit=${limit}&page=${page}&sortBy=new_posting_date`;
 
     const res = await fetch(mcfUrl, {
       headers: {
@@ -62,32 +63,33 @@ export async function GET(request: Request) {
       return Response.json({ data: null, error: 'Failed to fetch listings.' }, { status: 502 });
     }
 
-    const raw = await res.json() as McfResponse;
+    const raw   = await res.json() as McfResponse;
     const total = raw.total ?? 0;
 
-    const jobs = (raw.results ?? []).map(j => ({
-      uuid:     j.uuid,
-      title:    j.metadata?.jobTitle ?? 'Untitled',
-      company:  j.postedCompany?.name ?? 'Unknown Company',
+    const jobs: JobEntry[] = (raw.results ?? []).map(j => ({
+      uuid:      j.uuid,
+      title:     j.metadata?.jobTitle ?? 'Untitled',
+      company:   j.postedCompany?.name ?? 'Unknown Company',
       salaryMin: j.salary?.minimum ?? null,
       salaryMax: j.salary?.maximum ?? null,
       expYears:  j.minimumYearsExperience ?? null,
       postedDate: j.metadata?.newPostingDate ?? null,
-      empType:  j.employmentTypes?.[0]?.employmentType ?? null,
-      posLevel: j.positionLevels?.[0]?.position ?? null,
-      views:    j.metadata?.totalNumberOfView ?? null,
-      url:      `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
+      empType:   j.employmentTypes?.[0]?.employmentType ?? null,
+      posLevel:  j.positionLevels?.[0]?.position ?? null,
+      views:     j.metadata?.totalNumberOfView ?? null,
+      url:       `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
     }));
 
-    // Group by company
+    // In company mode, filter to only jobs whose company name matches the query (when a query exists)
+    const filtered = (mode === 'company' && search)
+      ? jobs.filter(j => j.company.toLowerCase().includes(search.toLowerCase()))
+      : jobs;
+
+    // Group by company, sorted A–Z
     const map = new Map<string, JobEntry[]>();
-    for (const j of jobs) {
+    for (const j of filtered) {
       const list = map.get(j.company) ?? [];
-      list.push({
-        uuid: j.uuid, title: j.title, salaryMin: j.salaryMin, salaryMax: j.salaryMax,
-        expYears: j.expYears, postedDate: j.postedDate, empType: j.empType,
-        posLevel: j.posLevel, views: j.views, url: j.url,
-      });
+      list.push(j);
       map.set(j.company, list);
     }
 
@@ -95,7 +97,7 @@ export async function GET(request: Request) {
       .map(([company, jobs]) => ({ company, jobs }))
       .sort((a, b) => a.company.localeCompare(b.company));
 
-    return Response.json({ data: { grouped, total, page, company }, error: null });
+    return Response.json({ data: { grouped, total, page, search, mode }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch jobs';
     return Response.json({ data: null, error: msg }, { status: 500 });
