@@ -41,6 +41,19 @@ export interface CompanyGroup {
   jobs: JobEntry[];
 }
 
+// For company mode: keep a job only if the company name plausibly matches the query.
+// Handles abbreviations: "govtech" → matches "GOVernment TECHnology Agency"
+// by checking the first 3 chars of the query against the start of each word in the company name.
+function companyMatchesQuery(companyName: string, query: string): boolean {
+  const cn = companyName.toLowerCase();
+  const q  = query.toLowerCase().trim();
+  if (q.length < 2) return true;
+  if (cn.includes(q)) return true;
+  const prefix = q.slice(0, 3);
+  const words  = cn.split(/[\s&,.()/\\]+/).filter(Boolean);
+  return words.some(w => w.startsWith(prefix));
+}
+
 export async function GET(request: Request) {
   try {
     await requireAuth();
@@ -48,7 +61,8 @@ export async function GET(request: Request) {
     const search = (searchParams.get('search') ?? '').trim().toLowerCase();
     const mode   = (searchParams.get('mode') ?? 'company') as 'company' | 'role';
     const page   = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10));
-    const limit  = search ? 30 : 30;
+    // Fetch more when in company mode to compensate for post-filter reduction
+    const limit  = mode === 'company' && search ? 50 : 30;
 
     const mcfUrl = `https://api.mycareersfuture.gov.sg/v2/jobs?${search ? `search=${encodeURIComponent(search)}&` : ''}limit=${limit}&page=${page}&sortBy=new_posting_date`;
 
@@ -81,10 +95,15 @@ export async function GET(request: Request) {
       url:       j.metadata?.jobDetailsUrl ?? `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
     }));
 
+    // In company mode, filter to jobs whose company name matches the query.
+    // This removes jobs from unrelated companies whose descriptions merely mention the query term.
+    const filtered = (mode === 'company' && search)
+      ? jobs.filter(j => companyMatchesQuery(j.company, search))
+      : jobs;
+
     // Group by company, sorted A–Z
-    // Trust MCF's search engine to match company aliases (e.g. "GovTech" → "GOVERNMENT TECHNOLOGY AGENCY")
     const map = new Map<string, JobEntry[]>();
-    for (const j of jobs) {
+    for (const j of filtered) {
       const list = map.get(j.company) ?? [];
       list.push(j);
       map.set(j.company, list);
