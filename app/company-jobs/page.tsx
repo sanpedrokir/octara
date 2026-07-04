@@ -142,7 +142,7 @@ const MODE_CONFIG: Record<Mode, { icon: string; label: string; placeholder: stri
 
 export default function CompanyJobsPage() {
   const [data, setData]       = useState<ApiData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [mode, setMode]       = useState<Mode>('company');
   const [search, setSearch]   = useState('');
@@ -150,11 +150,11 @@ export default function CompanyJobsPage() {
   const debounceRef           = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (q: string, m: Mode) => {
+    if (!q.trim()) { setData(null); setLoading(false); return; }
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ mode: m });
-      if (q) params.set('search', q);
+      const params = new URLSearchParams({ mode: m, search: q });
       const res = await fetch(`/api/company-jobs?${params}`);
       const { data: d, error: e } = await res.json() as { data: ApiData | null; error: string | null };
       if (e) setError(e);

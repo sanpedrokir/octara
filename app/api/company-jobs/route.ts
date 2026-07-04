@@ -4,10 +4,11 @@ export const maxDuration = 15;
 
 interface McfJob {
   uuid: string;
+  title?: string;
   metadata?: {
-    jobTitle?: string;
     newPostingDate?: string;
     totalNumberOfView?: number;
+    jobDetailsUrl?: string;
   };
   postedCompany?: { name?: string };
   salary?: { minimum?: number; maximum?: number };
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
 
     const jobs: JobEntry[] = (raw.results ?? []).map(j => ({
       uuid:      j.uuid,
-      title:     j.metadata?.jobTitle ?? 'Untitled',
+      title:     j.title ?? 'Untitled',
       company:   j.postedCompany?.name ?? 'Unknown Company',
       salaryMin: j.salary?.minimum ?? null,
       salaryMax: j.salary?.maximum ?? null,
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
       empType:   j.employmentTypes?.[0]?.employmentType ?? null,
       posLevel:  j.positionLevels?.[0]?.position ?? null,
       views:     j.metadata?.totalNumberOfView ?? null,
-      url:       `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
+      url:       j.metadata?.jobDetailsUrl ?? `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
     }));
 
     // In company mode, filter to only jobs whose company name matches the query (when a query exists)

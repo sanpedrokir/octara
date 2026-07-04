@@ -5,11 +5,12 @@ export const maxDuration = 15;
 
 interface McfJob {
   uuid: string;
+  title?: string;
   metadata?: {
-    jobTitle?: string;
     newPostingDate?: string;
     expiryDate?: string;
     totalNumberOfView?: number;
+    jobDetailsUrl?: string;
   };
   postedCompany?: { name?: string };
   salary?: { minimum?: number; maximum?: number };
@@ -67,7 +68,7 @@ export async function GET(request: Request) {
 
     const jobs = (raw.results ?? []).map(j => ({
       uuid:        j.uuid,
-      title:       j.metadata?.jobTitle ?? 'Untitled',
+      title:       j.title ?? 'Untitled',
       company:     j.postedCompany?.name ?? 'Unknown Company',
       salaryMin:   j.salary?.minimum ?? null,
       salaryMax:   j.salary?.maximum ?? null,
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
       empType:     j.employmentTypes?.[0]?.employmentType ?? null,
       posLevel:    j.positionLevels?.[0]?.position ?? null,
       views:       j.metadata?.totalNumberOfView ?? null,
-      url:         `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
+      url:         j.metadata?.jobDetailsUrl ?? `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
     }));
 
     return Response.json({

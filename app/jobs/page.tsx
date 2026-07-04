@@ -177,7 +177,7 @@ export default function JobsPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>💼 Job Postings</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>💼 Current Job Postings</h1>
         {data && (
           <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
             <strong style={{ color: 'var(--foreground)' }}>{data.total.toLocaleString()}</strong> live listings for{' '}
