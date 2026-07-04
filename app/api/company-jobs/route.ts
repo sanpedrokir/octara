@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   try {
     await requireAuth();
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search')?.trim() ?? '';
+    const search = (searchParams.get('search') ?? '').trim().toLowerCase();
     const mode   = (searchParams.get('mode') ?? 'company') as 'company' | 'role';
     const page   = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10));
     const limit  = search ? 30 : 30;
