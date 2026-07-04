@@ -67,6 +67,25 @@ export async function GET() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Stop words to ignore when checking title relevance
+const STOP_WORDS = new Set([
+  'and','the','of','in','to','for','a','an','across','through','with','by',
+  'at','from','on','as','its','or','is','are','be','been','into','via',
+  'per','up','out','over','under','about','that','this','these','those',
+]);
+
+// Returns true if the course title contains at least one meaningful word from the skill name.
+// Prevents arts/music courses appearing for social service skills because they happen
+// to mention "collaborative" or "across disciplines" in their descriptions.
+function titleMatchesSkill(courseTitle: string, skillName: string): boolean {
+  const skillWords = skillName.toLowerCase()
+    .split(/[\s\-\/,.()+&]+/)
+    .filter(w => w.length > 3 && !STOP_WORDS.has(w));
+  if (skillWords.length === 0) return true;
+  const title = courseTitle.toLowerCase();
+  return skillWords.some(w => title.includes(w));
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
     promise,
@@ -247,12 +266,8 @@ export async function POST(request: Request) {
 
     // ── SSG path (SG users) ────────────────────────────────────────────────
     const skillsToSearch = missingSkills.slice(0, 8);
-    // Prepend sector (preferred) or role to SSG search so results stay relevant.
-    // e.g. "Social Service Collaborative Practices Across Disciplines and Sectors"
-    // prevents unrelated arts/music courses from appearing for social service skills.
-    const sectorPrefix = (sector || role || '').trim();
     const ssgResults = await Promise.all(
-      skillsToSearch.map(s => searchCoursesWithSource(sectorPrefix ? `${sectorPrefix} ${s}` : s))
+      skillsToSearch.map(s => searchCoursesWithSource(s))
     );
 
     const seenSsg = new Set<string>();
@@ -267,6 +282,8 @@ export async function POST(request: Request) {
         if (courses.length >= 10) break;
         const key = c.referenceNumber || c.title;
         if (seenSsg.has(key)) continue;
+        // Skip courses whose title has no meaningful overlap with the skill name
+        if (!titleMatchesSkill(c.title, skill)) continue;
         seenSsg.add(key);
 
         const parts: string[] = [];
