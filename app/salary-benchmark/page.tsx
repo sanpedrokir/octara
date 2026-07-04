@@ -101,7 +101,7 @@ export default function SalaryBenchmarkPage() {
             </span>
           ) : (
             <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
-              🤖 AI estimate
+              AI estimate due to lack of actual data
             </span>
           )}
         </div>
