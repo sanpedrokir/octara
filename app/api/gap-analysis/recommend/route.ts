@@ -75,12 +75,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
 }
 
 async function fetchYouTubeVideo(courseTitle: string, skill: string): Promise<YouTubeVideo> {
-  const query = `${courseTitle} ${skill} tutorial`.trim();
-  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+  // Use skill name as search term — more YouTube-friendly than a verbose SSG course title
+  const searchTerm = (skill || courseTitle).trim();
+  const query = `${searchTerm} tutorial`;
+  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchTerm)}`;
   const apiKey = process.env.YOUTUBE_API_KEY;
 
   const fallback: YouTubeVideo = {
-    courseTitle, videoId: '', title: query,
+    courseTitle, videoId: '', title: searchTerm,
     channelTitle: 'YouTube', thumbnailUrl: '', watchUrl: searchUrl,
   };
 
@@ -185,7 +187,7 @@ Use real, existing Coursera courses with accurate slugs (used in coursera.org/le
 }
 
 async function fetchCourseraCourses(queries: string[], sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
-  const batches = await Promise.all(queries.slice(0, 4).map(q => fetchCourseraForQuery(q)));
+  const batches = await Promise.all(queries.slice(0, 6).map(q => fetchCourseraForQuery(q)));
   const seen = new Set<string>();
   const results: MoocCourse[] = [];
   for (const batch of batches) {
@@ -216,7 +218,8 @@ export async function POST(request: Request) {
       return Response.json({ data: { courses: [], youtube: {}, mooc: [] }, error: null });
     }
 
-    const moocQueries = [role.trim(), sector.trim(), ...missingSkills.slice(0, 3)].filter(Boolean);
+    // Drive MOOC search by actual skill gaps, not role/sector
+    const moocQueries = missingSkills.slice(0, 6).filter(Boolean);
     const youtube: Record<string, YouTubeVideo> = {};
 
     if (isEsco) {
@@ -242,7 +245,13 @@ export async function POST(request: Request) {
 
     // ── SSG path (SG users) ────────────────────────────────────────────────
     const skillsToSearch = missingSkills.slice(0, 8);
-    const ssgResults = await Promise.all(skillsToSearch.map(s => searchCoursesWithSource(s)));
+    // Prepend sector (preferred) or role to SSG search so results stay relevant.
+    // e.g. "Social Service Collaborative Practices Across Disciplines and Sectors"
+    // prevents unrelated arts/music courses from appearing for social service skills.
+    const sectorPrefix = (sector || role || '').trim();
+    const ssgResults = await Promise.all(
+      skillsToSearch.map(s => searchCoursesWithSource(sectorPrefix ? `${sectorPrefix} ${s}` : s))
+    );
 
     const seenSsg = new Set<string>();
     const courses: Array<{

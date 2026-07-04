@@ -599,11 +599,19 @@ export default function GapAnalysisPage() {
                   : 'All competencies matched — great job!'}
               </p>
             </div>
-            {loadingCourses && (
+            {loadingCourses ? (
               <span className="text-xs flex items-center gap-1.5 shrink-0" style={{ color: 'var(--muted)' }}>
                 <LoadingSpinner label="" /> Generating…
               </span>
-            )}
+            ) : (ssgCourses.length > 0 || moocCourses.length > 0) && missingCount > 0 ? (
+              <button
+                onClick={recommendCourses}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium shrink-0"
+                style={{ background: 'var(--muted-bg)', color: 'var(--muted)', border: '1px solid var(--card-border)' }}
+              >
+                ↻ Refresh
+              </button>
+            ) : null}
           </div>
 
           {courseError && (
