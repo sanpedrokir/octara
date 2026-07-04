@@ -225,7 +225,9 @@ export async function POST(request: Request) {
     if (isEsco) {
       // ── ESCO path: no SSG courses; YouTube keyed to MOOC titles ──────────
       const mooc = await fetchCourseraCourses(moocQueries, sector, role, missingSkills);
-      const ytList = await Promise.all(mooc.slice(0, 8).map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? '')));
+      // One YouTube video per unique skill gap
+      const escoSkills = [...new Set(mooc.map(c => c.skills_covered[0]).filter(Boolean))].slice(0, 8);
+      const ytList = await Promise.all(escoSkills.map(skill => fetchYouTubeVideo(skill, skill)));
       for (const v of ytList) youtube[v.courseTitle] = v;
 
       await sql`
@@ -285,8 +287,10 @@ export async function POST(request: Request) {
       }
     }
 
+    // One YouTube video per unique skill gap (not per SSG course) to avoid duplicates
+    const uniqueSkillsForYt = [...new Set(courses.map(c => c.skills_covered[0]).filter(Boolean))];
     const [youtubeList, mooc] = await Promise.all([
-      Promise.all(courses.map(c => fetchYouTubeVideo(c.title, c.skills_covered[0] ?? ''))),
+      Promise.all(uniqueSkillsForYt.map(skill => fetchYouTubeVideo(skill, skill))),
       fetchCourseraCourses(moocQueries, sector, role, missingSkills),
     ]);
     for (const v of youtubeList) youtube[v.courseTitle] = v;
