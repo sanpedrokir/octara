@@ -57,34 +57,55 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 export default function LinkedInScorerPage() {
-  const [profileText, setProfileText] = useState('');
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState('');
-  const [result, setResult]           = useState<ScoreData | null>(null);
-  const [expanded, setExpanded]       = useState<string | null>('headline');
+  const [linkedinUrl, setLinkedinUrl]   = useState('');
+  const [profileText, setProfileText]   = useState('');
+  const [showPaste, setShowPaste]       = useState(false);
+  const [loadingStep, setLoadingStep]   = useState('');
+  const [error, setError]               = useState('');
+  const [result, setResult]             = useState<ScoreData | null>(null);
+  const [expanded, setExpanded]         = useState<string | null>('headline');
+
+  const loading = loadingStep !== '';
 
   async function score() {
-    if (profileText.trim().length < 50) {
-      setError('Please paste at least 50 characters of your LinkedIn profile text.');
+    setError('');
+
+    const useUrl  = linkedinUrl.trim().includes('linkedin.com/in/');
+    const useText = profileText.trim().length >= 50;
+
+    if (!useUrl && !useText) {
+      setError('Enter a LinkedIn profile URL (linkedin.com/in/…) or paste your profile text below.');
       return;
     }
-    setLoading(true);
-    setError('');
-    const res = await fetch('/api/linkedin-scorer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profileText }),
-    });
-    const { data, error: e } = await res.json();
-    if (e) setError(e);
-    else setResult(data);
-    setLoading(false);
+
+    try {
+      if (useUrl) setLoadingStep('Fetching your LinkedIn profile…');
+      else        setLoadingStep('Analysing your profile…');
+
+      const res = await fetch('/api/linkedin-scorer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(useUrl ? { linkedinUrl: linkedinUrl.trim() } : { profileText }),
+      });
+
+      setLoadingStep('Scoring…');
+      const { data, error: e } = await res.json() as { data: ScoreData & { source: string } | null; error: string | null };
+      if (e) setError(e);
+      else setResult(data);
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoadingStep('');
+    }
   }
 
   const gradeStyle = result ? (GRADE_STYLE[result.grade] ?? GRADE_STYLE.C) : null;
   const scoreColor = result
     ? result.overall_score >= 80 ? '#15803d' : result.overall_score >= 60 ? '#1d4ed8' : result.overall_score >= 40 ? '#92400e' : '#b91c1c'
     : '#64748b';
+
+  const urlValid = linkedinUrl.trim().includes('linkedin.com/in/');
+  const canScore = urlValid || profileText.trim().length >= 50;
 
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
@@ -93,36 +114,67 @@ export default function LinkedInScorerPage() {
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>🔗 LinkedIn Profile Scorer</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          Paste your LinkedIn profile text and get an AI-powered score with section-by-section feedback and rewrite suggestions.
+          Enter your LinkedIn URL for an AI-powered score with section-by-section feedback and rewrite suggestions.
         </p>
-      </div>
-
-      {/* How to get text */}
-      <div className="rounded-xl px-4 py-3 text-xs space-y-1" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}>
-        <p className="font-semibold">How to get your LinkedIn profile text:</p>
-        <p>Go to your LinkedIn profile → select all text on the page (Ctrl+A / Cmd+A) → copy and paste it below.</p>
       </div>
 
       {/* Input */}
       {!result && (
-        <div className="space-y-3">
-          <textarea
-            value={profileText}
-            onChange={e => setProfileText(e.target.value)}
-            placeholder="Paste your LinkedIn profile text here…"
-            rows={10}
-            className="w-full rounded-xl p-3 text-sm border outline-none resize-y"
-            style={{ border: '1.5px solid var(--card-border)', color: 'var(--foreground)', background: 'white' }}
-          />
-          <p className="text-xs" style={{ color: 'var(--muted)' }}>{profileText.length} characters</p>
+        <div className="card p-5 space-y-4">
+          {/* URL field */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>LinkedIn Profile URL</label>
+            <input
+              type="url"
+              value={linkedinUrl}
+              onChange={e => setLinkedinUrl(e.target.value)}
+              placeholder="https://www.linkedin.com/in/your-name"
+              className="w-full rounded-lg px-3 py-2.5 text-sm border outline-none focus:ring-2"
+              style={{ borderColor: urlValid ? '#86efac' : 'var(--card-border)', color: 'var(--foreground)', background: 'white' }}
+              onKeyDown={e => e.key === 'Enter' && canScore && !loading && score()}
+            />
+            {linkedinUrl && !urlValid && (
+              <p className="text-xs" style={{ color: '#b45309' }}>URL should contain linkedin.com/in/</p>
+            )}
+          </div>
+
+          {/* Manual paste toggle */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowPaste(v => !v)}
+              className="text-xs font-medium"
+              style={{ color: 'var(--muted)' }}
+            >
+              {showPaste ? '▲ Hide' : '▼ Or paste profile text manually instead'}
+            </button>
+            {showPaste && (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                  Go to your LinkedIn profile → Ctrl+A / Cmd+A → copy → paste below.
+                </p>
+                <textarea
+                  value={profileText}
+                  onChange={e => setProfileText(e.target.value)}
+                  placeholder="Paste your LinkedIn profile text here…"
+                  rows={8}
+                  className="w-full rounded-xl p-3 text-sm border outline-none resize-y"
+                  style={{ borderColor: 'var(--card-border)', color: 'var(--foreground)', background: 'white' }}
+                />
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>{profileText.length} characters</p>
+              </div>
+            )}
+          </div>
+
           {error && <p className="text-sm" style={{ color: '#b91c1c' }}>{error}</p>}
+
           <button
             onClick={score}
-            disabled={loading || profileText.trim().length < 50}
-            className="btn-primary text-sm px-8"
-            style={{ opacity: loading || profileText.trim().length < 50 ? 0.6 : 1 }}
+            disabled={loading || !canScore}
+            className="btn-primary w-full"
+            style={{ opacity: loading || !canScore ? 0.6 : 1 }}
           >
-            {loading ? <><LoadingSpinner label="" /> Scoring…</> : '🔍 Score My Profile'}
+            {loading ? loadingStep : '🔍 Score My Profile'}
           </button>
         </div>
       )}
@@ -131,7 +183,7 @@ export default function LinkedInScorerPage() {
       {result && (
         <div className="space-y-5">
           <div className="flex gap-3 flex-wrap">
-            <button onClick={() => { setResult(null); setProfileText(''); }} className="btn-secondary text-sm">← Score Again</button>
+            <button onClick={() => { setResult(null); setProfileText(''); setLinkedinUrl(''); setError(''); }} className="btn-secondary text-sm">← Score Again</button>
           </div>
 
           {/* Overall score */}
