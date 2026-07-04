@@ -109,9 +109,23 @@ export async function GET(request: Request) {
       map.set(j.company, list);
     }
 
+    // Sort: exact name match first, then starts-with, then A–Z
+    const q = search.toLowerCase();
     const grouped: CompanyGroup[] = Array.from(map.entries())
       .map(([company, jobs]) => ({ company, jobs }))
-      .sort((a, b) => a.company.localeCompare(b.company));
+      .sort((a, b) => {
+        const scoreCompany = (name: string) => {
+          const n = name.toLowerCase();
+          if (n === q) return 0;
+          if (n.startsWith(q)) return 1;
+          const firstWord = n.split(/\s+/)[0];
+          if (firstWord === q) return 2;
+          if (firstWord.startsWith(q)) return 3;
+          return 4;
+        };
+        const diff = scoreCompany(a.company) - scoreCompany(b.company);
+        return diff !== 0 ? diff : a.company.localeCompare(b.company);
+      });
 
     return Response.json({ data: { grouped, total, page, search, mode }, error: null });
   } catch (err) {
