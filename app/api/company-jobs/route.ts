@@ -81,14 +81,10 @@ export async function GET(request: Request) {
       url:       j.metadata?.jobDetailsUrl ?? `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
     }));
 
-    // In company mode, filter to only jobs whose company name matches the query (when a query exists)
-    const filtered = (mode === 'company' && search)
-      ? jobs.filter(j => j.company.toLowerCase().includes(search.toLowerCase()))
-      : jobs;
-
     // Group by company, sorted A–Z
+    // Trust MCF's search engine to match company aliases (e.g. "GovTech" → "GOVERNMENT TECHNOLOGY AGENCY")
     const map = new Map<string, JobEntry[]>();
-    for (const j of filtered) {
+    for (const j of jobs) {
       const list = map.get(j.company) ?? [];
       list.push(j);
       map.set(j.company, list);

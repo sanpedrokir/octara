@@ -129,13 +129,13 @@ const MODE_CONFIG: Record<Mode, { icon: string; label: string; placeholder: stri
   company: {
     icon: '🏢',
     label: 'By Company',
-    placeholder: 'e.g. DBS, GovTech, Grab, Shopee…',
+    placeholder: 'Search by company name',
     emptyMsg: 'No company found matching',
   },
   role: {
     icon: '💼',
     label: 'By Job Role',
-    placeholder: 'e.g. Head of Sales, Data Analyst, Software Engineer…',
+    placeholder: 'Search by job role',
     emptyMsg: 'No postings found for',
   },
 };
