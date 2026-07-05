@@ -42,7 +42,7 @@ function extractCourseLinks(html: string): { title: string; path: string }[] {
     // Only full-time diploma course pages (not part-time, not school overview)
     if (
       href.includes('/schools-courses/academic-schools/school-of-') &&
-      href.split('/').length > 5 &&
+      href.split('/').length >= 5 &&
       !seen.has(href)
     ) {
       const text = $(el).text().trim().replace(/\s+/g, ' ');
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
     }
 
     return Response.json({
-      data: { inserted, total: unique.length, errors: errors.slice(0, 10) },
+      data: { inserted, total: unique.length, skipped: unique.length - inserted, errors: errors.slice(0, 10) },
       error: null,
     });
   } catch (err) {
