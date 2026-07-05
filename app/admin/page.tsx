@@ -1745,11 +1745,31 @@ export default function AdminPage() {
         <div className="space-y-6">
 
           {/* Header */}
-          <div className="card p-5 space-y-2" style={{ border: '2px solid #0d9488', background: '#f0fdfa' }}>
+          <div className="card p-5 space-y-3" style={{ border: '2px solid #0d9488', background: '#f0fdfa' }}>
             <h3 className="font-semibold" style={{ color: '#0d9488' }}>🏫 Institution Course Management</h3>
             <p className="text-sm" style={{ color: '#134e4a' }}>
               Each institution has its own course catalog. Students linked to an institution see a &quot;My Institution&quot; tab in their Gap Analysis recommendations.
             </p>
+            <div className="pt-1 border-t flex flex-wrap items-center gap-3" style={{ borderColor: '#99f6e4' }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold" style={{ color: '#0d9488' }}>Link existing students</p>
+                <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
+                  Matches students already registered with an institution name to the institutions table. Run once after adding institutions.
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  const res = await fetch('/api/admin/institutions/link-students', { method: 'POST' });
+                  const { data, error } = await res.json();
+                  if (error) showMsg(error, 'error');
+                  else showMsg(`✅ Linked ${data.updated} existing student${data.updated !== 1 ? 's' : ''} to their institutions`, 'success');
+                }}
+                className="btn-primary text-sm shrink-0"
+                style={{ background: '#0d9488', borderColor: '#0d9488' }}
+              >
+                🔗 Link Existing Students
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

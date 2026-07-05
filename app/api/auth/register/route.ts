@@ -95,6 +95,14 @@ export async function POST(request: Request) {
         INSERT INTO education (user_id, institution, degree, is_current)
         VALUES (${user.id}, ${institution.trim()}, ${level ?? null}, true)
       `;
+
+      // Link to institutions table if an exact (case-insensitive) match exists
+      const instMatch = await sql`
+        SELECT id FROM institutions WHERE LOWER(name) = LOWER(${institution.trim()}) AND is_active = true LIMIT 1
+      ` as Array<{ id: number }>;
+      if (instMatch.length > 0) {
+        await sql`UPDATE profiles SET institution_id = ${instMatch[0].id} WHERE user_id = ${user.id}`;
+      }
     }
 
     // ── Set session cookie ───────────────────────────────────────
