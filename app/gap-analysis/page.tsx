@@ -65,6 +65,18 @@ interface MoocCourse {
   _status?: 'tracked' | 'completed';
 }
 
+interface InstCourse {
+  id: number;
+  title: string;
+  provider: string;
+  type: 'institution';
+  url: string | null;
+  description: string | null;
+  duration: string | null;
+  cost: string | null;
+  skills_covered: string[];
+}
+
 const STATUS_STYLE: Record<Status, { row: string; badge: string; badgeText: string }> = {
   strong:       { row: '#f0fdf4', badge: '#dcfce7', badgeText: '#15803d' },
   partial:      { row: '#fffbeb', badge: '#fef3c7', badgeText: '#92400e' },
@@ -122,7 +134,9 @@ export default function GapAnalysisPage() {
   const [youtubeMap, setYoutubeMap]         = useState<Record<string, YouTubeVideo>>({});
   const [moocCourses, setMoocCourses]       = useState<MoocCourse[]>([]);
   const [combinedPage, setCombinedPage]     = useState(0);
-  const [courseTab, setCourseTab]           = useState<'ssg' | 'youtube' | 'mooc'>('ssg');
+  const [courseTab, setCourseTab]           = useState<'ssg' | 'youtube' | 'mooc' | 'institution'>('ssg');
+  const [instCourses, setInstCourses]       = useState<InstCourse[]>([]);
+  const [instName, setInstName]             = useState<string | null>(null);
   const [trackingId, setTrackingId]         = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -156,6 +170,22 @@ export default function GapAnalysisPage() {
     } catch { /* ignore */ }
 
     setLoading(false);
+
+    // Fetch institution courses (students only — API returns empty if no institution linked)
+    if (missing.length > 0) {
+      try {
+        const instRes = await fetch('/api/gap-analysis/institution-courses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ missingSkills: missing }),
+        });
+        const { data: instData } = await instRes.json() as { data: { courses: InstCourse[]; institutionName: string | null } | null };
+        if (instData?.courses?.length) {
+          setInstCourses(instData.courses);
+          setInstName(instData.institutionName);
+        }
+      } catch { /* non-fatal */ }
+    }
 
     // Auto-generate recommendations if missing skills exist but no saved recs for this role
     if (!hasRecs && missing.length > 0) {
@@ -654,15 +684,15 @@ export default function GapAnalysisPage() {
           {(ssgCourses.length > 0 || moocCourses.length > 0) && (() => {
             const ytVideos  = Object.values(youtubeMap);
             const activeTab = isEsco && courseTab === 'ssg' ? 'youtube' : courseTab;
-            const tabItems  = activeTab === 'ssg' ? ssgCourses : activeTab === 'youtube' ? ytVideos : moocCourses;
+            const tabItems  = activeTab === 'ssg' ? ssgCourses : activeTab === 'youtube' ? ytVideos : activeTab === 'institution' ? instCourses : moocCourses;
             const tabTotal  = tabItems.length;
             const tabPaged  = tabItems.slice(combinedPage * PAGE_SIZE, (combinedPage + 1) * PAGE_SIZE);
 
             const TAB_DEF = [
-              ...(!isEsco ? [{ key: 'ssg',     label: '🏛 SSG Courses',      count: ssgCourses.length,  color: '#7c3aed' }] : []),
-              {              key: 'youtube', label: '▶ YouTube',             count: ytVideos.length,    color: '#dc2626' },
-              {              key: 'mooc',    label: '🎓 MOOC / Coursera',    count: moocCourses.length, color: '#2563eb' },
-              // ── To add a 4th tab, insert another object here ──
+              ...(!isEsco ? [{ key: 'ssg',         label: '🏛 SSG Courses',      count: ssgCourses.length,  color: '#7c3aed' }] : []),
+              {              key: 'youtube',     label: '▶ YouTube',             count: ytVideos.length,    color: '#dc2626' },
+              {              key: 'mooc',        label: '🎓 MOOC / Coursera',    count: moocCourses.length, color: '#2563eb' },
+              ...(instCourses.length > 0 ? [{ key: 'institution', label: `🏫 ${instName ?? 'My Institution'}`, count: instCourses.length, color: '#0d9488' }] : []),
             ] as { key: string; label: string; count: number; color: string }[];
 
             return (
@@ -672,7 +702,7 @@ export default function GapAnalysisPage() {
                   {TAB_DEF.map(tab => (
                     <button
                       key={tab.key}
-                      onClick={() => { setCourseTab(tab.key as 'ssg' | 'youtube' | 'mooc'); setCombinedPage(0); }}
+                      onClick={() => { setCourseTab(tab.key as 'ssg' | 'youtube' | 'mooc' | 'institution'); setCombinedPage(0); }}
                       className="flex items-center gap-1.5 px-4 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors"
                       style={{
                         borderBottomColor: activeTab === tab.key ? tab.color : 'transparent',
@@ -760,6 +790,41 @@ export default function GapAnalysisPage() {
                         </span>
                       )}
                       <CourseActions course={mooc} />
+                    </div>
+                  ))}
+
+                  {/* Institution tab */}
+                  {activeTab === 'institution' && (tabPaged as InstCourse[]).map((course, i) => (
+                    <div key={i} className="p-4 space-y-2" style={{ background: 'white' }}>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#ccfbf1', color: '#0d9488' }}>
+                          {instName ?? 'My Institution'}
+                        </span>
+                        {course.duration && (
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>⏱ {course.duration}</span>
+                        )}
+                        {course.cost && (
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>💰 {course.cost}</span>
+                        )}
+                      </div>
+                      {course.url ? (
+                        <a href={course.url} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
+                          {course.title}
+                        </a>
+                      ) : (
+                        <p className="text-sm font-semibold leading-snug" style={{ color: 'var(--foreground)' }}>{course.title}</p>
+                      )}
+                      {course.description && (
+                        <p className="text-xs line-clamp-2" style={{ color: '#475569', lineHeight: 1.5 }}>{course.description}</p>
+                      )}
+                      {course.skills_covered.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {course.skills_covered.slice(0, 3).map(s => (
+                            <span key={s} className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#ccfbf1', color: '#0d9488' }}>{s}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

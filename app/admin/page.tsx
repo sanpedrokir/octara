@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Industry, JobRole } from '@/lib/types';
 
-type Tab = 'overview' | 'industries' | 'job-roles' | 'catalog' | 'skills-mapping' | 'tsc-ccs' | 'esco';
+type Tab = 'overview' | 'industries' | 'job-roles' | 'catalog' | 'skills-mapping' | 'tsc-ccs' | 'esco' | 'institutions';
 
 type CatalogRow = {
   id: number;
@@ -84,6 +84,17 @@ export default function AdminPage() {
   const [mappingSearch, setMappingSearch] = useState('');
   const [mappingPage, setMappingPage] = useState(0);
   const MAPPING_PAGE_SIZE = 50;
+
+  // Institutions tab state
+  type InstitutionRow = { id: number; name: string; slug: string | null; logo_url: string | null; is_active: boolean; course_count: number };
+  type InstCourseRow  = { id: number; title: string; description: string | null; url: string | null; duration: string | null; cost: string | null; skills_covered: string[]; is_active: boolean };
+  const [institutions, setInstitutions]           = useState<InstitutionRow[]>([]);
+  const [selectedInst, setSelectedInst]           = useState<InstitutionRow | null>(null);
+  const [instCourses, setInstCourses]             = useState<InstCourseRow[]>([]);
+  const [instCourseFile, setInstCourseFile]       = useState<File | null>(null);
+  const [instUploading, setInstUploading]         = useState(false);
+  const [instReplaceAll, setInstReplaceAll]       = useState(false);
+  const [newInstName, setNewInstName]             = useState('');
 
   // ESCO tab state
   type EscoOccRow   = { id: number; isco_group: string; sub_group: string | null; occupation_title: string; occupation_description: string | null; esco_uri: string | null };
@@ -360,6 +371,48 @@ export default function AdminPage() {
   }, [escoPage, escoView, escoGroupFilter, escoSearch]);
 
   useEffect(() => { if (tab === 'overview' || tab === 'esco') loadEsco(); }, [tab, loadEsco]);
+
+  async function loadInstitutions() {
+    const res = await fetch('/api/admin/institutions');
+    const { data } = await res.json();
+    if (data) setInstitutions(data);
+  }
+  async function loadInstCourses(instId: number) {
+    const res = await fetch(`/api/admin/institutions/courses?institution_id=${instId}`);
+    const { data } = await res.json();
+    if (data) setInstCourses(data);
+  }
+  useEffect(() => { if (tab === 'overview' || tab === 'institutions') loadInstitutions(); }, [tab]);
+
+  async function addInstitution(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newInstName.trim()) return;
+    const res = await fetch('/api/admin/institutions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newInstName.trim() }) });
+    const { data, error } = await res.json();
+    if (error) showMsg(error, 'error');
+    else { showMsg(`Institution "${data.name}" added`, 'success'); setNewInstName(''); loadInstitutions(); }
+  }
+
+  async function uploadInstCourses(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedInst || !instCourseFile) return;
+    setInstUploading(true);
+    const formData = new FormData();
+    formData.append('institution_id', String(selectedInst.id));
+    formData.append('file', instCourseFile);
+    formData.append('replace_all', String(instReplaceAll));
+    const res = await fetch('/api/admin/institutions/courses/upload', { method: 'POST', body: formData });
+    const { data, error } = await res.json();
+    setInstUploading(false);
+    if (error) showMsg(error, 'error');
+    else { showMsg(`Uploaded ${data.inserted} courses`, 'success'); setInstCourseFile(null); loadInstCourses(selectedInst.id); loadInstitutions(); }
+  }
+
+  async function deleteInstCourse(id: number) {
+    if (!confirm('Delete this course?')) return;
+    await fetch('/api/admin/institutions/courses', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    if (selectedInst) loadInstCourses(selectedInst.id);
+  }
 
   async function uploadEsco(e: React.FormEvent) {
     e.preventDefault();
@@ -877,6 +930,40 @@ export default function AdminPage() {
                 </div>
                 <button onClick={() => setTab('job-roles')} className="btn-secondary text-sm w-full">Manage Job Roles →</button>
               </div>
+            </div>
+          </div>
+
+          {/* ── Section: Institutions ───────────────────────────────────── */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Institution Courses</p>
+            <div className="card p-5 space-y-4" style={{ border: '2px solid #0d9488', background: '#f0fdfa' }}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🏫</span>
+                <div>
+                  <h3 className="font-bold" style={{ color: '#0d9488' }}>Institution Courses</h3>
+                  <p className="text-xs" style={{ color: 'var(--muted)' }}>Multi-tenant course catalog — students see their institution&apos;s courses in Gap Analysis</p>
+                </div>
+              </div>
+
+              {institutions.length > 0 ? (
+                <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(13,148,136,0.1)', color: '#0d9488' }}>
+                  ✅ {institutions.length} institution{institutions.length !== 1 ? 's' : ''} · {institutions.reduce((s, i) => s + i.course_count, 0)} courses loaded
+                </div>
+              ) : (
+                <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(234,179,8,0.1)', color: 'var(--warning)' }}>
+                  ⚠️ No institutions yet — add one and upload its course catalog via CSV
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setTab('institutions')} className="btn-primary text-sm" style={{ background: '#0d9488', borderColor: '#0d9488' }}>
+                  Manage Institutions →
+                </button>
+              </div>
+
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                CSV format: <code>title, description, url, duration, cost, skills_covered</code> (skills semicolon-separated). Students linked to an institution via their profile see a 4th &quot;My Institution&quot; tab in recommendations.
+              </p>
             </div>
           </div>
 
@@ -1607,6 +1694,170 @@ export default function AdminPage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── INSTITUTIONS TAB ─────────────────────────────────────────────── */}
+      {tab === 'institutions' && (
+        <div className="space-y-6">
+
+          {/* Header */}
+          <div className="card p-5 space-y-2" style={{ border: '2px solid #0d9488', background: '#f0fdfa' }}>
+            <h3 className="font-semibold" style={{ color: '#0d9488' }}>🏫 Institution Course Management</h3>
+            <p className="text-sm" style={{ color: '#134e4a' }}>
+              Each institution has its own course catalog. Students linked to an institution see a &quot;My Institution&quot; tab in their Gap Analysis recommendations.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {/* Left column: institution list + add new */}
+            <div className="space-y-4">
+              {/* Add institution */}
+              <div className="card p-4 space-y-3">
+                <h4 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>Add Institution</h4>
+                <form onSubmit={addInstitution} className="flex gap-2">
+                  <input
+                    className="input flex-1 text-sm"
+                    placeholder="Institution name *"
+                    value={newInstName}
+                    onChange={e => setNewInstName(e.target.value)}
+                    required
+                  />
+                  <button type="submit" className="btn-primary text-sm shrink-0" style={{ background: '#0d9488', borderColor: '#0d9488' }}>Add</button>
+                </form>
+              </div>
+
+              {/* Institution list */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
+                  {institutions.length} Institution{institutions.length !== 1 ? 's' : ''}
+                </p>
+                {institutions.length === 0 && (
+                  <div className="card p-6 text-center text-sm" style={{ color: 'var(--muted)' }}>No institutions yet.</div>
+                )}
+                {institutions.map(inst => (
+                  <button
+                    key={inst.id}
+                    onClick={() => { setSelectedInst(inst); loadInstCourses(inst.id); }}
+                    className="card p-4 w-full text-left transition-all"
+                    style={{
+                      border: selectedInst?.id === inst.id ? '2px solid #0d9488' : '1.5px solid var(--card-border)',
+                      background: selectedInst?.id === inst.id ? '#f0fdfa' : 'var(--card-bg)',
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{inst.name}</p>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: '#ccfbf1', color: '#0d9488' }}>
+                        {inst.course_count} course{inst.course_count !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    {inst.slug && <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{inst.slug}</p>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Right column: selected institution courses */}
+            <div className="lg:col-span-2 space-y-4">
+              {!selectedInst ? (
+                <div className="card p-10 text-center" style={{ color: 'var(--muted)' }}>
+                  <p className="text-2xl mb-2">👈</p>
+                  <p className="text-sm">Select an institution to manage its courses</p>
+                </div>
+              ) : (
+                <>
+                  {/* Upload CSV */}
+                  <div className="card p-5 space-y-4" style={{ border: '1.5px solid #99f6e4' }}>
+                    <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>
+                      Upload Courses for <span style={{ color: '#0d9488' }}>{selectedInst.name}</span>
+                    </h4>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                      CSV columns: <code>title</code>, <code>description</code>, <code>url</code>, <code>duration</code>, <code>cost</code>, <code>skills_covered</code> (semicolon-separated skills)
+                    </p>
+                    <form onSubmit={uploadInstCourses} className="space-y-3">
+                      <input
+                        type="file"
+                        accept=".csv"
+                        className="input text-sm"
+                        onChange={e => setInstCourseFile(e.target.files?.[0] ?? null)}
+                      />
+                      <label className="flex items-center gap-2 cursor-pointer text-sm" style={{ color: 'var(--foreground)' }}>
+                        <input
+                          type="checkbox"
+                          checked={instReplaceAll}
+                          onChange={e => setInstReplaceAll(e.target.checked)}
+                          className="rounded"
+                        />
+                        Replace all existing courses for this institution
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={!instCourseFile || instUploading}
+                        className="btn-primary text-sm"
+                        style={{ background: '#0d9488', borderColor: '#0d9488', opacity: !instCourseFile || instUploading ? 0.6 : 1 }}
+                      >
+                        {instUploading ? '⏳ Uploading…' : '⬆ Upload CSV'}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Course list */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
+                        {instCourses.length} Course{instCourses.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+
+                    {instCourses.length === 0 && (
+                      <div className="card p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
+                        No courses yet — upload a CSV above.
+                      </div>
+                    )}
+
+                    {instCourses.map(course => (
+                      <div key={course.id} className="card p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{course.title}</p>
+                            {course.description && (
+                              <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--muted)' }}>{course.description}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => deleteInstCourse(course.id)}
+                            className="btn-ghost text-xs shrink-0"
+                            style={{ color: 'var(--danger)' }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+                          {course.duration && <span>⏱ {course.duration}</span>}
+                          {course.cost && <span>💰 {course.cost}</span>}
+                          {course.url && (
+                            <a href={course.url} target="_blank" rel="noopener noreferrer" style={{ color: '#0d9488' }} className="hover:underline">
+                              🔗 View course
+                            </a>
+                          )}
+                        </div>
+
+                        {course.skills_covered.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {course.skills_covered.map(s => (
+                              <span key={s} className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#ccfbf1', color: '#0d9488' }}>{s}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -529,4 +529,30 @@ CREATE TABLE IF NOT EXISTS course_recommendations (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   UNIQUE(user_id)
 );
+
+CREATE TABLE IF NOT EXISTS institutions (
+  id         SERIAL PRIMARY KEY,
+  name       VARCHAR(255) UNIQUE NOT NULL,
+  slug       VARCHAR(100) UNIQUE,
+  logo_url   TEXT,
+  is_active  BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS institution_courses (
+  id             SERIAL PRIMARY KEY,
+  institution_id INTEGER NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+  title          VARCHAR(500) NOT NULL,
+  description    TEXT,
+  url            TEXT,
+  duration       VARCHAR(100),
+  cost           VARCHAR(100),
+  skills_covered TEXT[] NOT NULL DEFAULT '{}',
+  is_active      BOOLEAN NOT NULL DEFAULT true,
+  created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_inst_courses_institution ON institution_courses(institution_id);
+CREATE INDEX IF NOT EXISTS idx_inst_courses_active ON institution_courses(institution_id, is_active);
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS institution_id INTEGER REFERENCES institutions(id) ON DELETE SET NULL;
 `;
