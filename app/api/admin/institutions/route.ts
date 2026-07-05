@@ -22,6 +22,23 @@ export async function GET() {
   }
 }
 
+export async function DELETE(request: Request) {
+  try {
+    const session = await getCurrentUser();
+    if (!session || session.role !== 'admin') {
+      return Response.json({ data: null, error: 'Admin access required' }, { status: 403 });
+    }
+    const { id } = await request.json() as { id: number };
+    if (!id) return Response.json({ data: null, error: 'id is required' }, { status: 400 });
+
+    const sql = db();
+    await sql`DELETE FROM institutions WHERE id = ${id}`;
+    return Response.json({ data: { success: true }, error: null });
+  } catch (err) {
+    return Response.json({ data: null, error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
+  }
+}
+
 export async function PATCH(request: Request) {
   try {
     const session = await getCurrentUser();

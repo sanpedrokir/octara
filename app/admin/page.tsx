@@ -396,6 +396,22 @@ export default function AdminPage() {
     else { showMsg(`Institution "${data.name}" added`, 'success'); setNewInstName(''); loadInstitutions(); }
   }
 
+  async function deleteInstitution(id: number, name: string) {
+    if (!confirm(`Delete "${name}" and all its courses? This cannot be undone.`)) return;
+    const res = await fetch('/api/admin/institutions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const { error } = await res.json();
+    if (error) showMsg(error, 'error');
+    else {
+      showMsg(`"${name}" deleted`, 'success');
+      if (selectedInst?.id === id) { setSelectedInst(null); setInstCourses([]); }
+      loadInstitutions();
+    }
+  }
+
   async function renameInstitution(id: number, name: string) {
     if (!name.trim()) return;
     const res = await fetch('/api/admin/institutions', {
@@ -1806,6 +1822,13 @@ export default function AdminPage() {
                             style={{ background: 'var(--muted-bg)', color: 'var(--muted)', border: '1px solid var(--card-border)' }}
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={() => deleteInstitution(inst.id, inst.name)}
+                            className="text-xs px-2 py-0.5 rounded font-medium"
+                            style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}
+                          >
+                            Delete
                           </button>
                         </div>
                       </div>
