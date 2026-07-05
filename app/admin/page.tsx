@@ -1776,9 +1776,31 @@ export default function AdminPage() {
                 <>
                   {/* Upload CSV */}
                   <div className="card p-5 space-y-4" style={{ border: '1.5px solid #99f6e4' }}>
-                    <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>
-                      Upload Courses for <span style={{ color: '#0d9488' }}>{selectedInst.name}</span>
-                    </h4>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>
+                        Upload Courses for <span style={{ color: '#0d9488' }}>{selectedInst.name}</span>
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const csv = [
+                            'title,description,url,duration,cost,skills_covered',
+                            'Introduction to Social Work,Foundational concepts and ethics in social work practice,https://example.com/course1,3 months,Free,Social Work Principles;Ethics in Practice;Client Assessment',
+                            'Community Development Strategies,Learn how to design and implement community programs,https://example.com/course2,6 weeks,$500,Community Engagement;Program Planning;Stakeholder Management',
+                            'Crisis Intervention Techniques,Practical training in crisis response and de-escalation,,,,$800,Crisis Management;De-escalation;Trauma-Informed Care',
+                          ].join('\n');
+                          const blob = new Blob([csv], { type: 'text/csv' });
+                          const a = document.createElement('a');
+                          a.href = URL.createObjectURL(blob);
+                          a.download = 'institution_courses_template.csv';
+                          a.click();
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                        style={{ background: '#ccfbf1', color: '#0d9488', border: '1px solid #99f6e4' }}
+                      >
+                        ⬇ Download CSV Template
+                      </button>
+                    </div>
                     <p className="text-xs" style={{ color: 'var(--muted)' }}>
                       CSV columns: <code>title</code>, <code>description</code>, <code>url</code>, <code>duration</code>, <code>cost</code>, <code>skills_covered</code> (semicolon-separated skills)
                     </p>
