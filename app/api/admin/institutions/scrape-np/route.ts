@@ -21,7 +21,7 @@ async function fetchHtml(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; research-bot/1.0)' },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
     return await res.text();
@@ -30,16 +30,13 @@ async function fetchHtml(url: string): Promise<string | null> {
   }
 }
 
-// Extract full-time diploma course links from a school page
 function extractCourseLinks(html: string): { title: string; path: string }[] {
   const $ = cheerio.load(html);
   const courses: { title: string; path: string }[] = [];
   const seen = new Set<string>();
 
-  // NP school pages list courses as linked cards/items
   $('a[href]').each((_, el) => {
     const href = $(el).attr('href') ?? '';
-    // Only full-time diploma course pages (not part-time, not school overview)
     if (
       href.includes('/schools-courses/academic-schools/school-of-') &&
       href.split('/').length >= 5 &&
@@ -56,7 +53,6 @@ function extractCourseLinks(html: string): { title: string; path: string }[] {
   return courses;
 }
 
-// Scrape an individual course page for description, duration, skills
 function extractCourseDetail(html: string, fallbackTitle: string): {
   title: string;
   description: string | null;
@@ -65,40 +61,25 @@ function extractCourseDetail(html: string, fallbackTitle: string): {
 } {
   const $ = cheerio.load(html);
 
-  // Title: prefer h1 inside main content
   const title = $('h1').first().text().trim() || fallbackTitle;
 
-  // Description: grab the first substantive paragraph from the overview/about section
   let description: string | null = null;
-  const candidateSections = ['#overview', '#about', '.course-overview', '.course-description', 'main', 'article'];
-  for (const sel of candidateSections) {
+  for (const sel of ['#overview', '#about', '.course-overview', '.course-description', 'main', 'article', 'body']) {
     const paras = $(sel).find('p').map((_, el) => $(el).text().trim()).get().filter(t => t.length > 60);
     if (paras.length > 0) { description = paras[0]; break; }
   }
-  if (!description) {
-    const paras = $('p').map((_, el) => $(el).text().trim()).get().filter(t => t.length > 60);
-    description = paras[0] ?? null;
-  }
 
-  // Duration: look for "3 years", "2 years", etc.
   const bodyText = $('body').text();
   const durMatch = bodyText.match(/(\d[\d.]*\s*(?:year|years|month|months))/i);
   const duration = durMatch ? durMatch[1].trim() : null;
 
-  // Skills: extract specialisation/module names as skills
   const skills: string[] = [];
   const seen = new Set<string>();
-
-  // Look for specialisation names in headings and list items
   $('h2, h3, h4, li').each((_, el) => {
     const text = $(el).text().trim().replace(/\s+/g, ' ');
     if (
-      text.length > 5 &&
-      text.length < 80 &&
-      !seen.has(text) &&
-      (
-        /specialis|module|skill|competenc|track|major|technolog|design|management|engineering|analytics|cybersecurity|programming|network|database/i.test(text)
-      )
+      text.length > 5 && text.length < 80 && !seen.has(text) &&
+      /specialis|module|skill|competenc|track|major|technolog|design|management|engineering|analytics|cybersecurity|programming|network|database/i.test(text)
     ) {
       seen.add(text);
       skills.push(text);
@@ -106,6 +87,17 @@ function extractCourseDetail(html: string, fallbackTitle: string): {
   });
 
   return { title, description, duration, skills: skills.slice(0, 10) };
+}
+
+// Run promises in parallel with a concurrency cap
+async function parallelLimit<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += limit) chunks.push(items.slice(i, i + limit));
+  for (const chunk of chunks) await Promise.all(chunk.map(fn));
 }
 
 export async function POST(request: Request) {
@@ -120,22 +112,20 @@ export async function POST(request: Request) {
 
     const sql = db();
 
-    // Ensure unique constraint exists so re-scraping doesn't create duplicates
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_inst_courses_url ON institution_courses(institution_id, url)`;
 
     if (replace_all) {
       await sql`DELETE FROM institution_courses WHERE institution_id = ${institution_id}`;
     }
 
-    const allCourseLinks: { title: string; path: string }[] = [];
+    // Step 1: fetch all 8 school pages in parallel
+    const schoolHtmls = await Promise.all(
+      SCHOOL_PATHS.map(p => fetchHtml(`${BASE}${p}`))
+    );
 
-    // Step 1: collect course links from all school pages
-    for (const schoolPath of SCHOOL_PATHS) {
-      const html = await fetchHtml(`${BASE}${schoolPath}`);
-      if (!html) continue;
-      const links = extractCourseLinks(html);
-      allCourseLinks.push(...links);
-      await new Promise(r => setTimeout(r, 300)); // polite delay
+    const allCourseLinks: { title: string; path: string }[] = [];
+    for (const html of schoolHtmls) {
+      if (html) allCourseLinks.push(...extractCourseLinks(html));
     }
 
     // Deduplicate by URL
@@ -144,11 +134,11 @@ export async function POST(request: Request) {
     let inserted = 0;
     const errors: string[] = [];
 
-    // Step 2: scrape each course page
-    for (const course of unique) {
+    // Step 2: fetch all course detail pages in parallel batches of 6
+    await parallelLimit(unique, 6, async (course) => {
       try {
         const html = await fetchHtml(course.path);
-        if (!html) { errors.push(`Failed to fetch: ${course.path}`); continue; }
+        if (!html) { errors.push(`Failed: ${course.path}`); return; }
 
         const { title, description, duration, skills } = extractCourseDetail(html, course.title);
 
@@ -162,11 +152,10 @@ export async function POST(request: Request) {
             skills_covered = EXCLUDED.skills_covered
         `;
         inserted++;
-        await new Promise(r => setTimeout(r, 400)); // polite delay
       } catch (err) {
         errors.push(`${course.path}: ${err instanceof Error ? err.message : 'error'}`);
       }
-    }
+    });
 
     return Response.json({
       data: { inserted, total: unique.length, skipped: unique.length - inserted, errors: errors.slice(0, 10) },
