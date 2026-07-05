@@ -22,6 +22,29 @@ export async function GET() {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const session = await getCurrentUser();
+    if (!session || session.role !== 'admin') {
+      return Response.json({ data: null, error: 'Admin access required' }, { status: 403 });
+    }
+    const { id, name } = await request.json() as { id: number; name: string };
+    if (!id || !name?.trim()) return Response.json({ data: null, error: 'id and name are required' }, { status: 400 });
+
+    const sql = db();
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const rows = await sql`
+      UPDATE institutions SET name = ${name.trim()}, slug = ${slug}
+      WHERE id = ${id}
+      RETURNING id, name, slug
+    `;
+    if (!rows.length) return Response.json({ data: null, error: 'Institution not found' }, { status: 404 });
+    return Response.json({ data: rows[0], error: null });
+  } catch (err) {
+    return Response.json({ data: null, error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getCurrentUser();

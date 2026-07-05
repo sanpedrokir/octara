@@ -95,6 +95,8 @@ export default function AdminPage() {
   const [instUploading, setInstUploading]         = useState(false);
   const [instReplaceAll, setInstReplaceAll]       = useState(false);
   const [newInstName, setNewInstName]             = useState('');
+  const [editingInstId, setEditingInstId]         = useState<number | null>(null);
+  const [editingInstName, setEditingInstName]     = useState('');
 
   // ESCO tab state
   type EscoOccRow   = { id: number; isco_group: string; sub_group: string | null; occupation_title: string; occupation_description: string | null; esco_uri: string | null };
@@ -392,6 +394,24 @@ export default function AdminPage() {
     const { data, error } = await res.json();
     if (error) showMsg(error, 'error');
     else { showMsg(`Institution "${data.name}" added`, 'success'); setNewInstName(''); loadInstitutions(); }
+  }
+
+  async function renameInstitution(id: number, name: string) {
+    if (!name.trim()) return;
+    const res = await fetch('/api/admin/institutions', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name: name.trim() }),
+    });
+    const { error } = await res.json();
+    if (error) showMsg(error, 'error');
+    else {
+      showMsg('Institution renamed', 'success');
+      setEditingInstId(null);
+      setEditingInstName('');
+      if (selectedInst?.id === id) setSelectedInst(prev => prev ? { ...prev, name: name.trim() } : prev);
+      loadInstitutions();
+    }
   }
 
   async function uploadInstCourses(e: React.FormEvent) {
@@ -1744,23 +1764,53 @@ export default function AdminPage() {
                   <div className="card p-6 text-center text-sm" style={{ color: 'var(--muted)' }}>No institutions yet.</div>
                 )}
                 {institutions.map(inst => (
-                  <button
+                  <div
                     key={inst.id}
-                    onClick={() => { setSelectedInst(inst); loadInstCourses(inst.id); }}
-                    className="card p-4 w-full text-left transition-all"
+                    className="card p-4 transition-all"
                     style={{
                       border: selectedInst?.id === inst.id ? '2px solid #0d9488' : '1.5px solid var(--card-border)',
                       background: selectedInst?.id === inst.id ? '#f0fdfa' : 'var(--card-bg)',
                     }}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{inst.name}</p>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: '#ccfbf1', color: '#0d9488' }}>
-                        {inst.course_count} course{inst.course_count !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    {inst.slug && <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{inst.slug}</p>}
-                  </button>
+                    {editingInstId === inst.id ? (
+                      <form
+                        onSubmit={e => { e.preventDefault(); renameInstitution(inst.id, editingInstName); }}
+                        className="flex gap-2"
+                      >
+                        <input
+                          className="input flex-1 text-sm py-1"
+                          value={editingInstName}
+                          onChange={e => setEditingInstName(e.target.value)}
+                          autoFocus
+                          required
+                        />
+                        <button type="submit" className="btn-primary text-xs px-3" style={{ background: '#0d9488', borderColor: '#0d9488' }}>Save</button>
+                        <button type="button" onClick={() => setEditingInstId(null)} className="btn-secondary text-xs px-3">Cancel</button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          className="flex-1 text-left min-w-0"
+                          onClick={() => { setSelectedInst(inst); loadInstCourses(inst.id); }}
+                        >
+                          <p className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{inst.name}</p>
+                          {inst.slug && <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{inst.slug}</p>}
+                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#ccfbf1', color: '#0d9488' }}>
+                            {inst.course_count} course{inst.course_count !== 1 ? 's' : ''}
+                          </span>
+                          <button
+                            onClick={() => { setEditingInstId(inst.id); setEditingInstName(inst.name); }}
+                            className="text-xs px-2 py-0.5 rounded font-medium"
+                            style={{ background: 'var(--muted-bg)', color: 'var(--muted)', border: '1px solid var(--card-border)' }}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
