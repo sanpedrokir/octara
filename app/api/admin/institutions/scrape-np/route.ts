@@ -120,6 +120,9 @@ export async function POST(request: Request) {
 
     const sql = db();
 
+    // Ensure unique constraint exists so re-scraping doesn't create duplicates
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_inst_courses_url ON institution_courses(institution_id, url)`;
+
     if (replace_all) {
       await sql`DELETE FROM institution_courses WHERE institution_id = ${institution_id}`;
     }
@@ -152,7 +155,11 @@ export async function POST(request: Request) {
         await sql`
           INSERT INTO institution_courses (institution_id, title, description, url, duration, skills_covered)
           VALUES (${institution_id}, ${title}, ${description}, ${course.path}, ${duration}, ${skills})
-          ON CONFLICT DO NOTHING
+          ON CONFLICT (institution_id, url) DO UPDATE SET
+            title = EXCLUDED.title,
+            description = EXCLUDED.description,
+            duration = EXCLUDED.duration,
+            skills_covered = EXCLUDED.skills_covered
         `;
         inserted++;
         await new Promise(r => setTimeout(r, 400)); // polite delay

@@ -99,6 +99,7 @@ export default function AdminPage() {
   const [editingInstName, setEditingInstName]     = useState('');
   const [npScraping, setNpScraping]               = useState(false);
   const [npReplaceAll, setNpReplaceAll]           = useState(false);
+  const [npScrapeResult, setNpScrapeResult]       = useState<{ inserted: number; total: number } | null>(null);
 
   // ESCO tab state
   type EscoOccRow   = { id: number; isco_group: string; sub_group: string | null; occupation_title: string; occupation_description: string | null; esco_uri: string | null };
@@ -1935,6 +1936,11 @@ export default function AdminPage() {
                           Fetches all full-time diploma courses directly from np.edu.sg — title, description, duration, and skills. Takes ~2 minutes.
                         </p>
                       </div>
+                      {npScrapeResult && (
+                        <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
+                          ✅ Scrape complete — {npScrapeResult.inserted} courses imported ({npScrapeResult.total} found on NP website). See course list below.
+                        </div>
+                      )}
                       <label className="flex items-center gap-2 cursor-pointer text-sm" style={{ color: 'var(--foreground)' }}>
                         <input type="checkbox" checked={npReplaceAll} onChange={e => setNpReplaceAll(e.target.checked)} />
                         Replace all existing courses before importing
@@ -1953,7 +1959,7 @@ export default function AdminPage() {
                           setNpScraping(false);
                           if (error) showMsg(error, 'error');
                           else {
-                            showMsg(`✅ Scraped ${data.inserted} of ${data.total} courses from NP website${data.errors?.length ? ` (${data.errors.length} errors)` : ''}`, 'success');
+                            setNpScrapeResult({ inserted: data.inserted, total: data.total });
                             loadInstCourses(selectedInst.id);
                             loadInstitutions();
                           }
