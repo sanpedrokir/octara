@@ -1924,6 +1924,50 @@ export default function AdminPage() {
                     </form>
                   </div>
 
+                  {/* NP scraper — shown only for Ngee Ann Polytechnic */}
+                  {/ngee ann/i.test(selectedInst.name) && (() => {
+                    const [npScraping, setNpScraping] = useState(false);
+                    const [npReplaceAll, setNpReplaceAll] = useState(false);
+                    return (
+                      <div className="card p-5 space-y-3" style={{ border: '1.5px solid #fde68a', background: '#fffbeb' }}>
+                        <div>
+                          <h4 className="font-semibold text-sm" style={{ color: '#92400e' }}>🕷 Auto-Scrape from NP Website</h4>
+                          <p className="text-xs mt-1" style={{ color: '#78350f' }}>
+                            Fetches all full-time diploma courses directly from np.edu.sg — title, description, duration, and skills. Takes ~2 minutes.
+                          </p>
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm" style={{ color: 'var(--foreground)' }}>
+                          <input type="checkbox" checked={npReplaceAll} onChange={e => setNpReplaceAll(e.target.checked)} />
+                          Replace all existing courses before importing
+                        </label>
+                        <button
+                          disabled={npScraping}
+                          onClick={async () => {
+                            if (!confirm('This will fetch course data from np.edu.sg. It may take up to 2 minutes. Continue?')) return;
+                            setNpScraping(true);
+                            const res = await fetch('/api/admin/institutions/scrape-np', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ institution_id: selectedInst.id, replace_all: npReplaceAll }),
+                            });
+                            const { data, error } = await res.json();
+                            setNpScraping(false);
+                            if (error) showMsg(error, 'error');
+                            else {
+                              showMsg(`✅ Scraped ${data.inserted} of ${data.total} courses from NP website${data.errors?.length ? ` (${data.errors.length} errors)` : ''}`, 'success');
+                              loadInstCourses(selectedInst.id);
+                              loadInstitutions();
+                            }
+                          }}
+                          className="btn-primary text-sm"
+                          style={{ background: '#d97706', borderColor: '#d97706', opacity: npScraping ? 0.6 : 1 }}
+                        >
+                          {npScraping ? '⏳ Scraping NP website…' : '🕷 Scrape NP Courses'}
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                   {/* Course list */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
