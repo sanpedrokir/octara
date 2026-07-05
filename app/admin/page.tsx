@@ -166,6 +166,7 @@ export default function AdminPage() {
     const res = await fetch('/api/admin/init-db', { method: 'POST' });
     const { data, error } = await res.json();
     showMsg(error || data?.message || 'Done', error ? 'error' : 'success');
+    if (!error) setDbInitDone(true);
     setLoading(false);
   }
 
@@ -688,6 +689,7 @@ export default function AdminPage() {
   }
 
   const [syncSuccess, setSyncSuccess] = useState(false);
+  const [dbInitDone, setDbInitDone]   = useState(false);
   type SkillEntry = { status: number; ok: boolean; snippet: string; error?: string };
   const [ssgDiag, setSsgDiag] = useState<{ hasCredentials: boolean; hasToken: boolean; tokenStatus: number; tokenError?: string; skillResults: Record<string, SkillEntry> } | null>(null);
 
@@ -979,6 +981,11 @@ export default function AdminPage() {
                   <h4 className="font-semibold" style={{ color: 'var(--foreground)' }}>Database Schema</h4>
                   <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Run once during setup or after a schema change to initialise all tables.</p>
                 </div>
+                {dbInitDone && (
+                  <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
+                    ✅ Schema initialised successfully
+                  </div>
+                )}
                 <button onClick={initDb} disabled={loading} className="btn-secondary text-sm w-full">
                   {loading ? 'Running…' : '📋 Initialise Schema'}
                 </button>
