@@ -555,4 +555,11 @@ CREATE INDEX IF NOT EXISTS idx_inst_courses_institution ON institution_courses(i
 CREATE INDEX IF NOT EXISTS idx_inst_courses_active ON institution_courses(institution_id, is_active);
 
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS institution_id INTEGER REFERENCES institutions(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS salary_cache (
+  id         SERIAL PRIMARY KEY,
+  role_key   VARCHAR(500) NOT NULL UNIQUE,
+  data       JSONB NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
 `;

@@ -22,6 +22,7 @@ interface SalaryData {
   market_outlook: string;
   data_source: 'mcf' | 'gpt';
   listing_count: number;
+  cached?: boolean;
 }
 
 function fmt(n: number) {
@@ -96,12 +97,18 @@ export default function SalaryBenchmarkPage() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Monthly Salary Ranges (SGD)</h2>
           {data.data_source === 'mcf' ? (
-            <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
-              📡 {data.listing_count} live MCF listings
-            </span>
+            <a
+              href="https://www.mycareersfuture.gov.sg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs px-2.5 py-1 rounded-full font-medium no-underline"
+              style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}
+            >
+              📡 {data.listing_count} live listings · MyCareersFuture ↗
+            </a>
           ) : (
             <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
-              AI estimate due to lack of actual data
+              AI estimate — no live MCF listings found
             </span>
           )}
         </div>

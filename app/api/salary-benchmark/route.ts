@@ -5,11 +5,12 @@ import OpenAI from 'openai';
 export const maxDuration = 30;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const CACHE_TTL_DAYS = 7;
+
 interface McfJob {
   salary?: { minimum?: number; maximum?: number };
   minimumYearsExperience?: number;
 }
-
 interface McfResponse {
   total?: number;
   results?: McfJob[];
@@ -20,21 +21,14 @@ async function fetchMcfSalaries(role: string, sector: string) {
   const url = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(query)}&limit=20`;
   try {
     const res = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; OctaraBot/1.0)',
-      },
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; OctaraBot/1.0)' },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return [];
     const data = await res.json() as McfResponse;
     return (data.results ?? [])
       .filter(j => j.salary?.minimum && j.salary?.maximum)
-      .map(j => ({
-        min: j.salary!.minimum!,
-        max: j.salary!.maximum!,
-        expYears: j.minimumYearsExperience ?? null,
-      }));
+      .map(j => ({ min: j.salary!.minimum!, max: j.salary!.maximum!, expYears: j.minimumYearsExperience ?? null }));
   } catch {
     return [];
   }
@@ -62,23 +56,41 @@ export async function GET() {
 
     const role   = career.role   || career.sector || '';
     const sector = career.sector || '';
+    const roleKey = `${role}::${sector}`.toLowerCase().trim();
 
-    // ── Step 1: fetch real salary data from MCF ──────────────────────────────
+    // ── Check cache ──────────────────────────────────────────────────────────
+    await sql`CREATE TABLE IF NOT EXISTS salary_cache (
+      id SERIAL PRIMARY KEY, role_key VARCHAR(500) NOT NULL UNIQUE,
+      data JSONB NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )`;
+
+    const cutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const cached = await sql`
+      SELECT data, created_at FROM salary_cache
+      WHERE role_key = ${roleKey}
+        AND created_at > ${cutoff}
+      LIMIT 1
+    ` as Array<{ data: Record<string, unknown>; created_at: string }>;
+
+    if (cached.length > 0) {
+      return Response.json({ data: { ...cached[0].data, cached: true }, error: null });
+    }
+
+    // ── Fetch fresh data ─────────────────────────────────────────────────────
     const mcfSalaries = await fetchMcfSalaries(role, sector);
     const hasMcfData  = mcfSalaries.length >= 3;
 
-    // ── Step 2: build GPT prompt — grounded in real data when available ──────
     let mcfContext = '';
     if (hasMcfData) {
       const lines = mcfSalaries.map(s => {
-        const exp = s.expYears !== null ? ` (min ${s.expYears} yrs exp required)` : '';
+        const exp = s.expYears !== null ? ` (min ${s.expYears} yrs exp)` : '';
         return `S$${s.min}–S$${s.max}/mo${exp}`;
       }).join('\n');
       mcfContext = `
 REAL SALARY DATA from ${mcfSalaries.length} live MyCareersFuture job listings for "${role}"${sector ? ` in ${sector}` : ''}:
 ${lines}
 
-You MUST use these actual figures as the basis for the salary bands. Structure them into Entry/Mid/Senior bands using the experience years where provided, or by salary level (lower = entry, higher = senior) where not. Do not invent numbers outside this range.
+You MUST use these actual figures as the basis. Structure into Entry/Mid/Senior bands using experience years where provided. Do not invent numbers outside this range.
 `;
     }
 
@@ -113,14 +125,21 @@ Return JSON (all salary values are MONTHLY SGD):
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: hasMcfData ? 0.1 : 0.2,
+      temperature: 0, // zero temperature = deterministic, no more value drift
     });
 
     const result = JSON.parse(completion.choices[0].message.content ?? '{}') as Record<string, unknown>;
-    result.data_source    = hasMcfData ? 'mcf' : 'gpt';
-    result.listing_count  = mcfSalaries.length;
+    result.data_source   = hasMcfData ? 'mcf' : 'gpt';
+    result.listing_count = mcfSalaries.length;
 
-    return Response.json({ data: result, error: null });
+    // ── Store in cache ───────────────────────────────────────────────────────
+    await sql`
+      INSERT INTO salary_cache (role_key, data)
+      VALUES (${roleKey}, ${JSON.stringify(result)})
+      ON CONFLICT (role_key) DO UPDATE SET data = EXCLUDED.data, created_at = NOW()
+    `;
+
+    return Response.json({ data: { ...result, cached: false }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch salary data';
     return Response.json({ data: null, error: msg }, { status: 500 });
