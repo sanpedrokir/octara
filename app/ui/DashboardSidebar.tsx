@@ -34,7 +34,6 @@ const navSections: { label: string; items: NavItem[] }[] = [
     items: [
       { href: '/career-coach',     label: 'Career Coach',        icon: '🎓' },
       { href: '/interview-prep',   label: 'Interview Prep',      icon: '🎤' },
-      { href: '/learning-roadmap', label: 'Learning Roadmap',    icon: '🗺️' },
       { href: '/skill-quiz',       label: 'Work Knowledge Quiz', icon: '🧠' },
     ],
   },

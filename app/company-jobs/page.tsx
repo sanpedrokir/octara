@@ -140,14 +140,26 @@ const MODE_CONFIG: Record<Mode, { icon: string; label: string; placeholder: stri
   },
 };
 
+const SALARY_OPTIONS = [
+  { label: 'Any salary', value: 0 },
+  { label: '≥ S$2,000',  value: 2000 },
+  { label: '≥ S$3,000',  value: 3000 },
+  { label: '≥ S$4,000',  value: 4000 },
+  { label: '≥ S$5,000',  value: 5000 },
+  { label: '≥ S$6,000',  value: 6000 },
+  { label: '≥ S$8,000',  value: 8000 },
+  { label: '≥ S$10,000', value: 10000 },
+];
+
 export default function CompanyJobsPage() {
-  const [data, setData]       = useState<ApiData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
-  const [mode, setMode]       = useState<Mode>('company');
-  const [search, setSearch]   = useState('');
-  const [query, setQuery]     = useState('');
-  const debounceRef           = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [data, setData]         = useState<ApiData | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [mode, setMode]         = useState<Mode>('company');
+  const [search, setSearch]     = useState('');
+  const [query, setQuery]       = useState('');
+  const [minSalary, setMinSalary] = useState(0);
+  const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (q: string, m: Mode) => {
     if (!q.trim()) { setData(null); setLoading(false); return; }
@@ -179,10 +191,21 @@ export default function CompanyJobsPage() {
     setMode(m);
     setSearch('');
     setQuery('');
+    setMinSalary(0);
   }
 
   const cfg = MODE_CONFIG[mode];
   const isSearching = query.length > 0;
+
+  // Apply salary filter client-side
+  const filteredGroups = (data?.grouped ?? [])
+    .map(g => ({
+      ...g,
+      jobs: minSalary > 0
+        ? g.jobs.filter(j => j.salaryMax !== null && j.salaryMax >= minSalary)
+        : g.jobs,
+    }))
+    .filter(g => g.jobs.length > 0);
 
   return (
     <div className="space-y-5 animate-fade-in max-w-2xl">
@@ -238,6 +261,27 @@ export default function CompanyJobsPage() {
         )}
       </div>
 
+      {/* Salary filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>💰 Min salary:</span>
+        <div className="flex flex-wrap gap-1.5">
+          {SALARY_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setMinSalary(opt.value)}
+              className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+              style={{
+                background: minSalary === opt.value ? 'var(--primary)' : 'var(--muted-bg)',
+                color: minSalary === opt.value ? 'white' : 'var(--muted)',
+                border: minSalary === opt.value ? '1px solid var(--primary)' : '1px solid var(--card-border)',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Context hint when no search entered */}
       {!isSearching && !loading && (
         <div className="rounded-lg px-3 py-2 text-xs" style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd' }}>
@@ -252,15 +296,15 @@ export default function CompanyJobsPage() {
       {data && !loading && isSearching && (
         <p className="text-xs" style={{ color: 'var(--muted)' }}>
           {mode === 'role'
-            ? <><strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> {data.grouped.length === 1 ? 'company is' : 'companies are'} hiring for &ldquo;{query}&rdquo;</>
-            : <><strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> {data.grouped.length === 1 ? 'company' : 'companies'} matched &ldquo;{query}&rdquo; · {data.grouped.reduce((s, g) => s + g.jobs.length, 0)} listing{data.grouped.reduce((s, g) => s + g.jobs.length, 0) !== 1 ? 's' : ''}</>
+            ? <><strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> {filteredGroups.length === 1 ? 'company is' : 'companies are'} hiring for &ldquo;{query}&rdquo;{minSalary > 0 ? ` with salary ≥ S$${minSalary.toLocaleString()}` : ''}</>
+            : <><strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> {filteredGroups.length === 1 ? 'company' : 'companies'} matched &ldquo;{query}&rdquo; · {filteredGroups.reduce((s, g) => s + g.jobs.length, 0)} listing{filteredGroups.reduce((s, g) => s + g.jobs.length, 0) !== 1 ? 's' : ''}</>
           }
         </p>
       )}
 
       {data && !loading && !isSearching && (
         <p className="text-xs" style={{ color: 'var(--muted)' }}>
-          Showing latest postings from <strong style={{ color: 'var(--foreground)' }}>{data.grouped.length}</strong> companies · <strong>{data.total.toLocaleString()}</strong> active listings on MCF
+          Showing latest postings from <strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> companies · <strong>{filteredGroups.reduce((s, g) => s + g.jobs.length, 0).toLocaleString()}</strong> listings{minSalary > 0 ? ` with salary ≥ S$${minSalary.toLocaleString()}` : ' on MCF'}
         </p>
       )}
 
@@ -281,18 +325,21 @@ export default function CompanyJobsPage() {
       )}
 
       {/* No results */}
-      {!loading && !error && data && data.grouped.length === 0 && isSearching && (
+      {!loading && !error && data && filteredGroups.length === 0 && (isSearching || minSalary > 0) && (
         <div className="card p-10 text-center space-y-2">
           <p className="text-3xl">{cfg.icon}</p>
-          <p className="font-medium" style={{ color: 'var(--foreground)' }}>{cfg.emptyMsg} &ldquo;{query}&rdquo;</p>
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>Try a different keyword or check spelling.</p>
+          <p className="font-medium" style={{ color: 'var(--foreground)' }}>
+            {isSearching ? `${cfg.emptyMsg} "${query}"` : 'No listings match this salary filter'}
+            {minSalary > 0 ? ` at ≥ S$${minSalary.toLocaleString()}/mo` : ''}
+          </p>
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>Try a different keyword or adjust the salary filter.</p>
         </div>
       )}
 
       {/* Company cards */}
-      {!loading && !error && data && data.grouped.length > 0 && (
+      {!loading && !error && data && filteredGroups.length > 0 && (
         <div className="space-y-4">
-          {data.grouped.map(group => (
+          {filteredGroups.map(group => (
             <CompanyCard key={group.company} group={group} mode={mode} />
           ))}
         </div>

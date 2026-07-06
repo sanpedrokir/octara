@@ -48,7 +48,10 @@ export async function GET(request: Request) {
 
     const role   = career.role   ?? career.sector ?? '';
     const sector = career.sector ?? '';
-    const query  = sector ? `${role} ${sector}` : role;
+    // MCF search breaks with slashes and overly specific combined queries.
+    // Use the first part of a slash-separated role; fall back to sector if role is empty.
+    const cleanRole = role.split(/\s*\/\s*/)[0].trim() || sector;
+    const query = cleanRole;
 
     const url = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(query)}&limit=10&page=${page}&sortBy=new_posting_date`;
     const res = await fetch(url, {
@@ -82,7 +85,7 @@ export async function GET(request: Request) {
     }));
 
     return Response.json({
-      data: { jobs, total, role, sector, page },
+      data: { jobs, total, role, sector, query, page },
       error: null,
     });
   } catch (err) {

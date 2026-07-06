@@ -24,6 +24,7 @@ interface JobsData {
   total: number;
   role: string;
   sector: string;
+  query: string;
   page: number;
 }
 
@@ -181,7 +182,7 @@ export default function JobsPage() {
         {data && (
           <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
             <strong style={{ color: 'var(--foreground)' }}>{data.total.toLocaleString()}</strong> live listings for{' '}
-            <strong style={{ color: 'var(--foreground)' }}>{data.role}</strong>
+            <strong style={{ color: 'var(--foreground)' }}>{data.query || data.role}</strong>
             {data.sector ? <> · {data.sector}</> : ''} on MyCareersFuture
           </p>
         )}

@@ -17,8 +17,8 @@ interface McfResponse {
 }
 
 async function fetchMcfSalaries(role: string, sector: string) {
-  const query = sector ? `${role} ${sector}` : role;
-  const url = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(query)}&limit=20`;
+  const cleanRole = role.split(/\s*\/\s*/)[0].trim() || sector;
+  const url = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(cleanRole)}&limit=20`;
   try {
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; OctaraBot/1.0)' },
