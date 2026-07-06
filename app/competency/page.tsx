@@ -171,14 +171,17 @@ export default function CompetencyPage() {
   // ── Remove CV ───────────────────────────────────────────────────────────────
   async function confirmRemoveCv() {
     setRemovingCv(true);
-    await fetch('/api/competency/profile?all=true', { method: 'DELETE' });
-    await fetch('/api/user/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clear_resume: true }),
-    });
+    if (userMeta?.resume_filename) {
+      // Saved CV — delete from DB
+      await fetch('/api/competency/profile?all=true', { method: 'DELETE' });
+      await fetch('/api/user/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clear_resume: true }),
+      });
+      setProfile([]);
+    }
     setUserMeta(prev => prev ? { ...prev, resume_filename: null, resume_uploaded_at: null } : prev);
-    setProfile([]);
     setExtracted([]);
     setFileName('');
     if (fileRef.current) {
@@ -383,14 +386,14 @@ export default function CompetencyPage() {
             <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 1 — Upload your CV</h2>
 
             {/* Previous CV info + Remove button */}
-            {userMeta?.resume_filename && !showReplaceConfirm && !showRemoveConfirm && (
+            {(userMeta?.resume_filename || fileName) && !showReplaceConfirm && !showRemoveConfirm && (
               <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid var(--card-border)' }}>
                 <span>📎</span>
                 <div className="flex-1 min-w-0">
                   <span className="font-medium truncate block text-sm" style={{ color: 'var(--foreground)' }}>
-                    {userMeta.resume_filename}
+                    {userMeta?.resume_filename || fileName}
                   </span>
-                  {userMeta.resume_uploaded_at && (
+                  {userMeta?.resume_uploaded_at && (
                     <span className="text-xs" style={{ color: 'var(--muted)' }}>
                       Uploaded {formatDate(userMeta.resume_uploaded_at)}
                     </span>
