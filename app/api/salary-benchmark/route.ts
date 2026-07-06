@@ -16,9 +16,37 @@ interface McfResponse {
   results?: McfJob[];
 }
 
+const MCF_SECTOR_MAP: Array<[RegExp, string]> = [
+  [/social.?serv/i,                    'Social Services'],
+  [/infocomm|information.?tech|i\.?t\b/i, 'Information Technology'],
+  [/health|pharma|medical|nursing/i,   'Healthcare / Pharmaceutical'],
+  [/engineering/i,                     'Engineering'],
+  [/manufacturing|production/i,        'Manufacturing'],
+  [/logistic|supply.?chain|warehouse/i,'Logistics / Supply Chain'],
+  [/banking|finance|financial/i,       'Banking and Finance'],
+  [/insurance/i,                       'Insurance'],
+  [/hospitality|tourism|hotel/i,       'Hospitality'],
+  [/legal|law/i,                       'Legal'],
+  [/admin|secretar/i,                  'Admin / Secretarial'],
+  [/f&b|food.?&.?bev|restaurant|catering/i, 'F&B'],
+  [/design|creative/i,                 'Design'],
+  [/human.?res|hr\b/i,                 'Human Resources'],
+  [/customer.?serv/i,                  'Customer Service'],
+];
+
+function toMcfCategory(sector: string): string | null {
+  for (const [pattern, mcfValue] of MCF_SECTOR_MAP) {
+    if (pattern.test(sector)) return mcfValue;
+  }
+  return null;
+}
+
 async function fetchMcfSalaries(role: string, sector: string) {
-  const cleanRole = role.split(/\s*\/\s*/)[0].trim() || sector;
-  const url = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(cleanRole)}&limit=20`;
+  const cleanRole   = role.split(/\s*\/\s*/)[0].trim() || sector;
+  const mcfCategory = sector ? toMcfCategory(sector) : null;
+  const params      = new URLSearchParams({ search: cleanRole, limit: '20' });
+  if (mcfCategory) params.set('categories', mcfCategory);
+  const url = `https://api.mycareersfuture.gov.sg/v2/jobs?${params}`;
   try {
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; OctaraBot/1.0)' },

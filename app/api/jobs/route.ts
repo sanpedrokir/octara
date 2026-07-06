@@ -24,6 +24,33 @@ interface McfResponse {
   results?: McfJob[];
 }
 
+// Enum values accepted by MCF API v2 for the `categories` query param.
+// Probed empirically — MCF returns 400 for any value not in this list.
+const MCF_SECTOR_MAP: Array<[RegExp, string]> = [
+  [/social.?serv/i,                    'Social Services'],
+  [/infocomm|information.?tech|i\.?t\b/i, 'Information Technology'],
+  [/health|pharma|medical|nursing/i,   'Healthcare / Pharmaceutical'],
+  [/engineering/i,                     'Engineering'],
+  [/manufacturing|production/i,        'Manufacturing'],
+  [/logistic|supply.?chain|warehouse/i,'Logistics / Supply Chain'],
+  [/banking|finance|financial/i,       'Banking and Finance'],
+  [/insurance/i,                       'Insurance'],
+  [/hospitality|tourism|hotel/i,       'Hospitality'],
+  [/legal|law/i,                       'Legal'],
+  [/admin|secretar/i,                  'Admin / Secretarial'],
+  [/f&b|food.?&.?bev|restaurant|catering/i, 'F&B'],
+  [/design|creative/i,                 'Design'],
+  [/human.?res|hr\b/i,                 'Human Resources'],
+  [/customer.?serv/i,                  'Customer Service'],
+];
+
+function toMcfCategory(sector: string): string | null {
+  for (const [pattern, mcfValue] of MCF_SECTOR_MAP) {
+    if (pattern.test(sector)) return mcfValue;
+  }
+  return null;
+}
+
 export async function GET(request: Request) {
   try {
     const session = await requireAuth();
@@ -48,15 +75,25 @@ export async function GET(request: Request) {
 
     const role   = career.role   ?? career.sector ?? '';
     const sector = career.sector ?? '';
-    // MCF search breaks with slashes and overly specific combined queries.
-    // Use the first part of a slash-separated role; fall back to sector if role is empty.
-    const cleanRole = role.split(/\s*\/\s*/)[0].trim() || sector;
-    const query = cleanRole;
 
-    const url = `https://api.mycareersfuture.gov.sg/v2/jobs?search=${encodeURIComponent(query)}&limit=10&page=${page}&sortBy=new_posting_date`;
+    // Clean role: strip slash-alternatives (MCF search breaks on "/")
+    const cleanRole = role.split(/\s*\/\s*/)[0].trim() || sector;
+
+    // Map sector to MCF category enum value for precise filtering
+    const mcfCategory = sector ? toMcfCategory(sector) : null;
+
+    const params = new URLSearchParams({
+      search: cleanRole,
+      limit:  '10',
+      page:   String(page),
+      sortBy: 'new_posting_date',
+    });
+    if (mcfCategory) params.set('categories', mcfCategory);
+
+    const url = `https://api.mycareersfuture.gov.sg/v2/jobs?${params}`;
     const res = await fetch(url, {
       headers: {
-        'Accept': 'application/json',
+        'Accept':     'application/json',
         'User-Agent': 'Mozilla/5.0 (compatible; OctaraBot/1.0)',
       },
       signal: AbortSignal.timeout(10000),
@@ -66,22 +103,23 @@ export async function GET(request: Request) {
       return Response.json({ data: null, error: 'Failed to fetch job listings.' }, { status: 502 });
     }
 
-    const raw = await res.json() as McfResponse;
+    const raw   = await res.json() as McfResponse;
     const total = raw.total ?? 0;
+    const query = cleanRole + (mcfCategory ? ` · ${mcfCategory}` : '');
 
     const jobs = (raw.results ?? []).map(j => ({
-      uuid:        j.uuid,
-      title:       j.title ?? 'Untitled',
-      company:     j.postedCompany?.name ?? 'Unknown Company',
-      salaryMin:   j.salary?.minimum ?? null,
-      salaryMax:   j.salary?.maximum ?? null,
-      expYears:    j.minimumYearsExperience ?? null,
-      postedDate:  j.metadata?.newPostingDate ?? null,
-      expiryDate:  j.metadata?.expiryDate ?? null,
-      empType:     j.employmentTypes?.[0]?.employmentType ?? null,
-      posLevel:    j.positionLevels?.[0]?.position ?? null,
-      views:       j.metadata?.totalNumberOfView ?? null,
-      url:         j.metadata?.jobDetailsUrl ?? `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
+      uuid:       j.uuid,
+      title:      j.title ?? 'Untitled',
+      company:    j.postedCompany?.name ?? 'Unknown Company',
+      salaryMin:  j.salary?.minimum ?? null,
+      salaryMax:  j.salary?.maximum ?? null,
+      expYears:   j.minimumYearsExperience ?? null,
+      postedDate: j.metadata?.newPostingDate ?? null,
+      expiryDate: j.metadata?.expiryDate ?? null,
+      empType:    j.employmentTypes?.[0]?.employmentType ?? null,
+      posLevel:   j.positionLevels?.[0]?.position ?? null,
+      views:      j.metadata?.totalNumberOfView ?? null,
+      url:        j.metadata?.jobDetailsUrl ?? `https://www.mycareersfuture.gov.sg/job/${j.uuid}`,
     }));
 
     return Response.json({
