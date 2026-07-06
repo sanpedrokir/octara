@@ -140,15 +140,17 @@ const MODE_CONFIG: Record<Mode, { icon: string; label: string; placeholder: stri
   },
 };
 
-const SALARY_OPTIONS = [
-  { label: 'Any salary', value: 0 },
-  { label: '≥ S$2,000',  value: 2000 },
-  { label: '≥ S$3,000',  value: 3000 },
-  { label: '≥ S$4,000',  value: 4000 },
-  { label: '≥ S$5,000',  value: 5000 },
-  { label: '≥ S$6,000',  value: 6000 },
-  { label: '≥ S$8,000',  value: 8000 },
-  { label: '≥ S$10,000', value: 10000 },
+const SALARY_OPTIONS: Array<{ label: string; min: number; max: number | null }> = [
+  { label: 'Any salary',   min: 0,     max: null  },
+  { label: '≥ S$2,000',   min: 2000,  max: null  },
+  { label: '≥ S$3,000',   min: 3000,  max: null  },
+  { label: '≥ S$4,000',   min: 4000,  max: null  },
+  { label: '≥ S$5,000',   min: 5000,  max: null  },
+  { label: '≥ S$6,000',   min: 6000,  max: null  },
+  { label: '≥ S$8,000',   min: 8000,  max: null  },
+  { label: '≥ S$10,000',  min: 10000, max: null  },
+  { label: 'S$10K–S$15K', min: 10000, max: 15000 },
+  { label: 'S$20K–S$25K', min: 20000, max: 25000 },
 ];
 
 export default function CompanyJobsPage() {
@@ -158,7 +160,7 @@ export default function CompanyJobsPage() {
   const [mode, setMode]         = useState<Mode>('company');
   const [search, setSearch]     = useState('');
   const [query, setQuery]       = useState('');
-  const [minSalary, setMinSalary] = useState(0);
+  const [salaryOpt, setSalaryOpt] = useState(0); // index into SALARY_OPTIONS
   const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (q: string, m: Mode) => {
@@ -191,19 +193,25 @@ export default function CompanyJobsPage() {
     setMode(m);
     setSearch('');
     setQuery('');
-    setMinSalary(0);
+    setSalaryOpt(0);
   }
 
   const cfg = MODE_CONFIG[mode];
   const isSearching = query.length > 0;
 
   // Apply salary filter client-side
+  const opt = SALARY_OPTIONS[salaryOpt] ?? SALARY_OPTIONS[0];
   const filteredGroups = (data?.grouped ?? [])
     .map(g => ({
       ...g,
-      jobs: minSalary > 0
-        ? g.jobs.filter(j => j.salaryMax !== null && j.salaryMax >= minSalary)
-        : g.jobs,
+      jobs: opt.min === 0 && opt.max === null
+        ? g.jobs
+        : g.jobs.filter(j => {
+            if (j.salaryMax === null) return false;
+            if (j.salaryMax < opt.min) return false;
+            if (opt.max !== null && (j.salaryMin ?? j.salaryMax) > opt.max) return false;
+            return true;
+          }),
     }))
     .filter(g => g.jobs.length > 0);
 
@@ -265,18 +273,18 @@ export default function CompanyJobsPage() {
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>💰 Min salary:</span>
         <div className="flex flex-wrap gap-1.5">
-          {SALARY_OPTIONS.map(opt => (
+          {SALARY_OPTIONS.map((o, i) => (
             <button
-              key={opt.value}
-              onClick={() => setMinSalary(opt.value)}
+              key={i}
+              onClick={() => setSalaryOpt(i)}
               className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
               style={{
-                background: minSalary === opt.value ? 'var(--primary)' : 'var(--muted-bg)',
-                color: minSalary === opt.value ? 'white' : 'var(--muted)',
-                border: minSalary === opt.value ? '1px solid var(--primary)' : '1px solid var(--card-border)',
+                background: salaryOpt === i ? 'var(--primary)' : 'var(--muted-bg)',
+                color: salaryOpt === i ? 'white' : 'var(--muted)',
+                border: salaryOpt === i ? '1px solid var(--primary)' : '1px solid var(--card-border)',
               }}
             >
-              {opt.label}
+              {o.label}
             </button>
           ))}
         </div>
@@ -296,7 +304,7 @@ export default function CompanyJobsPage() {
       {data && !loading && isSearching && (
         <p className="text-xs" style={{ color: 'var(--muted)' }}>
           {mode === 'role'
-            ? <><strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> {filteredGroups.length === 1 ? 'company is' : 'companies are'} hiring for &ldquo;{query}&rdquo;{minSalary > 0 ? ` with salary ≥ S$${minSalary.toLocaleString()}` : ''}</>
+            ? <><strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> {filteredGroups.length === 1 ? 'company is' : 'companies are'} hiring for &ldquo;{query}&rdquo;{opt.min > 0 ? ` · ${opt.label}` : ''}</>
             : <><strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> {filteredGroups.length === 1 ? 'company' : 'companies'} matched &ldquo;{query}&rdquo; · {filteredGroups.reduce((s, g) => s + g.jobs.length, 0)} listing{filteredGroups.reduce((s, g) => s + g.jobs.length, 0) !== 1 ? 's' : ''}</>
           }
         </p>
@@ -304,7 +312,7 @@ export default function CompanyJobsPage() {
 
       {data && !loading && !isSearching && (
         <p className="text-xs" style={{ color: 'var(--muted)' }}>
-          Showing latest postings from <strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> companies · <strong>{filteredGroups.reduce((s, g) => s + g.jobs.length, 0).toLocaleString()}</strong> listings{minSalary > 0 ? ` with salary ≥ S$${minSalary.toLocaleString()}` : ' on MCF'}
+          Showing latest postings from <strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> companies · <strong>{filteredGroups.reduce((s, g) => s + g.jobs.length, 0).toLocaleString()}</strong> listings{opt.min > 0 ? ` · ${opt.label}` : ' on MCF'}
         </p>
       )}
 
@@ -325,14 +333,21 @@ export default function CompanyJobsPage() {
       )}
 
       {/* No results */}
-      {!loading && !error && data && filteredGroups.length === 0 && (isSearching || minSalary > 0) && (
+      {!loading && !error && data && filteredGroups.length === 0 && (isSearching || opt.min > 0) && (
         <div className="card p-10 text-center space-y-2">
           <p className="text-3xl">{cfg.icon}</p>
           <p className="font-medium" style={{ color: 'var(--foreground)' }}>
             {isSearching ? `${cfg.emptyMsg} "${query}"` : 'No listings match this salary filter'}
-            {minSalary > 0 ? ` at ≥ S$${minSalary.toLocaleString()}/mo` : ''}
+            {opt.min > 0 ? ` · ${opt.label}` : ''}
           </p>
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>Try a different keyword or adjust the salary filter.</p>
+          {mode === 'company' && isSearching && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              Searching for a job role? Switch to <strong>By Job Role</strong> mode above.
+            </p>
+          )}
+          {mode !== 'company' && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>Try a different keyword or adjust the salary filter.</p>
+          )}
         </div>
       )}
 
