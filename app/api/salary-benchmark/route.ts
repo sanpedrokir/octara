@@ -64,7 +64,7 @@ export async function GET() {
       data JSONB NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )`;
 
-    const cutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const cutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
     const cached = await sql`
       SELECT data, created_at FROM salary_cache
       WHERE role_key = ${roleKey}
