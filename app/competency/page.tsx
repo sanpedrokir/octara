@@ -383,7 +383,7 @@ export default function CompetencyPage() {
             <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 1 — Upload your CV</h2>
 
             {/* Previous CV info + Remove button */}
-            {userMeta?.resume_filename && extracted.length === 0 && !showReplaceConfirm && (
+            {userMeta?.resume_filename && !showReplaceConfirm && !showRemoveConfirm && (
               <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid var(--card-border)' }}>
                 <span>📎</span>
                 <div className="flex-1 min-w-0">

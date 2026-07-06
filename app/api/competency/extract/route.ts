@@ -9,6 +9,7 @@ async function extractFromText(openai: OpenAI, text: string, sourceLabel: string
   const res = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
+    temperature: 0,
     max_tokens: 3000,
     messages: [{
       role: 'user',
