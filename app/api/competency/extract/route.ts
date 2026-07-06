@@ -2,6 +2,7 @@ import { requireAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import OpenAI from 'openai';
 import { Agent, fetch as undiciFetch } from 'undici';
+import { createHash } from 'crypto';
 
 type Skill = { skill: string; proficiency: string; category: string };
 
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     let resumeText = '';
     let linkedInText = '';
     let resumeFilename: string | null = null;
+    let contentHash: string | null = null;
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
@@ -65,6 +67,7 @@ export async function POST(request: Request) {
       if (text?.trim()) {
         resumeText = text.trim();
         resumeFilename = 'pasted text';
+        contentHash = createHash('sha256').update(resumeText).digest('hex').slice(0, 32);
       } else if (file) {
         resumeFilename = file.name;
         if (file.name.endsWith('.pdf')) {
@@ -72,17 +75,22 @@ export async function POST(request: Request) {
           const pdfParseModule: any = await import('pdf-parse/lib/pdf-parse');
           const pdfParse = pdfParseModule.default ?? pdfParseModule;
           const buffer = Buffer.from(await file.arrayBuffer());
+          contentHash = createHash('sha256').update(buffer).digest('hex').slice(0, 32);
           const parsed = await pdfParse(buffer);
           resumeText = parsed.text;
         } else {
           resumeText = await file.text();
+          contentHash = createHash('sha256').update(resumeText).digest('hex').slice(0, 32);
         }
       }
     } else {
       const body = await request.json() as { text?: string; linkedInText?: string };
       resumeText = body.text?.trim() ?? '';
       linkedInText = body.linkedInText?.trim() ?? '';
-      if (resumeText) resumeFilename = 'pasted text';
+      if (resumeText) {
+        resumeFilename = 'pasted text';
+        contentHash = createHash('sha256').update(resumeText).digest('hex').slice(0, 32);
+      }
     }
 
     if (!resumeFilename && linkedInText) resumeFilename = 'LinkedIn profile';
@@ -96,6 +104,60 @@ export async function POST(request: Request) {
       return Response.json({ data: null, error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
+    const sql = db();
+
+    // ── Ensure schema ────────────────────────────────────────────────────────
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_content_hash TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_filename TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_uploaded_at TIMESTAMPTZ`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_competencies (
+        id                SERIAL PRIMARY KEY,
+        user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        skill_title       TEXT NOT NULL,
+        skill_code        TEXT,
+        proficiency_level TEXT NOT NULL DEFAULT 'intermediate',
+        category          TEXT,
+        source            TEXT NOT NULL DEFAULT 'manual',
+        ssg_matched       BOOLEAN NOT NULL DEFAULT false,
+        ssg_sector        TEXT,
+        created_at        TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, skill_title)
+      )
+    `;
+
+    // ── Cache hit: same file content — skip GPT, return existing results ─────
+    if (contentHash) {
+      const [userRow] = await sql`
+        SELECT resume_content_hash FROM users WHERE id = ${session.userId}
+      ` as Array<{ resume_content_hash: string | null }>;
+
+      if (userRow?.resume_content_hash === contentHash) {
+        const existing = await sql`
+          SELECT skill_title, proficiency_level, category, ssg_matched, skill_code, ssg_sector
+          FROM user_competencies
+          WHERE user_id = ${session.userId} AND source = 'resume'
+          ORDER BY skill_title
+        ` as Array<{ skill_title: string; proficiency_level: string; category: string | null; ssg_matched: boolean; skill_code: string | null; ssg_sector: string | null }>;
+
+        const competencies: Skill[] = existing.map(r => ({
+          skill: r.skill_title,
+          proficiency: r.proficiency_level,
+          category: r.category ?? 'domain',
+        }));
+
+        const ssgMatches: Record<string, { skill_title: string; skill_code: string | null; sector: string | null }[]> = {};
+        for (const r of existing) {
+          if (r.ssg_matched) {
+            ssgMatches[r.skill_title] = [{ skill_title: r.skill_title, skill_code: r.skill_code, sector: r.ssg_sector }];
+          }
+        }
+
+        return Response.json({ data: { competencies, ssgMatches, saved: competencies.length, cached: true }, error: null });
+      }
+    }
+
+    // ── Cache miss: new file — extract with GPT ──────────────────────────────
     const tlsAgent = new Agent({ connect: { rejectUnauthorized: false } });
     const openai = new OpenAI({
       apiKey,
@@ -103,8 +165,6 @@ export async function POST(request: Request) {
       fetch: (url, init) => undiciFetch(url as string, { ...(init as any), dispatcher: tlsAgent }) as unknown as Promise<Response>,
     });
 
-    // Run CV and LinkedIn extractions independently so neither truncates the other,
-    // then merge — LinkedIn can only ever ADD skills, never reduce the CV count.
     let competencies: Skill[];
     if (resumeText && linkedInText) {
       const [cvSkills, liSkills] = await Promise.all([
@@ -122,14 +182,12 @@ export async function POST(request: Request) {
       return Response.json({ data: { competencies: [], ssgMatches: {} }, error: null });
     }
 
-    // Match each competency against SSG Skills Framework only for SG users
-    const sql = db();
+    // ── SSG matching (SG users only) ─────────────────────────────────────────
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(2) DEFAULT 'SG'`;
-    const [userRow] = await sql`SELECT COALESCE(country, 'SG') AS country FROM users WHERE id = ${session.userId}` as Array<{ country: string }>;
-    const isSgUser = (userRow?.country ?? 'SG') === 'SG';
+    const [countryRow] = await sql`SELECT COALESCE(country, 'SG') AS country FROM users WHERE id = ${session.userId}` as Array<{ country: string }>;
+    const isSgUser = (countryRow?.country ?? 'SG') === 'SG';
 
     const ssgMatches: Record<string, { skill_title: string; skill_code: string | null; sector: string | null }[]> = {};
-
     if (isSgUser) {
       for (const c of competencies) {
         const keyword = c.skill.replace(/[%_]/g, '');
@@ -144,26 +202,10 @@ export async function POST(request: Request) {
       }
     }
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS user_competencies (
-        id                SERIAL PRIMARY KEY,
-        user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        skill_title       TEXT NOT NULL,
-        skill_code        TEXT,
-        proficiency_level TEXT NOT NULL DEFAULT 'intermediate',
-        category          TEXT,
-        source            TEXT NOT NULL DEFAULT 'manual',
-        ssg_matched       BOOLEAN NOT NULL DEFAULT false,
-        ssg_sector        TEXT,
-        created_at        TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(user_id, skill_title)
-      )
-    `;
+    // ── Persist: replace resume skills, update hash ──────────────────────────
     await sql`DELETE FROM user_competencies WHERE user_id = ${session.userId} AND source = 'resume'`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_filename TEXT`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume_uploaded_at TIMESTAMPTZ`;
     if (resumeFilename) {
-      await sql`UPDATE users SET resume_filename = ${resumeFilename}, resume_uploaded_at = NOW() WHERE id = ${session.userId}`;
+      await sql`UPDATE users SET resume_filename = ${resumeFilename}, resume_uploaded_at = NOW(), resume_content_hash = ${contentHash} WHERE id = ${session.userId}`;
     }
 
     for (const c of competencies) {
