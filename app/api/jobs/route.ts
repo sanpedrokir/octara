@@ -51,6 +51,29 @@ function toMcfCategory(sector: string): string | null {
   return null;
 }
 
+// Maps role keywords to MCF positionLevels enum values (array form accepted by MCF API).
+const MCF_LEVEL_MAP: Array<[RegExp, string[]]> = [
+  [/\b(chief|ceo|coo|cfo|cto|ciso|president|vice.?president|vp\b|executive.?director|managing.?director)\b/i,
+    ['Senior Management']],
+  [/\b(director|assistant.?director|deputy.?director|associate.?director|senior.?director)\b/i,
+    ['Senior Management', 'Middle Management']],
+  [/\b(senior.?manager|general.?manager|head\b|assistant.?vp|avp)\b/i,
+    ['Senior Management', 'Middle Management']],
+  [/\b(manager|supervisor|principal|lead\b)\b/i,
+    ['Middle Management', 'Manager']],
+  [/\b(associate|analyst|consultant|specialist|coordinator|officer|executive\b)\b/i,
+    ['Professional', 'Executive']],
+  [/\b(intern|trainee|fresh|junior|entry)\b/i,
+    ['Fresh/Entry Level']],
+];
+
+function toMcfLevels(role: string): string[] {
+  for (const [pattern, levels] of MCF_LEVEL_MAP) {
+    if (pattern.test(role)) return levels;
+  }
+  return []; // no filter = all levels
+}
+
 export async function GET(request: Request) {
   try {
     const session = await requireAuth();
@@ -81,6 +104,8 @@ export async function GET(request: Request) {
 
     // Map sector to MCF category enum value for precise filtering
     const mcfCategory = sector ? toMcfCategory(sector) : null;
+    // Map role to seniority levels — prevents Social Workers appearing for Director goals
+    const mcfLevels   = toMcfLevels(role);
 
     const params = new URLSearchParams({
       search: cleanRole,
@@ -89,8 +114,10 @@ export async function GET(request: Request) {
       sortBy: 'new_posting_date',
     });
     if (mcfCategory) params.set('categories', mcfCategory);
+    // MCF requires repeated param keys for arrays: positionLevels[]=X&positionLevels[]=Y
+    const levelParam = mcfLevels.map(l => `positionLevels[]=${encodeURIComponent(l)}`).join('&');
 
-    const url = `https://api.mycareersfuture.gov.sg/v2/jobs?${params}`;
+    const url = `https://api.mycareersfuture.gov.sg/v2/jobs?${params}${levelParam ? '&' + levelParam : ''}`;
     const res = await fetch(url, {
       headers: {
         'Accept':     'application/json',
@@ -105,7 +132,7 @@ export async function GET(request: Request) {
 
     const raw   = await res.json() as McfResponse;
     const total = raw.total ?? 0;
-    const query = cleanRole + (mcfCategory ? ` · ${mcfCategory}` : '');
+    const query = cleanRole + (mcfCategory ? ` · ${mcfCategory}` : '') + (mcfLevels.length ? ` · ${mcfLevels[0]}` : '');
 
     const jobs = (raw.results ?? []).map(j => ({
       uuid:       j.uuid,
