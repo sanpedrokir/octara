@@ -157,7 +157,7 @@ export default function CompanyJobsPage() {
   const [data, setData]         = useState<ApiData | null>(null);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
-  const [mode, setMode]         = useState<Mode>('company');
+  const [mode, setMode]         = useState<Mode>('role');
   const [search, setSearch]     = useState('');
   const [query, setQuery]       = useState('');
   const [salaryOpt, setSalaryOpt] = useState(0); // index into SALARY_OPTIONS
@@ -310,11 +310,7 @@ export default function CompanyJobsPage() {
         </p>
       )}
 
-      {data && !loading && !isSearching && (
-        <p className="text-xs" style={{ color: 'var(--muted)' }}>
-          Showing latest postings from <strong style={{ color: 'var(--foreground)' }}>{filteredGroups.length}</strong> companies · <strong>{filteredGroups.reduce((s, g) => s + g.jobs.length, 0).toLocaleString()}</strong> listings{opt.min > 0 ? ` · ${opt.label}` : ' on MCF'}
-        </p>
-      )}
+{/* removed: no-search stats bar — only show results after user types */}
 
       {/* Loading */}
       {loading && (
@@ -333,7 +329,7 @@ export default function CompanyJobsPage() {
       )}
 
       {/* No results */}
-      {!loading && !error && data && filteredGroups.length === 0 && (isSearching || opt.min > 0) && (
+      {!loading && !error && data && isSearching && filteredGroups.length === 0 && (
         <div className="card p-10 text-center space-y-2">
           <p className="text-3xl">{cfg.icon}</p>
           <p className="font-medium" style={{ color: 'var(--foreground)' }}>
@@ -351,8 +347,8 @@ export default function CompanyJobsPage() {
         </div>
       )}
 
-      {/* Company cards */}
-      {!loading && !error && data && filteredGroups.length > 0 && (
+      {/* Company cards — only render after a search */}
+      {!loading && !error && data && isSearching && filteredGroups.length > 0 && (
         <div className="space-y-4">
           {filteredGroups.map(group => (
             <CompanyCard key={group.company} group={group} mode={mode} />
