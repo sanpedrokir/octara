@@ -150,6 +150,7 @@ const SALARY_OPTIONS: Array<{ label: string; min: number; max: number | null }> 
   { label: '≥ S$8,000',   min: 8000,  max: null  },
   { label: '≥ S$10,000',  min: 10000, max: null  },
   { label: 'S$10K–S$15K', min: 10000, max: 15000 },
+  { label: 'S$15K–S$20K', min: 15000, max: 20000 },
   { label: 'S$20K–S$25K', min: 20000, max: 25000 },
 ];
 
