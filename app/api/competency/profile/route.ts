@@ -87,12 +87,18 @@ export async function DELETE(request: Request) {
   try {
     const session = await requireAuth();
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) return Response.json({ data: null, error: 'id required' }, { status: 400 });
+    const id  = searchParams.get('id');
+    const all = searchParams.get('all');
 
     await ensureTable();
     const sql = db();
-    await sql`DELETE FROM user_competencies WHERE id = ${Number(id)} AND user_id = ${session.userId}`;
+
+    if (all === 'true') {
+      await sql`DELETE FROM user_competencies WHERE user_id = ${session.userId}`;
+    } else {
+      if (!id) return Response.json({ data: null, error: 'id required' }, { status: 400 });
+      await sql`DELETE FROM user_competencies WHERE id = ${Number(id)} AND user_id = ${session.userId}`;
+    }
     return Response.json({ data: { success: true }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed';

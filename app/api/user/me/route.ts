@@ -46,7 +46,8 @@ export async function PATCH(request: Request) {
     const sql = db();
     await ensureUserColumns(sql);
 
-    const body = await request.json() as { linkedin_url?: string };
+    const body = await request.json() as { linkedin_url?: string; clear_resume?: boolean };
+
     if (body.linkedin_url !== undefined) {
       const url = body.linkedin_url.trim();
       if (url && !url.includes('linkedin.com/in/')) {
@@ -54,6 +55,11 @@ export async function PATCH(request: Request) {
       }
       await sql`UPDATE users SET linkedin_url = ${url || null} WHERE id = ${session.userId}`;
     }
+
+    if (body.clear_resume) {
+      await sql`UPDATE users SET resume_filename = NULL, resume_uploaded_at = NULL WHERE id = ${session.userId}`;
+    }
+
     return Response.json({ data: { success: true }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed';

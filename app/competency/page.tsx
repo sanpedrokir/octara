@@ -46,7 +46,6 @@ interface SsgSearchResult {
 }
 
 interface UserMeta {
-  linkedin_url: string | null;
   resume_filename: string | null;
   resume_uploaded_at: string | null;
 }
@@ -73,45 +72,38 @@ function formatDate(iso: string) {
 export default function CompetencyPage() {
   const [tab, setTab] = useState<Tab>('upload');
 
-  // User metadata (LinkedIn URL, previous CV)
   const [userMeta, setUserMeta] = useState<UserMeta | null>(null);
-  const [linkedInUrl, setLinkedInUrl] = useState('');
-  const [savingLinkedIn, setSavingLinkedIn] = useState(false);
-  const [linkedInSaved, setLinkedInSaved] = useState(false);
-  const [linkedInUrlError, setLinkedInUrlError] = useState('');
-
-  // LinkedIn profile text paste
-  const [linkedInText, setLinkedInText] = useState('');
 
   // Upload tab state
-  const [fileName, setFileName] = useState('');
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [fileName, setFileName]             = useState('');
+  const [pendingFile, setPendingFile]       = useState<File | null>(null);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
-  const [extracting, setExtracting] = useState(false);
-  const [extractError, setExtractError] = useState('');
-  const [extracted, setExtracted] = useState<ExtractedSkill[]>([]);
-  const [extractedPage, setExtractedPage] = useState(0);
-  const [ssgMatches, setSsgMatches] = useState<Record<string, SsgMatch[]>>({});
-  const [saving, setSaving] = useState<Set<string>>(new Set());
-  const [saved, setSaved] = useState<Set<string>>(new Set());
+  const [showRemoveConfirm, setShowRemoveConfirm]   = useState(false);
+  const [removingCv, setRemovingCv]         = useState(false);
+  const [extracting, setExtracting]         = useState(false);
+  const [extractError, setExtractError]     = useState('');
+  const [extracted, setExtracted]           = useState<ExtractedSkill[]>([]);
+  const [extractedPage, setExtractedPage]   = useState(0);
+  const [ssgMatches, setSsgMatches]         = useState<Record<string, SsgMatch[]>>({});
+  const [saving, setSaving]                 = useState<Set<string>>(new Set());
+  const [saved, setSaved]                   = useState<Set<string>>(new Set());
 
   // Profile tab state
-  const [profile, setProfile] = useState<CompetencyRow[]>([]);
+  const [profile, setProfile]               = useState<CompetencyRow[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [profilePage, setProfilePage] = useState(0);
+  const [profilePage, setProfilePage]       = useState(0);
 
   // Add missing skill state
-  const [searchQ, setSearchQ] = useState('');
-  const [searchResults, setSearchResults] = useState<SsgSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [addingSkill, setAddingSkill] = useState<string | null>(null);
-  const [manualSkill, setManualSkill] = useState('');
-  const [manualProf, setManualProf] = useState<Proficiency>('intermediate');
-  const [addingManual, setAddingManual] = useState(false);
+  const [searchQ, setSearchQ]               = useState('');
+  const [searchResults, setSearchResults]   = useState<SsgSearchResult[]>([]);
+  const [searching, setSearching]           = useState(false);
+  const [addingSkill, setAddingSkill]       = useState<string | null>(null);
+  const [manualSkill, setManualSkill]       = useState('');
+  const [manualProf, setManualProf]         = useState<Proficiency>('intermediate');
+  const [addingManual, setAddingManual]     = useState(false);
+  const [searchPage, setSearchPage]         = useState(0);
 
-  const [searchPage, setSearchPage] = useState(0);
-
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
   const manualRef = useRef<HTMLInputElement>(null);
 
   const loadProfile = useCallback(async () => {
@@ -130,39 +122,13 @@ export default function CompetencyPage() {
       .then(({ data }) => {
         if (data) {
           setUserMeta({
-            linkedin_url: data.linkedin_url ?? null,
             resume_filename: data.resume_filename ?? null,
             resume_uploaded_at: data.resume_uploaded_at ?? null,
           });
-          if (data.linkedin_url) setLinkedInUrl(data.linkedin_url);
         }
       })
       .catch(() => {});
   }, []);
-
-  // ── Save LinkedIn URL ───────────────────────────────────────────────────────
-  async function saveLinkedInUrl() {
-    setLinkedInUrlError('');
-    if (linkedInUrl.trim() && !linkedInUrl.includes('linkedin.com/in/')) {
-      setLinkedInUrlError('Enter a valid LinkedIn profile URL (linkedin.com/in/…)');
-      return;
-    }
-    setSavingLinkedIn(true);
-    const res = await fetch('/api/user/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkedin_url: linkedInUrl.trim() }),
-    });
-    const { error } = await res.json();
-    if (error) {
-      setLinkedInUrlError(error);
-    } else {
-      setUserMeta(prev => prev ? { ...prev, linkedin_url: linkedInUrl.trim() || null } : prev);
-      setLinkedInSaved(true);
-      setTimeout(() => setLinkedInSaved(false), 2000);
-    }
-    setSavingLinkedIn(false);
-  }
 
   // ── File upload handler ─────────────────────────────────────────────────────
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -202,6 +168,26 @@ export default function CompetencyPage() {
     setShowReplaceConfirm(false);
   }
 
+  // ── Remove CV ───────────────────────────────────────────────────────────────
+  async function confirmRemoveCv() {
+    setRemovingCv(true);
+    await fetch('/api/competency/profile?all=true', { method: 'DELETE' });
+    await fetch('/api/user/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clear_resume: true }),
+    });
+    setUserMeta(prev => prev ? { ...prev, resume_filename: null, resume_uploaded_at: null } : prev);
+    setProfile([]);
+    setExtracted([]);
+    setFileName('');
+    if (fileRef.current) {
+      (fileRef.current as HTMLInputElement & { _file?: File })._file = undefined;
+    }
+    setShowRemoveConfirm(false);
+    setRemovingCv(false);
+  }
+
   // ── Extract competencies ────────────────────────────────────────────────────
   async function handleExtract() {
     setExtractError('');
@@ -211,16 +197,15 @@ export default function CompetencyPage() {
 
     const cvFile = (fileRef.current as HTMLInputElement & { _file?: File })?._file;
 
-    if (!cvFile && !linkedInText.trim()) {
-      setExtractError('Please upload a CV or add LinkedIn profile text.');
+    if (!cvFile) {
+      setExtractError('Please upload a CV file first.');
       return;
     }
 
     setExtracting(true);
     try {
       const fd = new FormData();
-      if (cvFile) fd.append('file', cvFile);
-      if (linkedInText.trim()) fd.append('linkedInText', linkedInText.trim());
+      fd.append('file', cvFile);
       const res = await fetch('/api/competency/extract', { method: 'POST', body: fd });
 
       const { data, error } = await res.json();
@@ -235,7 +220,6 @@ export default function CompetencyPage() {
           .then(r => r.json())
           .then(({ data: meta }) => {
             if (meta) setUserMeta({
-              linkedin_url: meta.linkedin_url ?? null,
               resume_filename: meta.resume_filename ?? null,
               resume_uploaded_at: meta.resume_uploaded_at ?? null,
             });
@@ -275,7 +259,6 @@ export default function CompetencyPage() {
     setSaving(prev => { const n = new Set(prev); n.delete(skill.skill); return n; });
     loadProfile();
   }
-
 
   // ── Search SSG skills ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -347,13 +330,7 @@ export default function CompetencyPage() {
   }
 
   const ssgCount = profile.filter(c => c.ssg_matched).length;
-  const hasLinkedIn = linkedInText.trim().length > 0;
-  const hasCV = !!fileName;
-  const extractLabel = hasCV && hasLinkedIn
-    ? '🔍 Extract from CV + LinkedIn'
-    : hasLinkedIn
-    ? '💼 Extract from LinkedIn'
-    : '🔍 Extract from CV';
+  const hasCV    = !!fileName;
 
   const tabs = [
     { id: 'upload' as Tab, label: 'Upload Resume', icon: '📄' },
@@ -365,7 +342,7 @@ export default function CompetencyPage() {
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>Competency Profile</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          Extract your competencies from your CV and LinkedIn profile.
+          Upload your CV to extract and manage your competencies.
         </p>
       </div>
 
@@ -405,12 +382,12 @@ export default function CompetencyPage() {
           <div className="card p-5 space-y-4">
             <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 1 — Upload your CV</h2>
 
-            {/* Previous CV info */}
-            {userMeta?.resume_filename && extracted.length === 0 && (
-              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm" style={{ background: '#f8fafc', border: '1px solid var(--card-border)' }}>
+            {/* Previous CV info + Remove button */}
+            {userMeta?.resume_filename && extracted.length === 0 && !showReplaceConfirm && (
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid var(--card-border)' }}>
                 <span>📎</span>
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium truncate block" style={{ color: 'var(--foreground)' }}>
+                  <span className="font-medium truncate block text-sm" style={{ color: 'var(--foreground)' }}>
                     {userMeta.resume_filename}
                   </span>
                   {userMeta.resume_uploaded_at && (
@@ -418,6 +395,48 @@ export default function CompetencyPage() {
                       Uploaded {formatDate(userMeta.resume_uploaded_at)}
                     </span>
                   )}
+                </div>
+                <button
+                  onClick={() => setShowRemoveConfirm(true)}
+                  className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                  style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}
+                >
+                  🗑 Remove CV
+                </button>
+              </div>
+            )}
+
+            {/* Remove CV confirmation */}
+            {showRemoveConfirm && (
+              <div className="rounded-xl p-4 space-y-3" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                <div className="flex items-start gap-2.5">
+                  <span className="text-lg shrink-0">⚠️</span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold" style={{ color: '#9a3412' }}>Remove CV and all competencies?</p>
+                    <p className="text-xs leading-relaxed" style={{ color: '#c2410c' }}>
+                      This will permanently delete <strong>{userMeta?.resume_filename}</strong> and clear
+                      all <strong>{profile.length} competencies</strong> from your profile. You will need
+                      to upload a new CV to extract competencies again.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowRemoveConfirm(false)}
+                    disabled={removingCv}
+                    className="flex-1 text-sm py-2 rounded-lg font-medium"
+                    style={{ background: 'var(--card)', border: '1px solid var(--card-border)', color: 'var(--foreground)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmRemoveCv}
+                    disabled={removingCv}
+                    className="flex-1 text-sm py-2 rounded-lg font-medium"
+                    style={{ background: '#b91c1c', color: 'white', opacity: removingCv ? 0.7 : 1 }}
+                  >
+                    {removingCv ? 'Removing…' : 'Yes, Remove Everything'}
+                  </button>
                 </div>
               </div>
             )}
@@ -431,8 +450,8 @@ export default function CompetencyPage() {
                     <p className="text-sm font-semibold" style={{ color: '#9a3412' }}>Replace existing CV?</p>
                     <p className="text-xs leading-relaxed" style={{ color: '#c2410c' }}>
                       You have <strong>{userMeta?.resume_filename}</strong> on file. Replacing it will
-                      permanently clear <strong>all competencies</strong> previously extracted from your
-                      CV and LinkedIn profile. You will need to re-extract after uploading.
+                      permanently clear <strong>all competencies</strong> previously extracted. You will
+                      need to re-extract after uploading.
                     </p>
                   </div>
                 </div>
@@ -455,7 +474,7 @@ export default function CompetencyPage() {
               </div>
             )}
 
-            {/* Hidden file input — always mounted so ref stays valid */}
+            {/* Hidden file input */}
             <input
               ref={fileRef}
               type="file"
@@ -465,7 +484,7 @@ export default function CompetencyPage() {
             />
 
             {/* File upload drop zone */}
-            {!showReplaceConfirm && (
+            {!showReplaceConfirm && !showRemoveConfirm && (
               <div
                 className="rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
                 style={{ borderColor: fileName ? 'var(--primary)' : 'var(--card-border)' }}
@@ -487,85 +506,9 @@ export default function CompetencyPage() {
             )}
           </div>
 
-          {/* ── Step 2: LinkedIn Profile ─────────────────────────────────── */}
+          {/* ── Step 2: Extract ──────────────────────────────────────────── */}
           <div className="card p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 2 — Add LinkedIn profile</h2>
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#f3f4f6', color: '#6b7280' }}>Optional</span>
-            </div>
-
-            {/* LinkedIn URL */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                Your LinkedIn profile URL
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  className="input flex-1"
-                  placeholder="https://www.linkedin.com/in/your-name"
-                  value={linkedInUrl}
-                  onChange={e => { setLinkedInUrl(e.target.value); setLinkedInSaved(false); }}
-                />
-                <button
-                  onClick={saveLinkedInUrl}
-                  disabled={savingLinkedIn}
-                  className="shrink-0 text-sm px-4 py-2 rounded-lg font-medium"
-                  style={{ background: linkedInSaved ? '#dcfce7' : 'var(--primary)', color: linkedInSaved ? '#15803d' : 'white', opacity: savingLinkedIn ? 0.7 : 1 }}
-                >
-                  {savingLinkedIn ? '…' : linkedInSaved ? '✓ Saved' : 'Save'}
-                </button>
-              </div>
-              {linkedInUrlError && (
-                <p className="text-xs" style={{ color: 'var(--danger)' }}>{linkedInUrlError}</p>
-              )}
-              {userMeta?.linkedin_url && (
-                <a
-                  href={userMeta.linkedin_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium underline"
-                  style={{ color: '#2563eb' }}
-                >
-                  View your LinkedIn profile ↗
-                </a>
-              )}
-            </div>
-
-            {/* LinkedIn text paste */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                Paste your LinkedIn profile text
-              </label>
-              <div className="px-3 py-2.5 rounded-lg text-xs space-y-1" style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
-                <p>LinkedIn blocks automated crawling. To include your LinkedIn data:</p>
-                <ol className="list-decimal list-inside space-y-0.5 ml-1">
-                  <li>Go to your LinkedIn profile</li>
-                  <li>Copy your <strong>About</strong>, <strong>Experience</strong>, and <strong>Skills</strong> sections</li>
-                  <li>Paste below — or export your profile as PDF (Profile → More → Save to PDF) and upload it above</li>
-                </ol>
-              </div>
-              <textarea
-                className="input font-mono text-xs"
-                rows={6}
-                placeholder="Paste your LinkedIn About, Experience, Skills sections here…"
-                value={linkedInText}
-                onChange={e => setLinkedInText(e.target.value)}
-                style={{ resize: 'vertical' }}
-              />
-            </div>
-          </div>
-
-          {/* ── Step 3: Extract ──────────────────────────────────────────── */}
-          <div className="card p-5 space-y-4">
-            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 3 — Extract competencies</h2>
-
-            {hasCV && hasLinkedIn && (
-              <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d' }}>
-                <span>✓</span>
-                <span>Both CV and LinkedIn text detected — all sources will be combined for a richer profile.</span>
-              </div>
-            )}
+            <h2 className="font-semibold" style={{ color: 'var(--foreground)' }}>Step 2 — Extract competencies</h2>
 
             {extractError && (
               <div className="p-3 rounded-lg text-sm" style={{ background: '#fef2f2', color: 'var(--danger)', border: '1px solid #fecaca' }}>
@@ -575,12 +518,15 @@ export default function CompetencyPage() {
 
             <button
               onClick={handleExtract}
-              disabled={extracting}
+              disabled={extracting || (!hasCV && !userMeta?.resume_filename)}
               className="btn-primary"
-              style={{ opacity: extracting ? 0.7 : 1 }}
+              style={{ opacity: (extracting || (!hasCV && !userMeta?.resume_filename)) ? 0.5 : 1 }}
             >
-              {extracting ? <><LoadingSpinner label="" /> Extracting…</> : extractLabel}
+              {extracting ? <><LoadingSpinner label="" /> Extracting…</> : '🔍 Extract from CV'}
             </button>
+            {!hasCV && !userMeta?.resume_filename && (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>Upload a CV above to enable extraction.</p>
+            )}
           </div>
 
           {/* Extracted results */}
@@ -680,7 +626,7 @@ export default function CompetencyPage() {
               })()}
 
               <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                All competencies were saved automatically. Upload a new CV or add LinkedIn text anytime to refresh. Switch to "My Competencies" to review or edit.
+                All competencies were saved automatically. Switch to "My Competencies" to review or edit.
               </p>
             </div>
           )}
@@ -705,28 +651,12 @@ export default function CompetencyPage() {
             </div>
           )}
 
-          {/* Linked profile info */}
-          {(userMeta?.linkedin_url || userMeta?.resume_filename) && (
-            <div className="flex flex-wrap gap-3">
-              {userMeta?.resume_filename && (
-                <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full" style={{ background: '#f8fafc', border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
-                  <span>📎</span>
-                  <span>{userMeta.resume_filename}</span>
-                  {userMeta.resume_uploaded_at && <span>· {formatDate(userMeta.resume_uploaded_at)}</span>}
-                </div>
-              )}
-              {userMeta?.linkedin_url && (
-                <a
-                  href={userMeta.linkedin_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full no-underline"
-                  style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb' }}
-                >
-                  <span>💼</span>
-                  <span>LinkedIn profile ↗</span>
-                </a>
-              )}
+          {/* CV info badge */}
+          {userMeta?.resume_filename && (
+            <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full w-fit" style={{ background: '#f8fafc', border: '1px solid var(--card-border)', color: 'var(--muted)' }}>
+              <span>📎</span>
+              <span>{userMeta.resume_filename}</span>
+              {userMeta.resume_uploaded_at && <span>· {formatDate(userMeta.resume_uploaded_at)}</span>}
             </div>
           )}
 
@@ -767,7 +697,6 @@ export default function CompetencyPage() {
                           )}
                           <span className="text-xs" style={{ color: 'var(--muted)' }}>
                             {c.source === 'resume' ? '📄 CV'
-                              : c.source === 'linkedin' ? '💼 LinkedIn'
                               : c.source === 'ssg' ? '🏛 SSG'
                               : '✍️ manual'}
                           </span>
