@@ -341,15 +341,17 @@ export default function GapAnalysisPage() {
             </button>
           </>
         )}
-        <a
-          href={course.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs px-3 py-1.5 rounded-lg font-medium"
-          style={{ background: 'var(--muted-bg)', color: 'var(--foreground)', border: '1px solid var(--card-border)' }}
-        >
-          {course.url?.includes('coursera.org/search') ? 'Search on Coursera ↗' : 'Open ↗'}
-        </a>
+        {!course.url?.includes('coursera.org/search') && (
+          <a
+            href={course.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs px-3 py-1.5 rounded-lg font-medium"
+            style={{ background: 'var(--muted-bg)', color: 'var(--foreground)', border: '1px solid var(--card-border)' }}
+          >
+            Open ↗
+          </a>
+        )}
       </div>
     );
   }
@@ -691,7 +693,7 @@ export default function GapAnalysisPage() {
             const TAB_DEF = [
               ...(!isEsco ? [{ key: 'ssg',         label: '🏛 SSG Courses',      count: ssgCourses.length,  color: '#7c3aed' }] : []),
               {              key: 'youtube',     label: '▶ YouTube',             count: ytVideos.length,    color: '#dc2626' },
-              {              key: 'mooc',        label: '🎓 MOOC / Coursera',    count: moocCourses.length, color: '#2563eb' },
+              {              key: 'mooc',        label: '🎓 Coursera Topics',     count: moocCourses.length, color: '#2563eb' },
               ...(instCourses.length > 0 ? [{ key: 'institution', label: `🏫 ${instName ?? 'My Institution'}`, count: instCourses.length, color: '#0d9488' }] : []),
             ] as { key: string; label: string; count: number; color: string }[];
 
@@ -772,26 +774,41 @@ export default function GapAnalysisPage() {
                     </div>
                   ))}
 
-                  {/* MOOC tab */}
-                  {activeTab === 'mooc' && (tabPaged as MoocCourse[]).map((mooc, i) => (
-                    <div key={i} className="p-4 space-y-2" style={{ background: mooc._status === 'completed' ? '#f0fdf4' : 'white' }}>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb' }}>Coursera</span>
-                        {mooc._status === 'completed' && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Completed</span>}
-                      </div>
-                      <a href={mooc.url} target="_blank" rel="noopener noreferrer"
-                        className="text-sm font-semibold hover:underline leading-snug block" style={{ color: 'var(--foreground)' }}>
-                        {mooc.title}
-                      </a>
-                      <p className="text-xs line-clamp-2" style={{ color: '#475569', lineHeight: 1.5 }}>{mooc.description}</p>
-                      {mooc.skills_covered?.length > 0 && (
-                        <span className="inline-block text-xs px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
-                          {mooc.skills_covered[0]}
+                  {/* MOOC tab — topic search cards linking to Coursera search */}
+                  {activeTab === 'mooc' && (
+                    <>
+                      <div className="px-4 pt-3 pb-1 flex items-center gap-2">
+                        <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                          🔍 Recommended topics — click to browse courses on Coursera
                         </span>
-                      )}
-                      <CourseActions course={mooc} />
-                    </div>
-                  ))}
+                      </div>
+                      {(tabPaged as MoocCourse[]).map((mooc, i) => (
+                        <div key={i} className="px-4 py-3 flex items-center gap-3" style={{ background: mooc._status === 'completed' ? '#f0fdf4' : 'white', borderTop: i === 0 ? 'none' : '1px solid var(--card-border)' }}>
+                          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-base" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                            🎓
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold leading-snug" style={{ color: 'var(--foreground)' }}>{mooc.title}</p>
+                            <p className="text-xs mt-0.5 line-clamp-1" style={{ color: '#64748b' }}>{mooc.description}</p>
+                            {mooc.skills_covered?.[0] && (
+                              <span className="inline-block text-xs mt-1 px-1.5 py-0.5 rounded" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                Covers: {mooc.skills_covered[0]}
+                              </span>
+                            )}
+                          </div>
+                          <a
+                            href={mooc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium no-underline whitespace-nowrap"
+                            style={{ background: '#2563eb', color: 'white' }}
+                          >
+                            Browse →
+                          </a>
+                        </div>
+                      ))}
+                    </>
+                  )}
 
                   {/* Institution tab */}
                   {activeTab === 'institution' && (tabPaged as InstCourse[]).map((course, i) => (
