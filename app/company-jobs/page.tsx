@@ -228,7 +228,7 @@ export default function CompanyJobsPage() {
 
       {/* Mode toggle */}
       <div className="flex gap-2 p-1 rounded-xl w-fit" style={{ background: 'var(--muted-bg)' }}>
-        {(['company', 'role'] as Mode[]).map(m => (
+        {(['role', 'company'] as Mode[]).map(m => (
           <button
             key={m}
             onClick={() => switchMode(m)}
