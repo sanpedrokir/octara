@@ -167,40 +167,44 @@ async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
   }
 }
 
-// AI-powered fallback: generates role-specific MOOC suggestions when Coursera API returns nothing
+// AI-powered fallback: ask GPT for search keywords, then hit the real Coursera API
+// so we always get /learn/<slug> URLs that actually exist (not AI-hallucinated slugs).
 async function getCuratedMooc(sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
   try {
-    const target = role || sector || 'professional development';
+    const target   = role || sector || 'professional development';
     const skillList = skills.slice(0, 5).join(', ') || target;
+
+    // Step 1: GPT generates short search keywords (not slugs)
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'You are a learning expert. Suggest real Coursera courses. Return ONLY valid JSON.' },
+        { role: 'system', content: 'You are a learning expert. Return ONLY valid JSON.' },
         {
           role: 'user',
-          content: `Suggest 5 Coursera courses relevant to someone training to be a ${target} needing to learn: ${skillList}.
-Return JSON:
-{ "courses": [
-  { "title": "exact Coursera course title", "slug": "coursera-url-slug", "provider": "university or company name", "description": "one sentence description · approx X hours", "skill": "which skill from the list this covers" }
-] }
-Use real, existing Coursera courses with accurate slugs (used in coursera.org/learn/<slug>).`,
+          content: `Someone wants to become a ${target} and needs to learn: ${skillList}.
+Suggest 6 short Coursera search queries (2-4 words each) that will find real, relevant courses.
+Return JSON: { "queries": ["query1", "query2", "query3", "query4", "query5", "query6"] }
+Keep queries concise and general — they will be used as search terms in Coursera's catalog.`,
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.2,
+      temperature: 0.1,
     });
-    const parsed = JSON.parse(completion.choices[0].message.content ?? '{}') as {
-      courses: Array<{ title: string; slug: string; provider: string; description: string; skill: string }>;
-    };
-    return (parsed.courses ?? []).map(c => ({
-      title: c.title,
-      provider: c.provider || 'Coursera',
-      type: 'mooc' as const,
-      // Use search URL instead of /learn/<slug> — AI-generated slugs frequently 404
-      url: `https://www.coursera.org/search?query=${encodeURIComponent(c.title)}`,
-      description: c.description,
-      skills_covered: [c.skill],
-    }));
+    const parsed = JSON.parse(completion.choices[0].message.content ?? '{}') as { queries: string[] };
+    const queries = (parsed.queries ?? []).filter((q): q is string => typeof q === 'string' && q.trim().length > 0);
+
+    // Step 2: hit the real Coursera API with those queries — get actual slugs
+    const batches = await Promise.all(queries.slice(0, 6).map(q => fetchCourseraForQuery(q)));
+    const seen    = new Set<string>();
+    const results: MoocCourse[] = [];
+    for (const batch of batches) {
+      for (const c of batch) {
+        if (seen.has(c.url) || results.length >= 10) continue;
+        seen.add(c.url);
+        results.push(c);
+      }
+    }
+    return results;
   } catch {
     return [];
   }
@@ -208,7 +212,7 @@ Use real, existing Coursera courses with accurate slugs (used in coursera.org/le
 
 async function fetchCourseraCourses(queries: string[], sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
   const batches = await Promise.all(queries.slice(0, 6).map(q => fetchCourseraForQuery(q)));
-  const seen = new Set<string>();
+  const seen    = new Set<string>();
   const results: MoocCourse[] = [];
   for (const batch of batches) {
     for (const c of batch) {
@@ -217,9 +221,14 @@ async function fetchCourseraCourses(queries: string[], sector: string, role: str
       results.push(c);
     }
   }
-  // If Coursera API returned nothing, use AI-generated role-specific fallback
-  if (results.length === 0) {
-    return await getCuratedMooc(sector, role, skills);
+  // Too few results: use AI to generate better search queries, then re-hit the real Coursera API
+  if (results.length < 3) {
+    const aiResults = await getCuratedMooc(sector, role, skills);
+    for (const c of aiResults) {
+      if (seen.has(c.url) || results.length >= 15) continue;
+      seen.add(c.url);
+      results.push(c);
+    }
   }
   return results;
 }
