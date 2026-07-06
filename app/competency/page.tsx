@@ -103,8 +103,9 @@ export default function CompetencyPage() {
   const [addingManual, setAddingManual]     = useState(false);
   const [searchPage, setSearchPage]         = useState(0);
 
-  const fileRef   = useRef<HTMLInputElement>(null);
-  const manualRef = useRef<HTMLInputElement>(null);
+  const fileRef    = useRef<HTMLInputElement>(null);
+  const fileObjRef = useRef<File | null>(null); // stable storage for the File object
+  const manualRef  = useRef<HTMLInputElement>(null);
 
   const loadProfile = useCallback(async () => {
     setLoadingProfile(true);
@@ -153,7 +154,7 @@ export default function CompetencyPage() {
 
   function applyFile(file: File) {
     setFileName(file.name);
-    (fileRef.current as HTMLInputElement & { _file?: File })._file = file;
+    fileObjRef.current = file;
   }
 
   function confirmReplace() {
@@ -184,9 +185,7 @@ export default function CompetencyPage() {
     setUserMeta(prev => prev ? { ...prev, resume_filename: null, resume_uploaded_at: null } : prev);
     setExtracted([]);
     setFileName('');
-    if (fileRef.current) {
-      (fileRef.current as HTMLInputElement & { _file?: File })._file = undefined;
-    }
+    fileObjRef.current = null;
     setShowRemoveConfirm(false);
     setRemovingCv(false);
   }
@@ -198,10 +197,10 @@ export default function CompetencyPage() {
     setSsgMatches({});
     setSaved(new Set());
 
-    const cvFile = (fileRef.current as HTMLInputElement & { _file?: File })?._file;
+    const cvFile = fileObjRef.current;
 
     if (!cvFile) {
-      setExtractError('Please upload a CV file first.');
+      setExtractError('Please select your CV file above first.');
       return;
     }
 
