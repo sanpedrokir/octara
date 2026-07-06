@@ -57,7 +57,7 @@ export async function GET() {
     const row = rows[0];
     const mooc: MoocCourse[] = (row.mooc as MoocCourse[])?.length
       ? row.mooc as MoocCourse[]
-      : await getCuratedMooc(row.sector ?? '', row.role ?? '', []);
+      : await fetchCourseraCourses([], row.sector ?? '', row.role ?? '', []);
     return Response.json({ data: { courses: row.courses, youtube: row.youtube, mooc, sector: row.sector, role: row.role }, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed';
@@ -136,101 +136,55 @@ async function fetchYouTubeVideo(courseTitle: string, skill: string): Promise<Yo
   }
 }
 
-async function fetchCourseraForQuery(query: string): Promise<MoocCourse[]> {
+// The Coursera public API (api.coursera.org) is no longer accessible (returns 405).
+// We use GPT to generate relevant topic search terms and link to Coursera search pages.
+// Links are labelled "Search on Coursera →" so users know they are browsing, not opening a specific course.
+async function fetchCourseraCourses(_queries: string[], sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
   try {
-    const apiUrl = `https://api.coursera.org/api/courses.v1?q=search&query=${encodeURIComponent(query)}&limit=5&fields=name,slug,shortDescription,workload`;
-    const fetchPromise = fetch(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; EduBot/1.0)',
-        'Accept': 'application/json',
-      },
-    });
-    const res = await withTimeout(fetchPromise, 10000, null as unknown as Response);
-    if (!res || !res.ok) return [];
-    const data = await res.json() as {
-      elements?: Array<{ id: string; name: string; slug: string; shortDescription?: string; workload?: string }>;
-    };
-    return (data.elements ?? []).map(c => {
-      const rawDesc = c.shortDescription ?? '';
-      const desc = rawDesc.length > 140 ? rawDesc.slice(0, 137) + '…' : rawDesc || 'Coursera course relevant to your career goal.';
-      return {
-        title: c.name,
-        provider: 'Coursera',
-        type: 'mooc' as const,
-        url: `https://www.coursera.org/learn/${c.slug}`,
-        description: desc + (c.workload ? ` · ${c.workload}` : ''),
-        skills_covered: [query],
-      };
-    });
-  } catch {
-    return [];
-  }
-}
+    const target    = role || sector || 'professional development';
+    const skillList = skills.slice(0, 8).join(', ') || target;
 
-// AI-powered fallback: ask GPT for search keywords, then hit the real Coursera API
-// so we always get /learn/<slug> URLs that actually exist (not AI-hallucinated slugs).
-async function getCuratedMooc(sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
-  try {
-    const target   = role || sector || 'professional development';
-    const skillList = skills.slice(0, 5).join(', ') || target;
-
-    // Step 1: GPT generates short search keywords (not slugs)
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: 'You are a learning expert. Return ONLY valid JSON.' },
         {
           role: 'user',
-          content: `Someone wants to become a ${target} and needs to learn: ${skillList}.
-Suggest 6 short Coursera search queries (2-4 words each) that will find real, relevant courses.
-Return JSON: { "queries": ["query1", "query2", "query3", "query4", "query5", "query6"] }
-Keep queries concise and general — they will be used as search terms in Coursera's catalog.`,
+          content: `Someone wants to become a ${target} in ${sector || 'Singapore'} and needs to learn: ${skillList}.
+
+Suggest 6 online learning topics that map directly to these skill gaps.
+For each topic, provide:
+- A clear 3-6 word topic label (will be shown as the course card title)
+- A concise one-sentence description of what learners will gain
+- The single skill from the list above this topic addresses
+
+Return JSON:
+{ "topics": [
+  { "label": "topic label", "description": "one sentence description", "skill": "which skill this addresses" }
+] }`,
         },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
     });
-    const parsed = JSON.parse(completion.choices[0].message.content ?? '{}') as { queries: string[] };
-    const queries = (parsed.queries ?? []).filter((q): q is string => typeof q === 'string' && q.trim().length > 0);
 
-    // Step 2: hit the real Coursera API with those queries — get actual slugs
-    const batches = await Promise.all(queries.slice(0, 6).map(q => fetchCourseraForQuery(q)));
-    const seen    = new Set<string>();
-    const results: MoocCourse[] = [];
-    for (const batch of batches) {
-      for (const c of batch) {
-        if (seen.has(c.url) || results.length >= 10) continue;
-        seen.add(c.url);
-        results.push(c);
-      }
-    }
-    return results;
+    const parsed = JSON.parse(completion.choices[0].message.content ?? '{}') as {
+      topics: Array<{ label: string; description: string; skill: string }>;
+    };
+
+    return (parsed.topics ?? [])
+      .filter(t => t.label?.trim())
+      .map(t => ({
+        title:          t.label.trim(),
+        provider:       'Coursera',
+        type:           'mooc' as const,
+        url:            `https://www.coursera.org/search?query=${encodeURIComponent(t.label.trim())}`,
+        description:    t.description?.trim() || `Build skills in ${t.label}.`,
+        skills_covered: [t.skill || t.label],
+      }));
   } catch {
     return [];
   }
-}
-
-async function fetchCourseraCourses(queries: string[], sector: string, role: string, skills: string[]): Promise<MoocCourse[]> {
-  const batches = await Promise.all(queries.slice(0, 6).map(q => fetchCourseraForQuery(q)));
-  const seen    = new Set<string>();
-  const results: MoocCourse[] = [];
-  for (const batch of batches) {
-    for (const c of batch) {
-      if (seen.has(c.url) || results.length >= 15) continue;
-      seen.add(c.url);
-      results.push(c);
-    }
-  }
-  // Too few results: use AI to generate better search queries, then re-hit the real Coursera API
-  if (results.length < 3) {
-    const aiResults = await getCuratedMooc(sector, role, skills);
-    for (const c of aiResults) {
-      if (seen.has(c.url) || results.length >= 15) continue;
-      seen.add(c.url);
-      results.push(c);
-    }
-  }
-  return results;
 }
 
 // ── POST: generate and save recommendations ───────────────────────────────────

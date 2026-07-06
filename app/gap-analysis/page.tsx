@@ -348,7 +348,7 @@ export default function GapAnalysisPage() {
           className="text-xs px-3 py-1.5 rounded-lg font-medium"
           style={{ background: 'var(--muted-bg)', color: 'var(--foreground)', border: '1px solid var(--card-border)' }}
         >
-          Open ↗
+          {course.url?.includes('coursera.org/search') ? 'Search on Coursera ↗' : 'Open ↗'}
         </a>
       </div>
     );
