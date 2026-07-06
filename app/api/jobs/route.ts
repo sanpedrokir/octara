@@ -134,7 +134,18 @@ export async function GET(request: Request) {
     const total = raw.total ?? 0;
     const query = cleanRole + (mcfCategory ? ` · ${mcfCategory}` : '') + (mcfLevels.length ? ` · ${mcfLevels[0]}` : '');
 
-    const jobs = (raw.results ?? []).map(j => ({
+    // MCF API ignores positionLevels[] filter — enforce it post-fetch
+    const allowedLevels = mcfLevels.length
+      ? new Set(mcfLevels.map(l => l.toLowerCase()))
+      : null;
+
+    const jobs = (raw.results ?? [])
+      .filter(j => {
+        if (!allowedLevels) return true;
+        const jobLevel = (j.positionLevels?.[0]?.position ?? '').toLowerCase();
+        return allowedLevels.has(jobLevel);
+      })
+      .map(j => ({
       uuid:       j.uuid,
       title:      j.title ?? 'Untitled',
       company:    j.postedCompany?.name ?? 'Unknown Company',
