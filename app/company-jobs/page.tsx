@@ -334,16 +334,26 @@ export default function CompanyJobsPage() {
         <div className="card p-10 text-center space-y-2">
           <p className="text-3xl">{cfg.icon}</p>
           <p className="font-medium" style={{ color: 'var(--foreground)' }}>
-            {isSearching ? `${cfg.emptyMsg} "${query}"` : 'No listings match this salary filter'}
+            {`${cfg.emptyMsg} "${query}"`}
             {opt.min > 0 ? ` · ${opt.label}` : ''}
           </p>
-          {mode === 'company' && isSearching && (
+          {/* MCF returned 0 listings for this search — not a filter issue */}
+          {data.total === 0 && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              No live listings on MyCareersFuture for this role right now — try a broader keyword.
+            </p>
+          )}
+          {/* MCF has listings but salary filter is hiding them (undisclosed or out-of-range) */}
+          {data.total > 0 && opt.min > 0 && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              MCF has {data.total} listing{data.total !== 1 ? 's' : ''} for this role, but none disclose a salary in this range.
+              Try <strong>Any salary</strong> to see all listings.
+            </p>
+          )}
+          {mode === 'company' && (
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
               Searching for a job role? Switch to <strong>By Job Role</strong> mode above.
             </p>
-          )}
-          {mode !== 'company' && (
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>Try a different keyword or adjust the salary filter.</p>
           )}
         </div>
       )}
