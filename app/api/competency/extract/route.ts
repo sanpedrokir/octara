@@ -140,20 +140,23 @@ export async function POST(request: Request) {
           ORDER BY skill_title
         ` as Array<{ skill_title: string; proficiency_level: string; category: string | null; ssg_matched: boolean; skill_code: string | null; ssg_sector: string | null }>;
 
-        const competencies: Skill[] = existing.map(r => ({
-          skill: r.skill_title,
-          proficiency: r.proficiency_level,
-          category: r.category ?? 'domain',
-        }));
+        // Only use cache if there are actually saved competencies — avoids stale hash bug
+        if (existing.length > 0) {
+          const competencies: Skill[] = existing.map(r => ({
+            skill: r.skill_title,
+            proficiency: r.proficiency_level,
+            category: r.category ?? 'domain',
+          }));
 
-        const ssgMatches: Record<string, { skill_title: string; skill_code: string | null; sector: string | null }[]> = {};
-        for (const r of existing) {
-          if (r.ssg_matched) {
-            ssgMatches[r.skill_title] = [{ skill_title: r.skill_title, skill_code: r.skill_code, sector: r.ssg_sector }];
+          const ssgMatches: Record<string, { skill_title: string; skill_code: string | null; sector: string | null }[]> = {};
+          for (const r of existing) {
+            if (r.ssg_matched) {
+              ssgMatches[r.skill_title] = [{ skill_title: r.skill_title, skill_code: r.skill_code, sector: r.ssg_sector }];
+            }
           }
-        }
 
-        return Response.json({ data: { competencies, ssgMatches, saved: competencies.length, cached: true }, error: null });
+          return Response.json({ data: { competencies, ssgMatches, saved: competencies.length, cached: true }, error: null });
+        }
       }
     }
 
