@@ -57,7 +57,7 @@ export async function PATCH(request: Request) {
     }
 
     if (body.clear_resume) {
-      await sql`UPDATE users SET resume_filename = NULL, resume_uploaded_at = NULL WHERE id = ${session.userId}`;
+      await sql`UPDATE users SET resume_filename = NULL, resume_uploaded_at = NULL, resume_content_hash = NULL WHERE id = ${session.userId}`;
     }
 
     return Response.json({ data: { success: true }, error: null });
